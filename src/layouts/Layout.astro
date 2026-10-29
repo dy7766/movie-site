@@ -41,20 +41,32 @@ const {
 
         <!-- 导航菜单 -->
         <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
-          <a href="/" class="hover:text-orange-400 transition-colors">全部资源</a>
-          <a href="/?cat=电影" class="hover:text-orange-400 transition-colors">电影</a>
-          <a href="/?cat=电视剧" class="hover:text-orange-400 transition-colors">电视剧</a>
-          <a href="/?cat=动漫" class="hover:text-orange-400 transition-colors">动漫</a>
-          <a href="/?cat=纪录片" class="hover:text-orange-400 transition-colors">纪录片</a>
+          <a href="/" class="hover:text-orange-400 transition-colors">全部精选</a>
+          <a href="/explore" class="text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-1.5 font-semibold">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <span>片库检索</span>
+          </a>
+          <a href="/explore?cat=电影" class="hover:text-orange-400 transition-colors">电影</a>
+          <a href="/explore?cat=电视剧" class="hover:text-orange-400 transition-colors">电视剧</a>
+          <a href="/explore?cat=动漫" class="hover:text-orange-400 transition-colors">动漫</a>
+          <a href="/explore?cat=纪录片" class="hover:text-orange-400 transition-colors">纪录片</a>
         </nav>
 
-        <!-- 搜索与帮助 -->
-        <div class="flex items-center gap-3">
-          <a href="#search-section" class="px-3.5 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-xs font-medium text-slate-300 transition-all flex items-center gap-1.5">
+        <!-- 检索与搜索入口 -->
+        <div class="flex items-center gap-2.5">
+          <a href="/explore" class="px-3 py-1.5 rounded-lg bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 text-xs font-semibold text-orange-400 transition-all flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <span>高级筛选</span>
+          </a>
+          <a href="/#search-section" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-xs font-medium text-slate-300 transition-all flex items-center gap-1.5">
             <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <span>搜索片源</span>
+            <span class="hidden sm:inline">搜索片源</span>
           </a>
         </div>
       </div>

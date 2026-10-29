@@ -1,0 +1,387 @@
+---
+import Layout from '../layouts/Layout.astro';
+import { getMovies } from '../lib/db.js';
+
+// 获取所有影视资源供客户端秒级多维检索
+const movies = await getMovies({ limit: 500 });
+
+// 提取所有流派与标签
+const categories = ['全部', '电影', '电视剧', '动漫', '纪录片'];
+const genres = ['全部', '剧情', '科幻', '动作', '犯罪', '悬疑', '喜剧', '爱情', '动画', '冒险', '奇幻', '惊悚', '战争'];
+const years = ['全部', '2026', '2025', '2024', '2020-2023', '2010年代', '2000年代', '更早'];
+const scores = ['全部', '9.0分以上', '8.0分以上', '7.0分以上'];
+const sorts = [
+  { label: '默认排序', value: 'default' },
+  { label: '评分最高 ↓', value: 'score_desc' },
+  { label: '年份最新 ↓', value: 'year_desc' },
+];
+
+const pageTitle = "多维片库检索 - 影视大全与精准筛选 | 星光影库";
+const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/TMDB评分多维精准检索海量4K电影、电视剧与动漫，快速发现想看的高清影视好片。";
+---
+
+<Layout title={pageTitle} description={pageDesc}>
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+    <!-- 头部标题与说明 -->
+    <div class="mb-8">
+      <div class="flex items-center gap-2.5 text-xs text-orange-400 font-semibold tracking-wide uppercase mb-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+        </svg>
+        <span>多维分类片库 · 探索中心</span>
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+        精准检索与片单漫游
+      </h1>
+      <p class="text-xs sm:text-sm text-slate-400 mt-1.5">
+        交叉筛选频道、流派、年份与高分好片，找到心仪影视一键高速转存至网盘原画播放
+      </p>
+    </div>
+
+    <!-- 多维胶囊筛选控制器 -->
+    <div class="bg-slate-900/60 rounded-3xl p-5 sm:p-7 border border-slate-800/80 backdrop-blur-xl shadow-xl space-y-4 mb-8">
+      <!-- 维度1：频道 -->
+      <div class="flex items-start sm:items-center gap-3 text-xs flex-col sm:flex-row">
+        <span class="text-slate-400 font-medium whitespace-nowrap min-w-[56px] pt-1 sm:pt-0">频道分类：</span>
+        <div class="flex flex-wrap gap-2 filter-group" data-filter="cat">
+          {categories.map((c) => (
+            <button 
+              type="button"
+              class={`filter-btn px-3 py-1 rounded-lg text-xs font-medium transition-all ${c === '全部' ? 'bg-orange-500 text-white font-semibold shadow-md shadow-orange-500/20' : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300'}`}
+              data-val={c}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <!-- 维度2：题材流派 -->
+      <div class="flex items-start sm:items-center gap-3 text-xs flex-col sm:flex-row pt-2 border-t border-slate-800/60">
+        <span class="text-slate-400 font-medium whitespace-nowrap min-w-[56px] pt-1 sm:pt-0">题材流派：</span>
+        <div class="flex flex-wrap gap-2 filter-group" data-filter="genre">
+          {genres.map((g) => (
+            <button 
+              type="button"
+              class={`filter-btn px-3 py-1 rounded-lg text-xs font-medium transition-all ${g === '全部' ? 'bg-orange-500 text-white font-semibold shadow-md shadow-orange-500/20' : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300'}`}
+              data-val={g}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <!-- 维度3：年代范围 -->
+      <div class="flex items-start sm:items-center gap-3 text-xs flex-col sm:flex-row pt-2 border-t border-slate-800/60">
+        <span class="text-slate-400 font-medium whitespace-nowrap min-w-[56px] pt-1 sm:pt-0">上映年份：</span>
+        <div class="flex flex-wrap gap-2 filter-group" data-filter="year">
+          {years.map((y) => (
+            <button 
+              type="button"
+              class={`filter-btn px-3 py-1 rounded-lg text-xs font-medium transition-all ${y === '全部' ? 'bg-orange-500 text-white font-semibold shadow-md shadow-orange-500/20' : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300'}`}
+              data-val={y}
+            >
+              {y}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <!-- 维度4：评分范围 -->
+      <div class="flex items-start sm:items-center gap-3 text-xs flex-col sm:flex-row pt-2 border-t border-slate-800/60">
+        <span class="text-slate-400 font-medium whitespace-nowrap min-w-[56px] pt-1 sm:pt-0">最低评分：</span>
+        <div class="flex flex-wrap gap-2 filter-group" data-filter="score">
+          {scores.map((s) => (
+            <button 
+              type="button"
+              class={`filter-btn px-3 py-1 rounded-lg text-xs font-medium transition-all ${s === '全部' ? 'bg-orange-500 text-white font-semibold shadow-md shadow-orange-500/20' : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300'}`}
+              data-val={s}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <!-- 维度5：排序 -->
+      <div class="flex items-start sm:items-center gap-3 text-xs flex-col sm:flex-row pt-2 border-t border-slate-800/60">
+        <span class="text-slate-400 font-medium whitespace-nowrap min-w-[56px] pt-1 sm:pt-0">排序方式：</span>
+        <div class="flex flex-wrap gap-2 filter-group" data-filter="sort">
+          {sorts.map((st) => (
+            <button 
+              type="button"
+              class={`filter-btn px-3 py-1 rounded-lg text-xs font-medium transition-all ${st.value === 'default' ? 'bg-orange-500 text-white font-semibold shadow-md shadow-orange-500/20' : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300'}`}
+              data-val={st.value}
+            >
+              {st.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <!-- 检索状态栏与重置 -->
+    <div class="flex items-center justify-between flex-wrap gap-4 mb-6 px-1">
+      <div class="flex items-center gap-3 text-xs text-slate-400">
+        <span>已检索到 <strong id="filterResultCount" class="text-orange-400 font-bold text-sm">{movies.length}</strong> 部符合条件的佳作</span>
+        <span id="activeFiltersDisplay" class="hidden sm:inline-flex items-center gap-1.5"></span>
+      </div>
+
+      <button 
+        id="resetFilterBtn" 
+        type="button"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium transition-all border border-slate-700/60"
+      >
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span>重置全部筛选</span>
+      </button>
+    </div>
+
+    <!-- 影视卡片网格容器 -->
+    <div id="exploreMovieGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
+      {movies.map((m) => (
+        <article 
+          class="movie-card group bg-slate-900/60 rounded-2xl overflow-hidden border border-slate-800/80 hover:border-orange-500/40 hover:shadow-xl hover:shadow-orange-500/5 transition-all flex flex-col"
+          data-id={m.id}
+          data-title={m.title}
+          data-category={m.category || '电影'}
+          data-tags={JSON.stringify(m.tags || [])}
+          data-year={m.year || 0}
+          data-score={m.score ? Number(m.score) : 0}
+        >
+          <!-- 封面海报容器 -->
+          <a href={`/movie/${m.id}`} class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800 block">
+            <img 
+              src={m.poster_url || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=400&auto=format&fit=crop'} 
+              alt={m.title}
+              class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+              loading="lazy"
+            />
+            <!-- 评分角标 -->
+            {m.score && (
+              <div class="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-md border border-white/10 text-amber-400 text-xs font-bold flex items-center gap-1 shadow">
+                ★ {Number(m.score).toFixed(1)}
+              </div>
+            )}
+            <!-- 分类角标 -->
+            <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-orange-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide uppercase shadow">
+              {m.category || '电影'}
+            </div>
+          </a>
+
+          <!-- 卡片信息 -->
+          <div class="p-3.5 flex flex-col flex-grow justify-between space-y-2">
+            <div>
+              <a href={`/movie/${m.id}`} class="block">
+                <h3 class="text-sm font-bold text-white group-hover:text-orange-400 transition-colors line-clamp-1">
+                  {m.title}
+                </h3>
+              </a>
+              <p class="text-xs text-slate-400 line-clamp-1 mt-0.5">
+                {m.year ? `${m.year} · ` : ''}{m.actors || '暂无主演信息'}
+              </p>
+            </div>
+
+            <!-- 标签展示 -->
+            {m.tags && m.tags.length > 0 && (
+              <div class="flex items-center gap-1 flex-wrap pt-0.5">
+                {m.tags.slice(0, 2).map((t: string) => (
+                  <span class="text-[10px] text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/50">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <!-- 转存按钮 -->
+            <a 
+              href={m.share_link} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              class="w-full py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500 text-orange-400 hover:text-white border border-orange-500/30 hover:border-orange-500 text-xs font-semibold text-center transition-all flex items-center justify-center gap-1.5 shadow-sm"
+            >
+              <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+              </svg>
+              <span>立即转存</span>
+            </a>
+          </div>
+        </article>
+      ))}
+    </div>
+
+    <!-- 空结果提示 -->
+    <div id="emptyResultNotice" class="hidden text-center py-20 bg-slate-900/30 rounded-3xl border border-slate-800/60 p-8 my-8">
+      <div class="w-16 h-16 rounded-full bg-slate-800/80 text-slate-400 mx-auto flex items-center justify-center mb-4">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </div>
+      <h3 class="text-base font-bold text-slate-200">未找到符合该组合条件的影视资源</h3>
+      <p class="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+        当前筛选条件较为严苛，建议尝试放宽题材流派或年份限制，发现更多精彩影视。
+      </p>
+      <button 
+        type="button" 
+        id="emptyResetBtn"
+        class="mt-4 px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-500/20 transition-all"
+      >
+        恢复默认筛选
+      </button>
+    </div>
+  </div>
+
+  <script is:inline>
+    // 客户端多维精准检索核心引擎
+    document.addEventListener('DOMContentLoaded', () => {
+      const state = {
+        cat: '全部',
+        genre: '全部',
+        year: '全部',
+        score: '全部',
+        sort: 'default'
+      };
+
+      const filterGroups = document.querySelectorAll('.filter-group');
+      const movieCards = Array.from(document.querySelectorAll('#exploreMovieGrid .movie-card'));
+      const gridContainer = document.getElementById('exploreMovieGrid');
+      const countEl = document.getElementById('filterResultCount');
+      const emptyEl = document.getElementById('emptyResultNotice');
+      const resetBtn = document.getElementById('resetFilterBtn');
+      const emptyResetBtn = document.getElementById('emptyResetBtn');
+
+      // 从 URL 获取初始参数
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('cat')) state.cat = params.get('cat');
+      if (params.get('genre')) state.genre = params.get('genre');
+      if (params.get('year')) state.year = params.get('year');
+      if (params.get('score')) state.score = params.get('score');
+      if (params.get('sort')) state.sort = params.get('sort');
+
+      // 渲染按钮高亮
+      function updateButtonUI() {
+        filterGroups.forEach((group) => {
+          const filterType = group.dataset.filter;
+          const currentVal = state[filterType];
+          const buttons = group.querySelectorAll('.filter-btn');
+
+          buttons.forEach((btn) => {
+            const val = btn.dataset.val;
+            if (val === currentVal) {
+              btn.className = 'filter-btn px-3 py-1 rounded-lg text-xs font-semibold bg-orange-500 text-white shadow-md shadow-orange-500/20 transition-all';
+            } else {
+              btn.className = 'filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 transition-all';
+            }
+          });
+        });
+      }
+
+      // 执行多维交叉过滤与排序
+      function applyFilter() {
+        updateButtonUI();
+
+        // 1. 同步到浏览器 URL，支持无刷新分享与收藏
+        const newParams = new URLSearchParams();
+        if (state.cat !== '全部') newParams.set('cat', state.cat);
+        if (state.genre !== '全部') newParams.set('genre', state.genre);
+        if (state.year !== '全部') newParams.set('year', state.year);
+        if (state.score !== '全部') newParams.set('score', state.score);
+        if (state.sort !== 'default') newParams.set('sort', state.sort);
+
+        const newUrl = window.location.pathname + (newParams.toString() ? '?' + newParams.toString() : '');
+        window.history.replaceState({}, '', newUrl);
+
+        // 2. 内存流水线过滤
+        const matched = [];
+
+        movieCards.forEach((card) => {
+          const cat = card.dataset.category || '';
+          const tags = JSON.parse(card.dataset.tags || '[]');
+          const year = parseInt(card.dataset.year) || 0;
+          const score = parseFloat(card.dataset.score) || 0;
+
+          // 频道校验
+          if (state.cat !== '全部' && cat !== state.cat) return;
+
+          // 题材流派校验
+          if (state.genre !== '全部') {
+            const hasGenre = tags.some((t) => t.includes(state.genre) || state.genre.includes(t));
+            if (!hasGenre) return;
+          }
+
+          // 年代校验
+          if (state.year === '2026' && year !== 2026) return;
+          if (state.year === '2025' && year !== 2025) return;
+          if (state.year === '2024' && year !== 2024) return;
+          if (state.year === '2020-2023' && (year < 2020 || year > 2023)) return;
+          if (state.year === '2010年代' && (year < 2010 || year > 2019)) return;
+          if (state.year === '2000年代' && (year < 2000 || year > 2009)) return;
+          if (state.year === '更早' && (year >= 2000 || year === 0)) return;
+
+          // 评分校验
+          if (state.score === '9.0分以上' && score < 9.0) return;
+          if (state.score === '8.0分以上' && score < 8.0) return;
+          if (state.score === '7.0分以上' && score < 7.0) return;
+
+          matched.push(card);
+        });
+
+        // 3. 排序
+        if (state.sort === 'score_desc') {
+          matched.sort((a, b) => parseFloat(b.dataset.score) - parseFloat(a.dataset.score));
+        } else if (state.sort === 'year_desc') {
+          matched.sort((a, b) => parseInt(b.dataset.year) - parseInt(a.dataset.year));
+        }
+
+        // 4. 更新 DOM 渲染
+        movieCards.forEach((c) => (c.style.display = 'none'));
+        matched.forEach((c) => {
+          c.style.display = 'flex';
+          gridContainer.appendChild(c); // 按排序顺序追加
+        });
+
+        // 5. 更新计数与空状态
+        if (countEl) countEl.textContent = matched.length;
+
+        if (matched.length === 0) {
+          emptyEl.classList.remove('hidden');
+          gridContainer.classList.add('hidden');
+        } else {
+          emptyEl.classList.add('hidden');
+          gridContainer.classList.remove('hidden');
+        }
+      }
+
+      // 绑定按钮点击事件
+      filterGroups.forEach((group) => {
+        const filterType = group.dataset.filter;
+        group.addEventListener('click', (e) => {
+          const btn = e.target.closest('.filter-btn');
+          if (!btn) return;
+          const val = btn.dataset.val;
+          state[filterType] = val;
+          applyFilter();
+        });
+      });
+
+      // 重置事件
+      function doReset() {
+        state.cat = '全部';
+        state.genre = '全部';
+        state.year = '全部';
+        state.score = '全部';
+        state.sort = 'default';
+        applyFilter();
+      }
+
+      if (resetBtn) resetBtn.addEventListener('click', doReset);
+      if (emptyResetBtn) emptyResetBtn.addEventListener('click', doReset);
+
+      // 初次加载应用
+      applyFilter();
+    });
+  </script>
+</Layout>
