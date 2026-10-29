@@ -1,0 +1,9 @@
+# 影视批量导入清单模版
+# 格式：片名,转存链接,[可选分类:电影/电视剧/动漫/纪录片],[可选网盘类型:quark/xunlei]
+# 注意：以 # 开头的行会被自动忽略
+
+沙丘2,https://pan.quark.cn/s/sample_dune2,电影,quark
+周处除三害,https://pan.quark.cn/s/sample_zhouchu,电影,quark
+热辣滚烫,https://pan.quark.cn/s/sample_rela,电影,quark
+我的阿勒泰,https://pan.quark.cn/s/sample_aletai,电视剧,quark
+庆余年 第二季,https://pan.quark.cn/s/sample_qingyunian2,电视剧,quark
