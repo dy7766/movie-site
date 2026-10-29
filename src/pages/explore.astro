@@ -8,6 +8,7 @@ const movies = await getMovies({ limit: 500 });
 // 提取所有流派与标签
 const categories = ['全部', '电影', '电视剧', '动漫', '纪录片'];
 const genres = ['全部', '剧情', '科幻', '动作', '犯罪', '悬疑', '喜剧', '爱情', '动画', '冒险', '奇幻', '惊悚', '战争'];
+const countries = ['全部', '中国大陆', '中国香港', '美国', '日本', '韩国', '英国', '法国', '其他'];
 const years = ['全部', '2026', '2025', '2024', '2020-2023', '2010年代', '2000年代', '更早'];
 const scores = ['全部', '9.0分以上', '8.0分以上', '7.0分以上'];
 const sorts = [
@@ -72,7 +73,23 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
         </div>
       </div>
 
-      <!-- 维度3：年代范围 -->
+      <!-- 维度3：制片地区 -->
+      <div class="flex items-start sm:items-center gap-3 text-xs flex-col sm:flex-row pt-2 border-t border-slate-800/60">
+        <span class="text-slate-400 font-medium whitespace-nowrap min-w-[56px] pt-1 sm:pt-0">制片地区：</span>
+        <div class="flex flex-wrap gap-2 filter-group" data-filter="country">
+          {countries.map((c) => (
+            <button 
+              type="button"
+              class={`filter-btn px-3 py-1 rounded-lg text-xs font-medium transition-all ${c === '全部' ? 'bg-orange-500 text-white font-semibold shadow-md shadow-orange-500/20' : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300'}`}
+              data-val={c}
+            >
+              {c}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <!-- 维度4：年代范围 -->
       <div class="flex items-start sm:items-center gap-3 text-xs flex-col sm:flex-row pt-2 border-t border-slate-800/60">
         <span class="text-slate-400 font-medium whitespace-nowrap min-w-[56px] pt-1 sm:pt-0">上映年份：</span>
         <div class="flex flex-wrap gap-2 filter-group" data-filter="year">
@@ -88,7 +105,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
         </div>
       </div>
 
-      <!-- 维度4：评分范围 -->
+      <!-- 维度5：评分范围 -->
       <div class="flex items-start sm:items-center gap-3 text-xs flex-col sm:flex-row pt-2 border-t border-slate-800/60">
         <span class="text-slate-400 font-medium whitespace-nowrap min-w-[56px] pt-1 sm:pt-0">最低评分：</span>
         <div class="flex flex-wrap gap-2 filter-group" data-filter="score">
@@ -104,7 +121,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
         </div>
       </div>
 
-      <!-- 维度5：排序 -->
+      <!-- 维度6：排序 -->
       <div class="flex items-start sm:items-center gap-3 text-xs flex-col sm:flex-row pt-2 border-t border-slate-800/60">
         <span class="text-slate-400 font-medium whitespace-nowrap min-w-[56px] pt-1 sm:pt-0">排序方式：</span>
         <div class="flex flex-wrap gap-2 filter-group" data-filter="sort">
@@ -148,6 +165,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
           data-id={m.id}
           data-title={m.title}
           data-category={m.category || '电影'}
+          data-country={m.country || '其他'}
           data-tags={JSON.stringify(m.tags || [])}
           data-year={m.year || 0}
           data-score={m.score ? Number(m.score) : 0}
@@ -181,7 +199,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
                 </h3>
               </a>
               <p class="text-xs text-slate-400 line-clamp-1 mt-0.5">
-                {m.year ? `${m.year} · ` : ''}{m.actors || '暂无主演信息'}
+                {m.year ? `${m.year} · ` : ''}{m.country ? `${m.country} · ` : ''}{m.actors || '暂无主演信息'}
               </p>
             </div>
 
@@ -251,6 +269,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
       const state = {
         cat: '全部',
         genre: '全部',
+        country: '全部',
         year: '全部',
         score: '全部',
         sort: 'default',
@@ -277,6 +296,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
       const params = new URLSearchParams(window.location.search);
       if (params.get('cat')) state.cat = params.get('cat');
       if (params.get('genre')) state.genre = params.get('genre');
+      if (params.get('country')) state.country = params.get('country');
       if (params.get('year')) state.year = params.get('year');
       if (params.get('score')) state.score = params.get('score');
       if (params.get('sort')) state.sort = params.get('sort');
@@ -406,6 +426,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
         const newParams = new URLSearchParams();
         if (state.cat !== '全部') newParams.set('cat', state.cat);
         if (state.genre !== '全部') newParams.set('genre', state.genre);
+        if (state.country !== '全部') newParams.set('country', state.country);
         if (state.year !== '全部') newParams.set('year', state.year);
         if (state.score !== '全部') newParams.set('score', state.score);
         if (state.sort !== 'default') newParams.set('sort', state.sort);
@@ -442,6 +463,12 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
           if (state.genre !== '全部') {
             const hasGenre = tags.some((t) => t.includes(state.genre) || state.genre.includes(t));
             if (!hasGenre) return;
+          }
+
+          // 制片地区校验
+          if (state.country !== '全部') {
+            const country = card.dataset.country || '其他';
+            if (country !== state.country) return;
           }
 
           // 年代校验
@@ -500,6 +527,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
       function doReset() {
         state.cat = '全部';
         state.genre = '全部';
+        state.country = '全部';
         state.year = '全部';
         state.score = '全部';
         state.sort = 'default';

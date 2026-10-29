@@ -74,13 +74,28 @@ async function searchAndAddMovie({ query, shareLink, customCategory = null, driv
   const directors = (detail.credits?.crew || []).filter(c => c.job === 'Director').map(d => d.name).join(' / ');
   const actors = directors ? `导演: ${directors} | 主演: ${cast}` : cast || '暂无主演信息';
 
-  console.log(`🎬 匹配成功: 《${title}》 (${year}) [${category}] - 评分: ${score}`);
+  // 国别地区识别
+  let code = '';
+  if (detail.production_countries && detail.production_countries.length > 0) {
+    code = detail.production_countries[0].iso_3166_1;
+  } else if (detail.origin_country && detail.origin_country.length > 0) {
+    code = detail.origin_country[0];
+  }
+  const countryMap = {
+    'CN': '中国大陆', 'HK': '中国香港', 'TW': '中国台湾',
+    'US': '美国', 'JP': '日本', 'KR': '韩国',
+    'GB': '英国', 'FR': '法国', 'IT': '意大利', 'DE': '德国',
+    'IN': '印度', 'TH': '泰国', 'CA': '加拿大', 'AU': '澳大利亚'
+  };
+  const country = countryMap[code] || (detail.original_language === 'zh' ? '中国大陆' : '其他');
+
+  console.log(`🎬 匹配成功: 《${title}》 (${year}) [${category} / ${country}] - 评分: ${score}`);
 
   // 3. 写入 Supabase 数据库
   const insertSql = `
     INSERT INTO resources (
-      title, original_title, poster_url, category, tags, year, score, actors, intro, drive_type, share_link
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      title, original_title, poster_url, category, tags, year, score, actors, intro, drive_type, share_link, country
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     RETURNING id;
   `;
 
@@ -95,7 +110,8 @@ async function searchAndAddMovie({ query, shareLink, customCategory = null, driv
     actors,
     intro,
     driveType,
-    shareLink
+    shareLink,
+    country
   ];
 
   const client = await pool.connect();
