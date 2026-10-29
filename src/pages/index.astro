@@ -91,8 +91,8 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
           data-actors={m.actors || ''}
           data-category={m.category || '电影'}
         >
-          <!-- 封面海报容器 -->
-          <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800">
+          <!-- 封面海报容器 (点击进入详情页) -->
+          <a href={`/movie/${m.id}`} class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800 block">
             <img 
               src={m.poster_url || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=400&auto=format&fit=crop'} 
               alt={m.title}
@@ -109,14 +109,16 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
             <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-orange-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide uppercase shadow">
               {m.drive_type === 'quark' ? '夸克秒传' : '迅雷原画'}
             </div>
-          </div>
+          </a>
 
           <!-- 卡片信息 -->
           <div class="p-3.5 flex flex-col flex-grow justify-between space-y-2">
             <div>
-              <h3 class="text-sm font-bold text-white group-hover:text-orange-400 transition-colors line-clamp-1">
-                {m.title}
-              </h3>
+              <a href={`/movie/${m.id}`} class="block">
+                <h3 class="text-sm font-bold text-white group-hover:text-orange-400 transition-colors line-clamp-1">
+                  {m.title}
+                </h3>
+              </a>
               <p class="text-xs text-slate-400 line-clamp-1 mt-0.5">
                 {m.year ? `${m.year} · ` : ''}{m.actors || '暂无主演信息'}
               </p>

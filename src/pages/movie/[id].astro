@@ -1,0 +1,145 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getMovies } from '../../lib/db.js';
+
+export async function getStaticPaths() {
+  const movies = await getMovies({ limit: 500 });
+  return movies.map((movie) => ({
+    params: { id: movie.id },
+    props: { movie }
+  }));
+}
+
+const { movie } = Astro.props;
+
+const pageTitle = `《${movie.title}》${movie.year ? `(${movie.year})` : ''} 4K完整版高清资源 - 夸克/迅雷网盘在线转存下载`;
+const pageDesc = `免费提供《${movie.title}》高清4K原盘资源高速转存与在线播放。主演：${movie.actors || '精选演员'}。剧情简介：${movie.intro ? movie.intro.slice(0, 120) : '暂无简介'}...`;
+---
+
+<Layout title={pageTitle} description={pageDesc}>
+  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+    <!-- 面包屑导航 -->
+    <nav class="flex items-center gap-2 text-xs text-slate-400 mb-8">
+      <a href="/" class="hover:text-orange-400 transition-colors">首页</a>
+      <span>/</span>
+      <a href={`/?cat=${movie.category || '电影'}`} class="hover:text-orange-400 transition-colors">{movie.category || '电影'}</a>
+      <span>/</span>
+      <span class="text-slate-200 font-medium line-clamp-1">{movie.title}</span>
+    </nav>
+
+    <!-- 影视核心信息板块 -->
+    <div class="grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12 bg-slate-900/40 rounded-3xl p-6 sm:p-8 border border-slate-800/80 backdrop-blur-xl">
+      <!-- 左侧：高清海报 -->
+      <div class="md:col-span-4 lg:col-span-4 flex flex-col items-center">
+        <div class="relative w-full max-w-[280px] aspect-[2/3] rounded-2xl overflow-hidden shadow-2xl border border-slate-700/60 group">
+          <img 
+            src={movie.poster_url || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=600&auto=format&fit=crop'} 
+            alt={movie.title}
+            class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+          {movie.score && (
+            <div class="absolute top-3 right-3 px-2.5 py-1 rounded-lg bg-black/70 backdrop-blur-md border border-white/10 text-amber-400 text-sm font-extrabold shadow-lg">
+              ★ {Number(movie.score).toFixed(1)}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <!-- 右侧：影视详情与转存操作 -->
+      <div class="md:col-span-8 lg:col-span-8 flex flex-col justify-between space-y-6">
+        <div class="space-y-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <span class="px-3 py-1 rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/30 text-xs font-semibold">
+              {movie.category || '电影'}
+            </span>
+            {movie.year && (
+              <span class="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 text-xs font-medium">
+                {movie.year} 年上映
+              </span>
+            )}
+            <span class="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-medium">
+              4K 原盘 / 1080P 超清
+            </span>
+          </div>
+
+          <h1 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
+            {movie.title}
+          </h1>
+
+          {movie.original_title && movie.original_title !== movie.title && (
+            <p class="text-sm text-slate-400 font-mono">
+              原名：{movie.original_title}
+            </p>
+          )}
+
+          <!-- 标签分类 -->
+          {movie.tags && movie.tags.length > 0 && (
+            <div class="flex items-center gap-2 flex-wrap pt-1">
+              <span class="text-xs text-slate-500">类型标签：</span>
+              {movie.tags.map((tag: string) => (
+                <span class="px-2 py-0.5 rounded bg-slate-800/80 border border-slate-700/60 text-slate-300 text-[11px]">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+
+          <!-- 主演阵容 -->
+          <div class="pt-2 border-t border-slate-800/80">
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              <strong class="text-slate-400">演职阵容：</strong> {movie.actors || '暂无详细演职员信息'}
+            </p>
+          </div>
+
+          <!-- 剧情简介 -->
+          <div class="pt-2">
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">剧情简介</h3>
+            <p class="text-xs sm:text-sm text-slate-300 leading-relaxed bg-slate-950/40 p-4 rounded-xl border border-slate-800/60">
+              {movie.intro || '暂无详细剧情介绍。'}
+            </p>
+          </div>
+        </div>
+
+        <!-- 核心变现行动转化区 -->
+        <div class="pt-6 border-t border-slate-800/80 space-y-4">
+          <!-- 醒目转存大按钮 -->
+          <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+            <a 
+              href={movie.share_link} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              class="flex-1 py-4 px-6 rounded-2xl bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-sm sm:text-base text-center shadow-xl shadow-orange-500/25 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+            >
+              <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+              </svg>
+              <span>立即一键转存至夸克网盘（原画免流播放 / 高速下载）</span>
+            </a>
+          </div>
+
+          <!-- 新手转存指引与留存提示 -->
+          <div class="p-4 rounded-xl bg-orange-500/5 border border-orange-500/15 text-xs text-slate-400 space-y-1.5">
+            <div class="flex items-center gap-1.5 text-orange-400 font-semibold">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>观看与下载小提示</span>
+            </div>
+            <p>1. 点击上方按钮跳转至夸克网盘，点击【保存到我的网盘】；</p>
+            <p>2. 转存后手机端或电脑端打开夸克 App，即可在【网盘 - 最近转存】中享受<strong>原画无删减在线免广告播放</strong>，并支持电视投屏与极速下载。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部返回按钮 -->
+    <div class="mt-8 text-center">
+      <a href="/" class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs font-semibold text-slate-300 hover:text-white transition-all">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        <span>返回首页发现更多大片</span>
+      </a>
+    </div>
+  </div>
+</Layout>
