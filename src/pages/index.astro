@@ -4,7 +4,7 @@ import { getMovies } from '../lib/db.js';
 
 let movies = [];
 try {
-  movies = await getMovies({ limit: 60 });
+  movies = await getMovies({ limit: 300 });
 } catch (e) {
   console.error('Failed to fetch movies from db:', e);
 }

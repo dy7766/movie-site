@@ -26,7 +26,6 @@ function fetchJson(url) {
   }
 }
 
-// 延迟函数，避免请求过快触发风控
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function importSingleMovie(client, { query, shareLink, customCategory = null, driveType = 'quark' }) {
@@ -53,6 +52,14 @@ async function importSingleMovie(client, { query, shareLink, customCategory = nu
 
   const title = isMovie ? detail.title : detail.name;
   const original_title = isMovie ? detail.original_title : detail.original_name;
+
+  // 查重：如果已经录入过，避免重复入库
+  const checkRes = await client.query('SELECT id FROM resources WHERE title = $1 OR original_title = $2 LIMIT 1;', [title, original_title]);
+  if (checkRes.rows.length > 0) {
+    console.log(`  ⏩ [跳过重复] 《${title}》 已在数据库中存在`);
+    return true;
+  }
+
   const poster_url = detail.poster_path ? `https://image.tmdb.org/t/p/w500${detail.poster_path}` : null;
   const release_date = isMovie ? detail.release_date : detail.first_air_date;
   const year = release_date ? parseInt(release_date.split('-')[0]) : null;
@@ -71,7 +78,6 @@ async function importSingleMovie(client, { query, shareLink, customCategory = nu
   const directors = (detail.credits?.crew || []).filter(c => c.job === 'Director').map(d => d.name).join(' / ');
   const actors = directors ? `导演: ${directors} | 主演: ${cast}` : cast || '暂无主演信息';
 
-  // 3. 查重或直接写入
   const insertSql = `
     INSERT INTO resources (
       title, original_title, poster_url, category, tags, year, score, actors, intro, drive_type, share_link
@@ -94,7 +100,7 @@ async function importSingleMovie(client, { query, shareLink, customCategory = nu
   ];
 
   await client.query(insertSql, values);
-  console.log(`  ✅ [已入库] 《${title}》 (${year || '年份未知'}) [${category}] ★${score}`);
+  console.log(`  ✅ [已入库] 《${title}》 (${year || '未知'}) [${category}] ★${score}`);
   return true;
 }
 
@@ -119,7 +125,6 @@ async function runBatchImport(filePath) {
   try {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
-      // 支持逗号或制表符分隔
       const parts = line.includes('\t') ? line.split('\t') : line.split(',');
       const query = parts[0]?.trim();
       const shareLink = parts[1]?.trim();
@@ -127,7 +132,6 @@ async function runBatchImport(filePath) {
       const driveType = parts[3]?.trim() || 'quark';
 
       if (!query || !shareLink) {
-        console.log(`[${i + 1}/${lines.length}] ⚠️ 格式跳过（缺少片名或链接）: "${line}"`);
         failCount++;
         continue;
       }
@@ -142,14 +146,13 @@ async function runBatchImport(filePath) {
         failCount++;
       }
 
-      // 稍微缓冲 300ms
-      await sleep(300);
+      await sleep(200);
     }
 
     console.log(`\n========================================`);
     console.log(`🎉 批量导入完毕！`);
-    console.log(`✅ 成功录入: ${successCount} 部`);
-    console.log(`❌ 失败/跳过: ${failCount} 部`);
+    console.log(`✅ 成功录入/跳过存在: ${successCount} 部`);
+    console.log(`❌ 失败: ${failCount} 部`);
     console.log(`========================================\n`);
 
   } finally {
