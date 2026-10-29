@@ -213,6 +213,17 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
       ))}
     </div>
 
+    <!-- 分页导航控件 -->
+    <div id="explorePagination" class="mt-12 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-800/80 pt-6">
+      <div class="text-xs text-slate-400">
+        显示第 <span id="explorePageRangeText" class="text-slate-200 font-semibold">1-20</span> 部，共 <span id="exploreTotalItemsText" class="text-orange-400 font-bold">{movies.length}</span> 部检索结果
+      </div>
+
+      <div class="flex items-center gap-1.5 flex-wrap justify-center" id="explorePageBtnGroup">
+        <!-- 动态生成页码 -->
+      </div>
+    </div>
+
     <!-- 空结果提示 -->
     <div id="emptyResultNotice" class="hidden text-center py-20 bg-slate-900/30 rounded-3xl border border-slate-800/60 p-8 my-8">
       <div class="w-16 h-16 rounded-full bg-slate-800/80 text-slate-400 mx-auto flex items-center justify-center mb-4">
@@ -235,15 +246,19 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
   </div>
 
   <script is:inline>
-    // 客户端多维精准检索核心引擎
+    // 客户端多维精准检索与翻页核心引擎
     document.addEventListener('DOMContentLoaded', () => {
       const state = {
         cat: '全部',
         genre: '全部',
         year: '全部',
         score: '全部',
-        sort: 'default'
+        sort: 'default',
+        page: 1
       };
+
+      const PAGE_SIZE = 20;
+      let matchedMovies = [];
 
       const filterGroups = document.querySelectorAll('.filter-group');
       const movieCards = Array.from(document.querySelectorAll('#exploreMovieGrid .movie-card'));
@@ -253,6 +268,11 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
       const resetBtn = document.getElementById('resetFilterBtn');
       const emptyResetBtn = document.getElementById('emptyResetBtn');
 
+      const paginationBox = document.getElementById('explorePagination');
+      const pageBtnGroup = document.getElementById('explorePageBtnGroup');
+      const pageRangeText = document.getElementById('explorePageRangeText');
+      const totalItemsText = document.getElementById('exploreTotalItemsText');
+
       // 从 URL 获取初始参数
       const params = new URLSearchParams(window.location.search);
       if (params.get('cat')) state.cat = params.get('cat');
@@ -260,6 +280,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
       if (params.get('year')) state.year = params.get('year');
       if (params.get('score')) state.score = params.get('score');
       if (params.get('sort')) state.sort = params.get('sort');
+      if (params.get('page')) state.page = parseInt(params.get('page')) || 1;
 
       // 渲染按钮高亮
       function updateButtonUI() {
@@ -279,23 +300,134 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
         });
       }
 
-      // 执行多维交叉过滤与排序
-      function applyFilter() {
-        updateButtonUI();
+      // 渲染分页控件 UI
+      function renderPaginationUI(totalItems, page, onPageChange) {
+        const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
 
-        // 1. 同步到浏览器 URL，支持无刷新分享与收藏
+        if (totalItems <= PAGE_SIZE) {
+          if (paginationBox) paginationBox.classList.add('hidden');
+          return;
+        }
+        if (paginationBox) paginationBox.classList.remove('hidden');
+
+        const start = (page - 1) * PAGE_SIZE + 1;
+        const end = Math.min(page * PAGE_SIZE, totalItems);
+        if (pageRangeText) pageRangeText.textContent = `${start}-${end}`;
+        if (totalItemsText) totalItemsText.textContent = totalItems;
+
+        if (!pageBtnGroup) return;
+        pageBtnGroup.innerHTML = '';
+
+        // 上一页
+        const prevBtn = document.createElement('button');
+        prevBtn.type = 'button';
+        prevBtn.disabled = page === 1;
+        prevBtn.className = `px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+          page === 1 
+            ? 'opacity-30 cursor-not-allowed bg-slate-900 border-slate-800 text-slate-500' 
+            : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-white'
+        }`;
+        prevBtn.innerHTML = `上一页`;
+        prevBtn.onclick = () => onPageChange(page - 1);
+        pageBtnGroup.appendChild(prevBtn);
+
+        // 计算页码列表
+        let pages = [];
+        if (totalPages <= 7) {
+          for (let i = 1; i <= totalPages; i++) pages.push(i);
+        } else {
+          pages.push(1);
+          if (page > 3) pages.push('...');
+          const startP = Math.max(2, page - 1);
+          const endP = Math.min(totalPages - 1, page + 1);
+          for (let i = startP; i <= endP; i++) {
+            if (!pages.includes(i)) pages.push(i);
+          }
+          if (page < totalPages - 2) pages.push('...');
+          if (!pages.includes(totalPages)) pages.push(totalPages);
+        }
+
+        pages.forEach(p => {
+          if (p === '...') {
+            const dots = document.createElement('span');
+            dots.className = 'px-1.5 text-xs text-slate-500 font-mono';
+            dots.textContent = '...';
+            pageBtnGroup.appendChild(dots);
+          } else {
+            const pageBtn = document.createElement('button');
+            pageBtn.type = 'button';
+            const isActive = p === page;
+            pageBtn.className = `w-8 h-8 rounded-xl text-xs font-bold transition-all ${
+              isActive 
+                ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/25 border border-orange-400' 
+                : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
+            }`;
+            pageBtn.textContent = p;
+            pageBtn.onclick = () => onPageChange(p);
+            pageBtnGroup.appendChild(pageBtn);
+          }
+        });
+
+        // 下一页
+        const nextBtn = document.createElement('button');
+        nextBtn.type = 'button';
+        nextBtn.disabled = page === totalPages;
+        nextBtn.className = `px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+          page === totalPages 
+            ? 'opacity-30 cursor-not-allowed bg-slate-900 border-slate-800 text-slate-500' 
+            : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-white'
+        }`;
+        nextBtn.innerHTML = `下一页`;
+        nextBtn.onclick = () => onPageChange(page + 1);
+        pageBtnGroup.appendChild(nextBtn);
+      }
+
+      function displayPage(page, shouldScroll = false) {
+        state.page = page;
+        const startIdx = (state.page - 1) * PAGE_SIZE;
+        const endIdx = startIdx + PAGE_SIZE;
+
+        movieCards.forEach((c) => (c.style.display = 'none'));
+
+        matchedMovies.forEach((card, idx) => {
+          if (idx >= startIdx && idx < endIdx) {
+            card.style.display = 'flex';
+            gridContainer.appendChild(card);
+          } else {
+            card.style.display = 'none';
+          }
+        });
+
+        renderPaginationUI(matchedMovies.length, state.page, (newPage) => {
+          displayPage(newPage, true);
+        });
+
+        // 同步 URL 参数
         const newParams = new URLSearchParams();
         if (state.cat !== '全部') newParams.set('cat', state.cat);
         if (state.genre !== '全部') newParams.set('genre', state.genre);
         if (state.year !== '全部') newParams.set('year', state.year);
         if (state.score !== '全部') newParams.set('score', state.score);
         if (state.sort !== 'default') newParams.set('sort', state.sort);
+        if (state.page > 1) newParams.set('page', state.page);
 
         const newUrl = window.location.pathname + (newParams.toString() ? '?' + newParams.toString() : '');
         window.history.replaceState({}, '', newUrl);
 
-        // 2. 内存流水线过滤
-        const matched = [];
+        if (shouldScroll) {
+          const target = document.getElementById('exploreMovieGrid');
+          if (target) {
+            const top = target.getBoundingClientRect().top + window.pageYOffset - 100;
+            window.scrollTo({ top, behavior: 'smooth' });
+          }
+        }
+      }
+
+      // 执行多维交叉过滤与排序
+      function applyFilter(resetPage = true) {
+        updateButtonUI();
+
+        matchedMovies = [];
 
         movieCards.forEach((card) => {
           const cat = card.dataset.category || '';
@@ -326,33 +458,30 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
           if (state.score === '8.0分以上' && score < 8.0) return;
           if (state.score === '7.0分以上' && score < 7.0) return;
 
-          matched.push(card);
+          matchedMovies.push(card);
         });
 
-        // 3. 排序
+        // 排序
         if (state.sort === 'score_desc') {
-          matched.sort((a, b) => parseFloat(b.dataset.score) - parseFloat(a.dataset.score));
+          matchedMovies.sort((a, b) => parseFloat(b.dataset.score) - parseFloat(a.dataset.score));
         } else if (state.sort === 'year_desc') {
-          matched.sort((a, b) => parseInt(b.dataset.year) - parseInt(a.dataset.year));
+          matchedMovies.sort((a, b) => parseInt(b.dataset.year) - parseInt(a.dataset.year));
         }
 
-        // 4. 更新 DOM 渲染
-        movieCards.forEach((c) => (c.style.display = 'none'));
-        matched.forEach((c) => {
-          c.style.display = 'flex';
-          gridContainer.appendChild(c); // 按排序顺序追加
-        });
+        // 更新计数与空状态
+        if (countEl) countEl.textContent = matchedMovies.length;
 
-        // 5. 更新计数与空状态
-        if (countEl) countEl.textContent = matched.length;
-
-        if (matched.length === 0) {
+        if (matchedMovies.length === 0) {
           emptyEl.classList.remove('hidden');
           gridContainer.classList.add('hidden');
+          if (paginationBox) paginationBox.classList.add('hidden');
         } else {
           emptyEl.classList.add('hidden');
           gridContainer.classList.remove('hidden');
         }
+
+        if (resetPage) state.page = 1;
+        displayPage(state.page, false);
       }
 
       // 绑定按钮点击事件
@@ -363,7 +492,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
           if (!btn) return;
           const val = btn.dataset.val;
           state[filterType] = val;
-          applyFilter();
+          applyFilter(true);
         });
       });
 
@@ -374,14 +503,15 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
         state.year = '全部';
         state.score = '全部';
         state.sort = 'default';
-        applyFilter();
+        state.page = 1;
+        applyFilter(true);
       }
 
       if (resetBtn) resetBtn.addEventListener('click', doReset);
       if (emptyResetBtn) emptyResetBtn.addEventListener('click', doReset);
 
       // 初次加载应用
-      applyFilter();
+      applyFilter(false);
     });
   </script>
 </Layout>

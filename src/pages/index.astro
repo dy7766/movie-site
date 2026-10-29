@@ -141,6 +141,17 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
       ))}
     </div>
 
+    <!-- 分页导航控件 -->
+    <div id="homePagination" class="mt-12 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-slate-800/80 pt-6">
+      <div class="text-xs text-slate-400">
+        显示第 <span id="homePageRangeText" class="text-slate-200 font-semibold">1-20</span> 部，共 <span id="homeTotalItemsText" class="text-orange-400 font-bold">{movies.length}</span> 部资源
+      </div>
+
+      <div class="flex items-center gap-1.5 flex-wrap justify-center" id="homePageBtnGroup">
+        <!-- 动态生成页码 -->
+      </div>
+    </div>
+
     <!-- 空状态提示 -->
     <div id="emptyState" class={`text-center py-20 ${movies.length === 0 ? '' : 'hidden'}`}>
       <div class="w-16 h-16 mx-auto rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-600 mb-4">
@@ -153,20 +164,138 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
     </div>
   </section>
 
-  <!-- 前端交互逻辑（搜索与分类筛选） -->
+  <!-- 前端交互逻辑（搜索、分类筛选与翻页） -->
   <script is:inline>
     const searchInput = document.getElementById('searchInput');
     const searchBtn = document.getElementById('searchBtn');
     const categoryTabs = document.querySelectorAll('.category-tab');
-    const cards = document.querySelectorAll('.movie-card');
+    const cards = Array.from(document.querySelectorAll('.movie-card'));
     const emptyState = document.getElementById('emptyState');
     const movieCount = document.getElementById('movieCount');
 
+    const paginationBox = document.getElementById('homePagination');
+    const pageBtnGroup = document.getElementById('homePageBtnGroup');
+    const pageRangeText = document.getElementById('homePageRangeText');
+    const totalItemsText = document.getElementById('homeTotalItemsText');
+
+    const PAGE_SIZE = 20;
+    let currentPage = 1;
     let currentCategory = '全部';
     let currentKeyword = '';
+    let currentMatchedCards = [];
 
-    function filterCards() {
-      let visibleCount = 0;
+    function renderPaginationUI(totalItems, page, onPageChange) {
+      const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
+
+      if (totalItems <= PAGE_SIZE) {
+        if (paginationBox) paginationBox.classList.add('hidden');
+        return;
+      }
+      if (paginationBox) paginationBox.classList.remove('hidden');
+
+      const start = (page - 1) * PAGE_SIZE + 1;
+      const end = Math.min(page * PAGE_SIZE, totalItems);
+      if (pageRangeText) pageRangeText.textContent = `${start}-${end}`;
+      if (totalItemsText) totalItemsText.textContent = totalItems;
+
+      if (!pageBtnGroup) return;
+      pageBtnGroup.innerHTML = '';
+
+      // 上一页
+      const prevBtn = document.createElement('button');
+      prevBtn.type = 'button';
+      prevBtn.disabled = page === 1;
+      prevBtn.className = `px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+        page === 1 
+          ? 'opacity-30 cursor-not-allowed bg-slate-900 border-slate-800 text-slate-500' 
+          : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-white'
+      }`;
+      prevBtn.innerHTML = `上一页`;
+      prevBtn.onclick = () => onPageChange(page - 1);
+      pageBtnGroup.appendChild(prevBtn);
+
+      // 计算页码列表
+      let pages = [];
+      if (totalPages <= 7) {
+        for (let i = 1; i <= totalPages; i++) pages.push(i);
+      } else {
+        pages.push(1);
+        if (page > 3) pages.push('...');
+        const startP = Math.max(2, page - 1);
+        const endP = Math.min(totalPages - 1, page + 1);
+        for (let i = startP; i <= endP; i++) {
+          if (!pages.includes(i)) pages.push(i);
+        }
+        if (page < totalPages - 2) pages.push('...');
+        if (!pages.includes(totalPages)) pages.push(totalPages);
+      }
+
+      pages.forEach(p => {
+        if (p === '...') {
+          const dots = document.createElement('span');
+          dots.className = 'px-1.5 text-xs text-slate-500 font-mono';
+          dots.textContent = '...';
+          pageBtnGroup.appendChild(dots);
+        } else {
+          const pageBtn = document.createElement('button');
+          pageBtn.type = 'button';
+          const isActive = p === page;
+          pageBtn.className = `w-8 h-8 rounded-xl text-xs font-bold transition-all ${
+            isActive 
+              ? 'bg-orange-500 text-white shadow-lg shadow-orange-500/25 border border-orange-400' 
+              : 'bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800'
+          }`;
+          pageBtn.textContent = p;
+          pageBtn.onclick = () => onPageChange(p);
+          pageBtnGroup.appendChild(pageBtn);
+        }
+      });
+
+      // 下一页
+      const nextBtn = document.createElement('button');
+      nextBtn.type = 'button';
+      nextBtn.disabled = page === totalPages;
+      nextBtn.className = `px-3 py-1.5 rounded-xl text-xs font-semibold border transition-all ${
+        page === totalPages 
+          ? 'opacity-30 cursor-not-allowed bg-slate-900 border-slate-800 text-slate-500' 
+          : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300 hover:text-white'
+      }`;
+      nextBtn.innerHTML = `下一页`;
+      nextBtn.onclick = () => onPageChange(page + 1);
+      pageBtnGroup.appendChild(nextBtn);
+    }
+
+    function displayPage(page, shouldScroll = false) {
+      currentPage = page;
+      const startIdx = (currentPage - 1) * PAGE_SIZE;
+      const endIdx = startIdx + PAGE_SIZE;
+
+      cards.forEach(card => card.classList.add('hidden'));
+
+      currentMatchedCards.forEach((card, idx) => {
+        if (idx >= startIdx && idx < endIdx) {
+          card.classList.remove('hidden');
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+
+      renderPaginationUI(currentMatchedCards.length, currentPage, (newPage) => {
+        displayPage(newPage, true);
+      });
+
+      if (shouldScroll) {
+        const target = document.getElementById('resources-section');
+        if (target) {
+          const top = target.getBoundingClientRect().top + window.pageYOffset - 80;
+          window.scrollTo({ top, behavior: 'smooth' });
+        }
+      }
+    }
+
+    function filterCards(resetToPage1 = true) {
+      currentMatchedCards = [];
+
       cards.forEach(card => {
         const title = card.getAttribute('data-title')?.toLowerCase() || '';
         const actors = card.getAttribute('data-actors')?.toLowerCase() || '';
@@ -176,29 +305,29 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
         const matchSearch = !currentKeyword || title.includes(currentKeyword) || actors.includes(currentKeyword);
 
         if (matchCat && matchSearch) {
-          card.classList.remove('hidden');
-          visibleCount++;
-        } else {
-          card.classList.add('hidden');
+          currentMatchedCards.push(card);
         }
       });
 
-      if (movieCount) movieCount.textContent = visibleCount;
+      if (movieCount) movieCount.textContent = currentMatchedCards.length;
       if (emptyState) {
-        if (visibleCount === 0) emptyState.classList.remove('hidden');
+        if (currentMatchedCards.length === 0) emptyState.classList.remove('hidden');
         else emptyState.classList.add('hidden');
       }
+
+      if (resetToPage1) currentPage = 1;
+      displayPage(currentPage, false);
     }
 
     // 搜索输入监听
     searchInput?.addEventListener('input', (e) => {
       currentKeyword = e.target.value.trim().toLowerCase();
-      filterCards();
+      filterCards(true);
     });
 
     searchBtn?.addEventListener('click', () => {
       currentKeyword = searchInput.value.trim().toLowerCase();
-      filterCards();
+      filterCards(true);
     });
 
     // 分类切换
@@ -212,8 +341,11 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
         tab.classList.add('bg-orange-500', 'text-white', 'shadow-sm', 'shadow-orange-500/30');
 
         currentCategory = tab.getAttribute('data-category');
-        filterCards();
+        filterCards(true);
       });
     });
+
+    // 页面初次初始化
+    filterCards(false);
   </script>
 </Layout>
