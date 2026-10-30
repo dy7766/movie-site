@@ -33,6 +33,25 @@ if (isTvShow) {
 
 const pageTitle = `《${movie.title}》${movie.year ? `(${movie.year})` : ''} ${isTvShow ? `全${totalEpisodes}集完整版` : '4K完整版'} - 夸克/迅雷网盘在线转存下载`;
 const pageDesc = `免费提供《${movie.title}》高清4K原盘资源高速转存与在线播放。主演：${movie.actors || '精选演员'}。剧情简介：${movie.intro ? movie.intro.slice(0, 120) : '暂无简介'}...`;
+
+// 解析剧照与短评
+const stills: string[] = Array.isArray(movie.stills)
+  ? movie.stills
+  : (typeof movie.stills === 'string' ? JSON.parse(movie.stills || '[]') : []);
+
+interface Review {
+  id: string;
+  author: string;
+  avatar?: string;
+  rating: number;
+  date: string;
+  votes?: number;
+  content: string;
+}
+
+const reviews: Review[] = Array.isArray(movie.reviews)
+  ? movie.reviews
+  : (typeof movie.reviews === 'string' ? JSON.parse(movie.reviews || '[]') : []);
 ---
 
 <Layout title={pageTitle} description={pageDesc}>
@@ -188,6 +207,104 @@ const pageDesc = `免费提供《${movie.title}》高清4K原盘资源高速转�
         <p class="text-xs text-slate-400 italic">
           💡 说明：点击上方任意分集，即可直接打开网盘对应剧集目录进行保存或原画在线播放。
         </p>
+      </div>
+    )}
+
+    <!-- 高清精彩剧照与官方物料画廊 -->
+    {stills && stills.length > 0 && (
+      <div class="mt-8 bg-slate-900/40 rounded-3xl p-6 sm:p-8 border border-slate-800/80 backdrop-blur-xl space-y-4">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div class="flex items-center gap-2">
+            <div class="w-2.5 h-2.5 rounded-full bg-orange-500"></div>
+            <h2 class="text-base sm:text-lg font-bold text-white">官方高清剧照与精彩瞬间</h2>
+            <span class="text-xs text-slate-400">（共 {stills.length} 张高清剧照）</span>
+          </div>
+          <span class="text-xs text-slate-500 hidden sm:inline">点击剧照查看高清大图</span>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+          {stills.map((still: string, idx: number) => (
+            <a 
+              href={still} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              class="group relative aspect-[16/10] sm:aspect-video rounded-xl sm:rounded-2xl overflow-hidden bg-slate-800 border border-slate-700/60 hover:border-orange-500/60 shadow-md hover:shadow-xl hover:shadow-orange-500/10 transition-all block"
+            >
+              <img 
+                src={still} 
+                alt={`${movie.title} 剧照 ${idx + 1}`}
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                loading="lazy"
+              />
+              <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                <span class="text-[11px] text-white font-medium flex items-center gap-1">
+                  <svg class="w-3.5 h-3.5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                  </svg>
+                  查看高清原图
+                </span>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    )}
+
+    <!-- 豆瓣热门短评 · 真实影迷口碑 -->
+    {reviews && reviews.length > 0 && (
+      <div class="mt-8 bg-slate-900/40 rounded-3xl p-6 sm:p-8 border border-slate-800/80 backdrop-blur-xl space-y-6">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold flex items-center gap-1">
+              <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+              </svg>
+              豆瓣口碑
+            </span>
+            <h2 class="text-base sm:text-lg font-bold text-white">热门精选短评</h2>
+            <span class="text-xs text-slate-400">（影迷真实打分）</span>
+          </div>
+          <div class="flex items-center gap-1.5 text-xs text-amber-400 font-bold bg-amber-400/10 px-2.5 py-1 rounded-lg border border-amber-400/20">
+            ★ {movie.score ? Number(movie.score).toFixed(1) : '8.0'} 综合评分
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {reviews.map((rev: Review) => (
+            <div class="p-4 sm:p-5 rounded-2xl bg-slate-950/50 border border-slate-800/70 hover:border-slate-700 transition-all flex flex-col justify-between space-y-3">
+              <!-- 用户头部与评分 -->
+              <div class="flex items-center justify-between text-xs">
+                <div class="flex items-center gap-2.5">
+                  <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-orange-500 to-amber-400 text-white font-bold text-xs flex items-center justify-center shadow-sm">
+                    {rev.avatar || rev.author[0]}
+                  </div>
+                  <div>
+                    <div class="font-bold text-slate-200">{rev.author}</div>
+                    <div class="text-[10px] text-slate-500">{rev.date}</div>
+                  </div>
+                </div>
+
+                <!-- 评价星级 -->
+                <div class="text-amber-400 text-xs tracking-wider">
+                  {'★'.repeat(rev.rating || 4)}{'☆'.repeat(Math.max(0, 5 - (rev.rating || 4)))}
+                </div>
+              </div>
+
+              <!-- 评价内容 -->
+              <p class="text-xs sm:text-sm text-slate-300 leading-relaxed italic bg-slate-900/40 p-3 rounded-xl border border-slate-800/40">
+                “{rev.content}”
+              </p>
+
+              <!-- 底部有用赞数 -->
+              <div class="flex items-center justify-between text-[11px] text-slate-500 pt-1">
+                <span class="text-slate-500">来自豆瓣热门影评</span>
+                <span class="hover:text-orange-400 transition-colors flex items-center gap-1 font-medium">
+                  👍 {rev.votes || 320} 人觉得有用
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     )}
 

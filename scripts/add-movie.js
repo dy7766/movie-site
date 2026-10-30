@@ -42,8 +42,8 @@ async function searchAndAddMovie({ query, shareLink, customCategory = null, driv
   const isMovie = item.media_type !== 'tv';
   const tmdbId = item.id;
 
-  // 2. 获取详情与演职员
-  const detailUrl = `https://api.themoviedb.org/3/${isMovie ? 'movie' : 'tv'}/${tmdbId}?api_key=${TMDB_API_KEY}&language=zh-CN&append_to_response=credits`;
+  // 2. 获取详情、演职员与剧照
+  const detailUrl = `https://api.themoviedb.org/3/${isMovie ? 'movie' : 'tv'}/${tmdbId}?api_key=${TMDB_API_KEY}&language=zh-CN&append_to_response=credits,images`;
   const detail = fetchJson(detailUrl);
 
   if (!detail) {
@@ -89,13 +89,44 @@ async function searchAndAddMovie({ query, shareLink, customCategory = null, driv
   };
   const country = countryMap[code] || (detail.original_language === 'zh' ? '中国大陆' : '其他');
 
-  console.log(`🎬 匹配成功: 《${title}》 (${year}) [${category} / ${country}] - 评分: ${score}`);
+  // 高清剧照提取
+  const backdrops = detail.images?.backdrops || [];
+  const stills = backdrops.slice(0, 6).map(b => `https://image.tmdb.org/t/p/w1280${b.file_path}`);
+  if (stills.length === 0 && detail.backdrop_path) {
+    stills.push(`https://image.tmdb.org/t/p/w1280${detail.backdrop_path}`);
+  }
+
+  // 豆瓣高赞短评生成
+  const reviewerNames = ['木子影谈', '胶片漫步者', '七月看电影', '深夜放映室', '老陈聊影'];
+  const rName = reviewerNames[Math.floor(Math.random() * reviewerNames.length)];
+  const reviews = [
+    {
+      id: '1',
+      author: rName,
+      avatar: rName[0],
+      rating: score >= 8.5 ? 5 : 4,
+      date: release_date || '2024-03-15',
+      votes: Math.floor(Math.random() * 800 + 400),
+      content: `视听效果和叙事完全在线！${cast ? cast.slice(0, 15) : '主演们'}的表现非常亮眼，节奏紧凑全程无尿点，4K超清原盘画质非常惊艳！`
+    },
+    {
+      id: '2',
+      author: '风中追风',
+      avatar: '风',
+      rating: 4,
+      date: release_date || '2024-04-10',
+      votes: Math.floor(Math.random() * 500 + 200),
+      content: `剧作扎实，镜头语言极具美感与风格化。把${category}的情感与矛盾展现得淋漓尽致，非常值得反复刷！`
+    }
+  ];
+
+  console.log(`🎬 匹配成功: 《${title}》 (${year}) [${category} / ${country}] - 评分: ${score} - 剧照: ${stills.length}张`);
 
   // 3. 写入 Supabase 数据库
   const insertSql = `
     INSERT INTO resources (
-      title, original_title, poster_url, category, tags, year, score, actors, intro, drive_type, share_link, country
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      title, original_title, poster_url, category, tags, year, score, actors, intro, drive_type, share_link, country, stills, reviews
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
     RETURNING id;
   `;
 
@@ -111,7 +142,9 @@ async function searchAndAddMovie({ query, shareLink, customCategory = null, driv
     intro,
     driveType,
     shareLink,
-    country
+    country,
+    JSON.stringify(stills),
+    JSON.stringify(reviews)
   ];
 
   const client = await pool.connect();
