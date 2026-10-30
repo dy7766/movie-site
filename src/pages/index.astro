@@ -105,10 +105,16 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
                 ★ {Number(m.score).toFixed(1)}
               </div>
             )}
-            <!-- 网盘类型角标 -->
-            <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-orange-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide uppercase shadow">
-              {m.drive_type === 'quark' ? '夸克秒传' : '迅雷原画'}
-            </div>
+            <!-- 网盘/资源状态角标 -->
+            {m.share_link ? (
+              <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-orange-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide uppercase shadow">
+                {m.drive_type === 'quark' ? '夸克秒传' : '迅雷原画'}
+              </div>
+            ) : (
+              <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-slate-900/90 backdrop-blur-md border border-slate-700/60 text-slate-400 text-[10px] font-medium tracking-wide shadow">
+                待上传
+              </div>
+            )}
           </a>
 
           <!-- 卡片信息 -->
@@ -124,18 +130,30 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
               </p>
             </div>
 
-            <!-- 转存按钮 -->
-            <a 
-              href={m.share_link} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              class="w-full py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500 text-orange-400 hover:text-white border border-orange-500/30 hover:border-orange-500 text-xs font-semibold text-center transition-all flex items-center justify-center gap-1.5 shadow-sm"
-            >
-              <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
-              </svg>
-              <span>立即转存</span>
-            </a>
+            <!-- 转存按钮或暂无资源说明 -->
+            {m.share_link ? (
+              <a 
+                href={m.share_link} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="w-full py-2 rounded-xl bg-orange-500/10 hover:bg-orange-500 text-orange-400 hover:text-white border border-orange-500/30 hover:border-orange-500 text-xs font-semibold text-center transition-all flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+                </svg>
+                <span>立即转存</span>
+              </a>
+            ) : (
+              <a 
+                href={`/movie/${m.id}`}
+                class="w-full py-2 rounded-xl bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-700/60 text-xs font-medium text-center transition-all flex items-center justify-center gap-1.5"
+              >
+                <svg class="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>暂无资源 · 待上线</span>
+              </a>
+            )}
           </div>
         </article>
       ))}

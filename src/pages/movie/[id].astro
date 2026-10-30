@@ -100,9 +100,17 @@ const reviews: Review[] = Array.isArray(movie.reviews)
                 {movie.year} 年
               </span>
             )}
-            <span class="px-2.5 py-1 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-medium">
-              4K 原盘 / 1080P 超清
-            </span>
+            {movie.share_link ? (
+              <span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-medium flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                4K 原盘 / 资源就绪
+              </span>
+            ) : (
+              <span class="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-medium flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                暂无网盘资源 · 排期中
+              </span>
+            )}
           </div>
 
           <h1 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight">
@@ -146,19 +154,44 @@ const reviews: Review[] = Array.isArray(movie.reviews)
         <!-- 核心变现行动转化区 (电影快速转存) -->
         {!isTvShow && (
           <div class="pt-6 border-t border-slate-800/80 space-y-4">
-            <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
-              <a 
-                href={movie.share_link} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                class="flex-1 py-4 px-6 rounded-2xl bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-sm sm:text-base text-center shadow-xl shadow-orange-500/25 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
-              >
-                <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
-                </svg>
-                <span>立即一键转存完整版（原画免流播放 / 高速下载）</span>
-              </a>
-            </div>
+            {movie.share_link ? (
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                <a 
+                  href={movie.share_link} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  class="flex-1 py-4 px-6 rounded-2xl bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-sm sm:text-base text-center shadow-xl shadow-orange-500/25 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                >
+                  <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                    <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+                  </svg>
+                  <span>立即一键转存完整版（原画免流播放 / 高速下载）</span>
+                </a>
+              </div>
+            ) : (
+              <div class="rounded-2xl bg-slate-950/70 border border-amber-500/30 p-5 space-y-3">
+                <div class="flex items-center gap-2.5 text-amber-400 font-semibold text-sm">
+                  <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span>该片暂无可用网盘资源（正在排期整理中）</span>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                  本片的高清 4K 原盘资源正在由管理员转存测试与校验中，暂未开放下载链接。您可以收藏本页面稍后访问，或优先观看当前已上线的热门力作：
+                </p>
+                <div class="pt-2 flex flex-wrap gap-2.5 items-center">
+                  <a href="/movie/b25c137c-8ee5-4f4b-8640-0578e3f8c061" class="px-3.5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold shadow-md shadow-orange-500/20 transition-all flex items-center gap-1.5">
+                    <span>🔥 推荐观看《空枪》（朱一龙 4K完整版）</span>
+                  </a>
+                  <a href="/movie/4eb48c96-df04-4e0f-ac19-49dd029fda9e" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-medium transition-all flex items-center gap-1.5">
+                    <span>🎬 推荐观看《夜王》（黄子华 4K完整版）</span>
+                  </a>
+                  <a href="/" class="text-xs text-slate-500 hover:text-slate-400 transition-colors ml-auto">
+                    返回首页发现更多 →
+                  </a>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -169,43 +202,69 @@ const reviews: Review[] = Array.isArray(movie.reviews)
       <div class="mt-8 bg-slate-900/40 rounded-3xl p-6 sm:p-8 border border-slate-800/80 backdrop-blur-xl space-y-6">
         <div class="flex items-center justify-between flex-wrap gap-4 border-b border-slate-800 pb-4">
           <div class="flex items-center gap-2">
-            <div class="w-2.5 h-2.5 rounded-full bg-orange-500"></div>
+            <div class={`w-2.5 h-2.5 rounded-full ${movie.share_link ? 'bg-orange-500' : 'bg-slate-600'}`}></div>
             <h2 class="text-lg font-bold text-white">剧集选集播放与转存</h2>
             <span class="text-xs text-slate-400">（共 {totalEpisodes} 集 · 4K原画无损）</span>
           </div>
 
-          <!-- 全集打包转存大按钮 -->
-          <a 
-            href={movie.share_link} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            class="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold transition-all shadow-md shadow-orange-500/20 flex items-center gap-1.5"
-          >
-            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
-              <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
-            </svg>
-            <span>全集一键打包转存</span>
-          </a>
-        </div>
-
-        <!-- 选集网格按钮 -->
-        <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2.5 sm:gap-3">
-          {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((ep) => (
+          <!-- 全集打包转存大按钮或待更新 -->
+          {movie.share_link ? (
             <a 
               href={movie.share_link} 
               target="_blank" 
               rel="noopener noreferrer"
-              class="group relative py-3 px-2 rounded-xl bg-slate-800/80 hover:bg-orange-500 text-slate-200 hover:text-white border border-slate-700/70 hover:border-orange-500 text-center transition-all flex flex-col items-center justify-center shadow-sm"
-              title={`点击转存并观看 第 ${ep} 集`}
+              class="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold transition-all shadow-md shadow-orange-500/20 flex items-center gap-1.5"
             >
-              <span class="text-xs font-bold">第 {ep < 10 ? `0${ep}` : ep} 集</span>
-              <span class="text-[9px] text-slate-400 group-hover:text-orange-100 scale-90">4K超清</span>
+              <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+              </svg>
+              <span>全集一键打包转存</span>
             </a>
+          ) : (
+            <span class="px-4 py-2 rounded-xl bg-slate-800/80 text-slate-400 text-xs font-medium border border-slate-700/60 flex items-center gap-1.5">
+              <span>⏳ 剧集资源排期上传中</span>
+            </span>
+          )}
+        </div>
+
+        {!movie.share_link && (
+          <div class="rounded-xl bg-slate-950/50 border border-amber-500/30 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+            <span class="text-amber-400">⚠️ 本剧全集 4K 原盘链接正在处理校验中，暂未开放下载。推荐先观看已上线大片：</span>
+            <div class="flex gap-2">
+              <a href="/movie/b25c137c-8ee5-4f4b-8640-0578e3f8c061" class="text-orange-400 hover:underline font-semibold">《空枪》4K完整版 →</a>
+              <a href="/movie/4eb48c96-df04-4e0f-ac19-49dd029fda9e" class="text-slate-300 hover:underline">《夜王》→</a>
+            </div>
+          </div>
+        )}
+
+        <!-- 选集网格按钮 -->
+        <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2.5 sm:gap-3">
+          {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((ep) => (
+            movie.share_link ? (
+              <a 
+                href={movie.share_link} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="group relative py-3 px-2 rounded-xl bg-slate-800/80 hover:bg-orange-500 text-slate-200 hover:text-white border border-slate-700/70 hover:border-orange-500 text-center transition-all flex flex-col items-center justify-center shadow-sm"
+                title={`点击转存并观看 第 ${ep} 集`}
+              >
+                <span class="text-xs font-bold">第 {ep < 10 ? `0${ep}` : ep} 集</span>
+                <span class="text-[9px] text-slate-400 group-hover:text-orange-100 scale-90">4K超清</span>
+              </a>
+            ) : (
+              <div 
+                class="relative py-3 px-2 rounded-xl bg-slate-900/60 text-slate-500 border border-slate-800/80 text-center flex flex-col items-center justify-center cursor-not-allowed select-none opacity-60"
+                title="该集资源正在排期上传中"
+              >
+                <span class="text-xs font-medium">第 {ep < 10 ? `0${ep}` : ep} 集</span>
+                <span class="text-[9px] text-slate-600 scale-90">待上线</span>
+              </div>
+            )
           ))}
         </div>
 
         <p class="text-xs text-slate-400 italic">
-          💡 说明：点击上方任意分集，即可直接打开网盘对应剧集目录进行保存或原画在线播放。
+          💡 说明：{movie.share_link ? '点击上方任意分集，即可直接打开网盘对应剧集目录进行保存或原画在线播放。' : '本剧正在批量排期录入网盘，上线后点击任意分集即可直接转存播放。'}
         </p>
       </div>
     )}
