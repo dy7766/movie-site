@@ -52,6 +52,22 @@ interface Review {
 const reviews: Review[] = Array.isArray(movie.reviews)
   ? movie.reviews
   : (typeof movie.reviews === 'string' ? JSON.parse(movie.reviews || '[]') : []);
+
+// 解析在线播放源与分集
+interface Episode {
+  name: string;
+  url: string;
+}
+
+interface PlaySource {
+  source: string;
+  type: string;
+  episodes: Episode[];
+}
+
+const playSources: PlaySource[] = Array.isArray(movie.play_sources)
+  ? movie.play_sources
+  : (typeof movie.play_sources === 'string' ? JSON.parse(movie.play_sources || '[]') : []);
 ---
 
 <Layout title={pageTitle} description={pageDesc}>
@@ -105,6 +121,11 @@ const reviews: Review[] = Array.isArray(movie.reviews)
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                 4K 原盘 / 资源就绪
               </span>
+            ) : movie.online_play_url ? (
+              <span class="px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-medium flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
+                4K免流 · 支持在线播放
+              </span>
             ) : (
               <span class="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-medium flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
@@ -151,7 +172,7 @@ const reviews: Review[] = Array.isArray(movie.reviews)
           </div>
         </div>
 
-        <!-- 核心变现行动转化区 (电影快速转存) -->
+        <!-- 核心变现与播放行动区 (电影) -->
         {!isTvShow && (
           <div class="pt-6 border-t border-slate-800/80 space-y-4">
             {movie.share_link ? (
@@ -166,6 +187,18 @@ const reviews: Review[] = Array.isArray(movie.reviews)
                     <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
                   </svg>
                   <span>立即一键转存完整版（原画免流播放 / 高速下载）</span>
+                </a>
+              </div>
+            ) : movie.online_play_url ? (
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+                <a 
+                  href="#onlinePlayerSection" 
+                  class="flex-1 py-4 px-6 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-600 to-indigo-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold text-sm sm:text-base text-center shadow-xl shadow-indigo-500/25 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                >
+                  <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z"/>
+                  </svg>
+                  <span>立即在线播放（1080P极速免流 · 零广告秒播）</span>
                 </a>
               </div>
             ) : (
@@ -197,8 +230,89 @@ const reviews: Review[] = Array.isArray(movie.reviews)
       </div>
     </div>
 
-    <!-- 电视剧 / 动漫专用：选集网格板块 -->
-    {isTvShow && (
+    <!-- 📺 在线免流播放器板块 (如果有 online_play_url) -->
+    {movie.online_play_url && (
+      <div id="onlinePlayerSection" class="mt-8 bg-slate-900/60 rounded-3xl p-6 sm:p-8 border border-indigo-500/30 backdrop-blur-xl shadow-2xl space-y-6">
+        <div class="flex items-center justify-between flex-wrap gap-4 border-b border-slate-800/80 pb-4">
+          <div class="flex items-center gap-3">
+            <span class="flex h-3 w-3 relative">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+            </span>
+            <div>
+              <h2 class="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                <span>在线免流播放</span>
+                <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">1080P原画 · 零广告切片 · 支持倍速</span>
+              </h2>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 text-xs text-slate-400">
+            <span id="currentEpisodeBadge" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300">
+              正在播放：{playSources[0]?.episodes?.[0]?.name || '正片'}
+            </span>
+            <button id="reloadPlayerBtn" class="text-xs text-indigo-400 hover:text-indigo-300 underline cursor-pointer">
+              刷新播放
+            </button>
+          </div>
+        </div>
+
+        <!-- 播放器视口 -->
+        <div class="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex items-center justify-center">
+          <div id="artplayer-app" class="w-full h-full" data-url={movie.online_play_url} data-poster={movie.poster_url || ''}></div>
+          <div id="playerLoadingNotice" class="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center text-slate-400 text-sm gap-3 z-10 transition-opacity">
+            <div class="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+            <span>正在连接极速 CDN 视频切片节点...</span>
+          </div>
+        </div>
+
+        <!-- 剧集选集（如果有多个分集或多线路） -->
+        {playSources && playSources[0]?.episodes && playSources[0].episodes.length > 1 && (
+          <div class="space-y-3 pt-2">
+            <div class="flex items-center justify-between text-xs text-slate-400">
+              <span class="font-semibold text-slate-200">剧集与线路切换（共 {playSources[0].episodes.length} 集/线）：</span>
+              <span class="text-slate-500">点击自动切换播放</span>
+            </div>
+            <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 max-h-52 overflow-y-auto pr-1">
+              {playSources[0].episodes.map((ep, idx) => (
+                <button 
+                  type="button"
+                  class={`episode-play-btn px-2.5 py-2 rounded-xl text-xs font-medium border transition-all text-center truncate cursor-pointer ${idx === 0 ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30 font-bold' : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700/60'}`}
+                  data-url={ep.url}
+                  data-name={ep.name}
+                  title={ep.name}
+                >
+                  {ep.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <!-- 混合播放漏斗：底部变现导流卡片 -->
+        <div class="rounded-2xl bg-gradient-to-r from-orange-500/10 via-amber-500/10 to-slate-900/50 border border-orange-500/25 p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div class="space-y-1">
+            <div class="flex items-center gap-2 text-orange-400 font-bold text-xs sm:text-sm">
+              <span class="flex h-2 w-2 rounded-full bg-orange-500"></span>
+              <span>🔥 想要更高画质？体验 2026 最新独家 4K 原盘免流下载</span>
+            </div>
+            <p class="text-xs text-slate-400 leading-relaxed">
+              在线切片适合网页快速预览。如需收藏无损 4K HDR 杜比视界原盘、无压缩原声大碟，推荐免费转存至个人网盘：
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2.5 flex-shrink-0 w-full sm:w-auto">
+            <a href="/movie/b25c137c-8ee5-4f4b-8640-0578e3f8c061" class="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-md shadow-orange-500/25 transition-all flex items-center justify-center gap-1.5">
+              <span>《空枪》4K 原盘转存 →</span>
+            </a>
+            <a href="/movie/4eb48c96-df04-4e0f-ac19-49dd029fda9e" class="flex-1 sm:flex-initial px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 text-xs font-semibold transition-all flex items-center justify-center gap-1.5">
+              <span>《夜王》4K 纯净版 →</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    )}
+
+    <!-- 电视剧 / 动漫专用：选集网格板块 (仅当无在线播放且有网盘链接或排期中展示) -->
+    {isTvShow && !movie.online_play_url && (
       <div class="mt-8 bg-slate-900/40 rounded-3xl p-6 sm:p-8 border border-slate-800/80 backdrop-blur-xl space-y-6">
         <div class="flex items-center justify-between flex-wrap gap-4 border-b border-slate-800 pb-4">
           <div class="flex items-center gap-2">
@@ -389,4 +503,128 @@ const reviews: Review[] = Array.isArray(movie.reviews)
       </a>
     </div>
   </div>
+
+  <!-- 在线播放器脚本注入 (仅当有在线播放资源时激活) -->
+  {movie.online_play_url && (
+    <>
+      <script is:inline src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
+      <script is:inline src="https://cdn.jsdelivr.net/npm/artplayer@5.1.7/dist/artplayer.legacy.js"></script>
+      <script is:inline>
+        document.addEventListener('DOMContentLoaded', () => {
+          const playerEl = document.getElementById('artplayer-app');
+          if (!playerEl) return;
+
+          const initialUrl = playerEl.dataset.url;
+          const initialPoster = playerEl.dataset.poster;
+          const loadingNotice = document.getElementById('playerLoadingNotice');
+          const badge = document.getElementById('currentEpisodeBadge');
+          let art = null;
+
+          function initPlayer(streamUrl) {
+            if (art) {
+              try { art.destroy(false); } catch (e) {}
+            }
+
+            art = new Artplayer({
+              container: '#artplayer-app',
+              url: streamUrl,
+              poster: initialPoster || '',
+              volume: 0.8,
+              isLive: false,
+              muted: false,
+              autoplay: false,
+              pip: true,
+              autoSize: false,
+              autoMini: false,
+              screenshot: true,
+              setting: true,
+              loop: false,
+              flip: true,
+              playbackRate: true,
+              aspectRatio: true,
+              fullscreen: true,
+              fullscreenWeb: true,
+              miniProgressBar: true,
+              mutex: true,
+              backdrop: true,
+              playsInline: true,
+              autoPlayback: true,
+              airplay: true,
+              theme: '#6366f1',
+              lang: 'zh-cn',
+              customType: {
+                m3u8: function (video, playUrl, artInstance) {
+                  if (window.Hls && window.Hls.isSupported()) {
+                    if (artInstance.hls) artInstance.hls.destroy();
+                    const hls = new window.Hls();
+                    hls.loadSource(playUrl);
+                    hls.attachMedia(video);
+                    artInstance.hls = hls;
+                    artInstance.on('destroy', () => hls.destroy());
+
+                    hls.on(window.Hls.Events.MANIFEST_PARSED, () => {
+                      if (loadingNotice) loadingNotice.classList.add('hidden');
+                    });
+                    hls.on(window.Hls.Events.ERROR, (event, data) => {
+                      if (data.fatal) {
+                        if (loadingNotice) {
+                          loadingNotice.classList.remove('hidden');
+                          loadingNotice.innerHTML = '<span class="text-amber-400">视频切片加载中，请稍候或尝试刷新重试</span>';
+                        }
+                      }
+                    });
+                  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                    video.src = playUrl;
+                    if (loadingNotice) loadingNotice.classList.add('hidden');
+                  } else {
+                    artInstance.notice.show = '当前浏览器不支持播放该格式视频';
+                  }
+                }
+              }
+            });
+
+            art.on('ready', () => {
+              if (loadingNotice) loadingNotice.classList.add('hidden');
+            });
+          }
+
+          if (initialUrl) {
+            initPlayer(initialUrl);
+          }
+
+          // 选集切换
+          const episodeBtns = document.querySelectorAll('.episode-play-btn');
+          episodeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+              const newUrl = btn.getAttribute('data-url');
+              const newName = btn.getAttribute('data-name');
+              if (!newUrl) return;
+
+              episodeBtns.forEach(b => {
+                b.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-500', 'shadow-md', 'shadow-indigo-600/30', 'font-bold');
+                b.classList.add('bg-slate-800/80', 'text-slate-300', 'border-slate-700/60');
+              });
+              btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-500', 'shadow-md', 'shadow-indigo-600/30', 'font-bold');
+              btn.classList.remove('bg-slate-800/80', 'text-slate-300', 'border-slate-700/60');
+
+              if (badge) badge.textContent = '正在播放：' + newName;
+              if (loadingNotice) loadingNotice.classList.remove('hidden');
+
+              initPlayer(newUrl);
+            });
+          });
+
+          // 刷新按钮
+          const reloadBtn = document.getElementById('reloadPlayerBtn');
+          if (reloadBtn) {
+            reloadBtn.addEventListener('click', () => {
+              const currentUrl = (art && art.url) ? art.url : initialUrl;
+              if (loadingNotice) loadingNotice.classList.remove('hidden');
+              initPlayer(currentUrl);
+            });
+          }
+        });
+      </script>
+    </>
+  )}
 </Layout>

@@ -110,6 +110,11 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
               <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-orange-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide uppercase shadow">
                 {m.drive_type === 'quark' ? '夸克秒传' : '迅雷原画'}
               </div>
+            ) : m.online_play_url ? (
+              <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-indigo-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide shadow flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-indigo-200 animate-pulse"></span>
+                在线播放
+              </div>
             ) : (
               <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-slate-900/90 backdrop-blur-md border border-slate-700/60 text-slate-400 text-[10px] font-medium tracking-wide shadow">
                 待上传
@@ -142,6 +147,16 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
                   <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
                 </svg>
                 <span>立即转存</span>
+              </a>
+            ) : m.online_play_url ? (
+              <a 
+                href={`/movie/${m.id}#onlinePlayerSection`}
+                class="w-full py-2 rounded-xl bg-indigo-500/10 hover:bg-indigo-600 text-indigo-400 hover:text-white border border-indigo-500/30 hover:border-indigo-500 text-xs font-semibold text-center transition-all flex items-center justify-center gap-1.5 shadow-sm group-hover:bg-indigo-600 group-hover:text-white"
+              >
+                <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z"/>
+                </svg>
+                <span>在线播放</span>
               </a>
             ) : (
               <a 
