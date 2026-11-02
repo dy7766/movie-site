@@ -185,9 +185,18 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
               </div>
             )}
             <!-- 状态角标 -->
-            {m.share_link ? (
+            {(m.share_link && m.share_link_uc) ? (
+              <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-gradient-to-r from-orange-600 to-amber-500 backdrop-blur-md text-white text-[10px] font-bold tracking-wide uppercase shadow flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                双网盘秒传
+              </div>
+            ) : m.share_link ? (
               <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-orange-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide uppercase shadow">
                 4K秒传
+              </div>
+            ) : m.share_link_uc ? (
+              <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-amber-500/90 backdrop-blur-md text-slate-950 text-[10px] font-bold tracking-wide uppercase shadow">
+                UC秒传
               </div>
             ) : m.online_play_url ? (
               <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-indigo-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide shadow flex items-center gap-1">
@@ -226,7 +235,17 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
             )}
 
             <!-- 转存按钮或暂无资源说明 -->
-            {m.share_link ? (
+            {(m.share_link && m.share_link_uc) ? (
+              <a 
+                href={`/movie/${m.id}`}
+                class="w-full py-2 rounded-xl bg-gradient-to-r from-orange-500/20 via-amber-500/20 to-orange-500/20 hover:from-orange-500 hover:to-amber-500 text-orange-400 hover:text-white border border-orange-500/30 hover:border-orange-500 text-xs font-bold text-center transition-all flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                  <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+                </svg>
+                <span>双网盘转存 (夸克/UC)</span>
+              </a>
+            ) : m.share_link ? (
               <a 
                 href={m.share_link} 
                 target="_blank" 
@@ -237,6 +256,18 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
                   <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
                 </svg>
                 <span>立即转存</span>
+              </a>
+            ) : m.share_link_uc ? (
+              <a 
+                href={m.share_link_uc} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                class="w-full py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 border border-amber-500/30 hover:border-amber-500 text-xs font-bold text-center transition-all flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+                </svg>
+                <span>UC立即转存</span>
               </a>
             ) : m.online_play_url ? (
               <a 

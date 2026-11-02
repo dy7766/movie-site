@@ -6,9 +6,13 @@
     "dev": "astro dev --host",
     "start": "astro dev",
     "build": "astro build",
-    "preview": "astro preview"
+    "preview": "astro preview",
+    "pipeline": "node scripts/pipeline-runner.js",
+    "probe": "node scripts/online-play-monitor.js",
+    "cookie:check": "node scripts/cookie-monitor.js"
   },
   "dependencies": {
+    "@astrojs/sitemap": "^3.1.6",
     "@astrojs/tailwind": "^5.1.3",
     "@supabase/supabase-js": "^2.46.1",
     "astro": "^4.16.12",

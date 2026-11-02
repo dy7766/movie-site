@@ -1,0 +1,60 @@
+name: 🎬 Daily Media Automation Pipeline
+
+on:
+  schedule:
+    # 每天北京时间 08:30 与 20:30 全自动定时执行 (对应 UTC 00:30 与 12:30)
+    - cron: '30 0,12 * * *'
+  workflow_dispatch: # 支持在 GitHub 仓库网页端随时一键手动触发
+
+concurrency:
+  group: media-pipeline
+  cancel-in-progress: false
+
+jobs:
+  pipeline:
+    name: 🚀 巡检、探活、转存与自动化大盘
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 📥 检出最新代码
+        uses: actions/checkout@v4
+
+      - name: ⚡ 安装 Node.js 运行环境 (v20)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 📦 安装项目依赖
+        run: npm ci
+
+      - name: 🚀 执行全自动运营中枢调度器
+        env:
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+          SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME }}
+          SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          QUARK_COOKIE: ${{ secrets.QUARK_COOKIE }}
+          UC_COOKIE: ${{ secrets.UC_COOKIE }}
+          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+          DINGTALK_ALERT_PHONE: ${{ secrets.DINGTALK_ALERT_PHONE }}
+        run: node scripts/pipeline-runner.js
+
+      - name: 🏗️ 验证 Astro 全站静态预渲染构建
+        env:
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+          SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME }}
+          SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: npm run build
+
+      - name: 🌐 触发 Cloudflare Pages 线上重新发布 (Deploy Hook)
+        if: ${{ secrets.CLOUDFLARE_DEPLOY_HOOK != '' }}
+        run: |
+          curl -s -X POST "${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}"
+          echo "✓ Cloudflare Pages 部署钩子已触发！"
