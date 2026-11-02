@@ -13,7 +13,8 @@
     "xhs:generate": "node scripts/xhs-generator.js",
     "xhs:publish": "node scripts/xhs-auto-publisher.js",
     "xhs:pipeline": "node scripts/xhs-pipeline.js",
-    "xhs:auto": "node scripts/xhs-pipeline.js --auto"
+    "xhs:auto": "node scripts/xhs-pipeline.js --auto",
+    "xhs:batch": "node scripts/xhs-batch-scheduler.js"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.1.6",

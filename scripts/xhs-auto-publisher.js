@@ -13,24 +13,36 @@ export async function publishToXiaohongshu({
   imagePath,
   title,
   content,
-  autoSubmit = false // 默认 false: 填写完毕后保留在浏览器窗口供人眼最后确认，避免误发
+  autoSubmit = false, // 默认 false: 填写完毕后保留在浏览器窗口供人眼最后确认，避免误发
+  silent = false,     // 静默模式: 窗口隐藏在屏幕外或无头运行
+  headless = false
 } = {}) {
   if (!fs.existsSync(imagePath)) {
     throw new Error(`找不到图片文件: ${imagePath}`);
   }
 
-  console.log('🚀 正在启动独立 Chrome 浏览器（加载持久化创作者登录会话）...');
+  const isHeadless = headless ? 'new' : false;
+  const chromeArgs = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-blink-features=AutomationControlled',
+    '--window-size=1920,1080'
+  ];
+
+  if (silent && !isHeadless) {
+    // 采用离屏隐藏窗口，确保完整 DOM 和 WebGL 渲染，同时完全不干扰用户屏幕
+    chromeArgs.push('--window-position=-2500,-2500');
+  } else if (!silent) {
+    chromeArgs.push('--start-maximized');
+  }
+
+  console.log(`🚀 正在启动 Chrome 浏览器（${silent ? '静默模式' : '可见窗口'}，加载持久化会话）...`);
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
-    headless: false, // 必须有头窗口，方便扫码和人眼确认
+    headless: isHeadless,
     defaultViewport: null,
     userDataDir: USER_DATA_DIR,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--start-maximized',
-      '--disable-blink-features=AutomationControlled' // 绕过基础自动化指纹检测
-    ]
+    args: chromeArgs
   });
 
   const pages = await browser.pages();
@@ -45,6 +57,11 @@ export async function publishToXiaohongshu({
   // 1. 检查是否需要登录
   const currentUrl = page.url();
   if (currentUrl.includes('login') || !currentUrl.includes('publish')) {
+    if (silent) {
+      await browser.close();
+      throw new Error('小红书创作者平台未登录或登录已失效，请先运行 npm run xhs:publish 扫码登录！');
+    }
+
     console.log('\n===============================================================');
     console.log('🔔 提示：首次使用请在弹出的浏览器中扫码登录小红书创作者平台！');
     console.log('💡（登录成功后会话将永久保存在本地，下次执行无需再次扫码）');
