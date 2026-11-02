@@ -2,8 +2,12 @@ name: 🎬 Daily Media Automation Pipeline
 
 on:
   schedule:
-    # 每天北京时间 08:30 与 20:30 全自动定时执行 (对应 UTC 00:30 与 12:30)
-    - cron: '30 0,12 * * *'
+    # 每天北京时间 08:30 (UTC 00:30，晨间热播与院线新片拉取)
+    - cron: '30 0 * * *'
+    # 每天北京时间 12:00 (UTC 04:00，午间黄金档巡检更新)
+    - cron: '0 4 * * *'
+    # 每天北京时间 20:30 (UTC 12:30，晚间观影高峰期探活自愈)
+    - cron: '30 12 * * *'
   workflow_dispatch: # 支持在 GitHub 仓库网页端随时一键手动触发
 
 concurrency:

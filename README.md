@@ -97,7 +97,7 @@ flowchart TD
 ```text
 movie-site/
 ├── .github/workflows/         # GitHub Actions 云端定时流水线
-│   └── daily-pipeline.yml     # 每日定时巡检、搜源、秒存与部署编排
+│   └── daily-pipeline.yml     # 每日定时巡检、搜源、秒存与部署编排 (每日 08:30 / 12:00 / 20:30 CST)
 ├── public/                    # 静态资产与 SEO 索引
 │   ├── favicon.svg            # 网站高清矢量图标
 │   ├── robots.txt             # 搜索引擎蜘蛛爬取协议
