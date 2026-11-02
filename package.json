@@ -9,7 +9,11 @@
     "preview": "astro preview",
     "pipeline": "node scripts/pipeline-runner.js",
     "probe": "node scripts/online-play-monitor.js",
-    "cookie:check": "node scripts/cookie-monitor.js"
+    "cookie:check": "node scripts/cookie-monitor.js",
+    "xhs:generate": "node scripts/xhs-generator.js",
+    "xhs:publish": "node scripts/xhs-auto-publisher.js",
+    "xhs:pipeline": "node scripts/xhs-pipeline.js",
+    "xhs:auto": "node scripts/xhs-pipeline.js --auto"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.1.6",
@@ -17,6 +21,7 @@
     "@supabase/supabase-js": "^2.46.1",
     "astro": "^4.16.12",
     "pg": "^8.13.1",
+    "puppeteer-core": "^25.16.0",
     "tailwindcss": "^3.4.14"
   }
 }
