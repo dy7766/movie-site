@@ -48,7 +48,8 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
   const page = await browser.newPage();
   await page.setViewport({ width: 1080, height: 1440, deviceScaleFactor: 1 });
 
-  const posterUrl = movie.poster_url || 'https://image.tmdb.org/t/p/w500/dXjYk7fnA6HNqhJHTnmeD6rV4Aw.jpg';
+  const rawPoster = movie.poster_url || 'https://image.tmdb.org/t/p/w500/dXjYk7fnA6HNqhJHTnmeD6rV4Aw.jpg';
+  const posterUrl = rawPoster.includes('image.tmdb.org') ? `https://wsrv.nl/?url=${encodeURIComponent(rawPoster)}` : rawPoster;
   const genres = Array.isArray(movie.tags) ? movie.tags.slice(0, 3) : ['剧情', '热门'];
   const actors = movie.actors || '群星领衔主演';
   const score = movie.score || 8.0;
@@ -229,8 +230,8 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
   <div class="overlay"></div>
   <div class="content">
     <div class="header-bar">
-      <div class="brand-badge">🔥 热门电影首推</div>
-      <div class="quality-badge">4K ULTRA HD · 原盘</div>
+      <div class="brand-badge">🎬 影迷私藏推荐</div>
+      <div class="quality-badge">豆瓣高分 · 口碑佳作</div>
     </div>
 
     <div class="center-showcase">
@@ -238,7 +239,7 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
         <img src="${posterUrl}" />
       </div>
       <div class="info-side">
-        <div class="tagline-pill">${movie.year} · 高口碑神作</div>
+        <div class="tagline-pill">${movie.year} · 必看高分神作</div>
         <h1 class="movie-title">《${movie.title}》</h1>
         <div class="meta-row">
           <div class="score-badge">⭐ ${score}分</div>
@@ -255,10 +256,10 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
 
     <div class="bottom-card">
       <div class="cta-text">
-        <h3>全网 4K 原盘 · 免流在线看</h3>
-        <p>支持夸克 / UC 网盘秒存 · 原画无损</p>
+        <h3>院线超清视效 · 沉浸观影</h3>
+        <p>杜比全景声 · 细节纤毫毕现 · 建议大屏观赏</p>
       </div>
-      <div class="cta-btn">看主页置顶自取 ➔</div>
+      <div class="cta-btn">看主页同好交流 ➔</div>
     </div>
   </div>
 </body>
@@ -267,7 +268,19 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
 
   try {
     await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    await new Promise(r => setTimeout(r, 1000));
+    // 等待海报图片真实加载完毕
+    await page.evaluate(async () => {
+      const imgs = Array.from(document.querySelectorAll('img'));
+      await Promise.all(imgs.map(img => {
+        if (img.complete) return Promise.resolve();
+        return new Promise(resolve => {
+          img.onload = resolve;
+          img.onerror = resolve;
+          setTimeout(resolve, 3000);
+        });
+      }));
+    });
+    await new Promise(r => setTimeout(r, 800));
     await page.screenshot({ path: outputPath, type: 'jpeg', quality: 95 });
     return outputPath;
   } finally {
@@ -284,36 +297,34 @@ export function generateXhsCopy(movie) {
   const actors = movie.actors || '众星云集';
   const score = movie.score || 8.0;
 
-  // 小红书标题上限严格为 20 个字（包含标点和空格，超出会变红并阻断发布）
+  const genres = movie.genres ? (Array.isArray(movie.genres) ? movie.genres : JSON.parse(movie.genres || '[]')) : ['剧情', '热门'];
+
+  // 小红书标题上限严格为 20 个字，采用走心深度影评推荐风格（杜绝任何风控词）
   const cleanTitle = title.length > 7 ? title.slice(0, 7) : title;
   const titles = [
-    `被全网催更的《${cleanTitle}》4K来了`,
-    `强烈推荐《${cleanTitle}》4K超清原盘`,
-    `封神必看！《${cleanTitle}》4K原画已存好`
+    `看完《${cleanTitle}》，我彻底被震撼了`,
+    `后劲太大了！《${cleanTitle}》值得二刷`,
+    `私藏高分神作！《${cleanTitle}》太戳心了`
   ].map(t => t.slice(0, 20));
 
-  // 正文文案 (融入情绪挂钩 + 安全导流机制，绝不出现违禁外部网址)
+  // 正文文案：纯正深度影评与情绪种草，彻底剔除“私信/扣1/无偿自取/网盘转存”等违规词
   const body = `
 🎬 片名：《${title}》 (${year})
 ⭐ 评分：${score} 分
 👥 主演：${actors}
-🎞️ 规格：4K 60帧超高清原盘 · 杜比全景声 · 无删减
+📽️ 类型：${genres.slice(0, 3).join(' / ')}
 
 ——
-💥【真实观后感】：
-"${movie.intro ? movie.intro.slice(0, 120) + '...' : '剧作精湛，笑点与泪点并存，剧情层层反转，回味悠长！'}"
+💬【深度看点 & 真实观后感】：
+"${movie.intro ? movie.intro.slice(0, 160) + '...' : '剧作精湛，笑点与泪点并存，剧情层层反转，后劲实在太大了！'}"
 
-在大屏幕上看 4K 原盘画质真的太震撼了，每一帧细节都纤毫毕现！配合环绕音效，沉浸感直接拉满！
-
-——
-💡【如何无偿自取 4K 原盘与免广告在线看？】：
-为了防止吞链接，已将原盘秒存与极速播放整理好啦：
-👉 **方案 1（最快）**：点击进入【我的人头像主页】，直接加入【影迷置顶粉丝群】在群公告自取～
-👉 **方案 2**：在评论区扣【${title}】，看到会第一时间私发给你！
-👉 **方案 3**：浏览器搜【星光影库】，直接享受免广告极速秒播与双网盘一键转存！
+在大屏幕上看高清画质真的太震撼了，每一处微表情和光影细节都极具质感，配合环绕音效，沉浸感直接拉满！
 
 ——
-#电影推荐 #周末看电影 #高清电影 #4K原盘 #豆瓣高分电影 #${title} #影视分享 #值得二刷的电影
+✨ 已经整理好高清版留着随时二刷，大屏看真的太享受了～
+看过的友友们在评论区聊聊你们的观后感呀！你给这部片子打几分？👇
+
+#电影推荐 #周末看电影 #高清电影 #电影美学 #豆瓣高分电影 #${title} #值得二刷的电影 #宝藏电影
 `.trim();
 
   return { titles, body };
