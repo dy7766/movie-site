@@ -52,12 +52,43 @@ export async function runAutomationPipeline() {
     console.warn('⚠️ 在线播放巡检异常（不阻断主流程）:', err.message);
   }
 
+  // 5. Telegram 影迷私域群每日新片自动广播
+  console.log('\n[步骤 5/6] 正在执行 Telegram 影迷群新片自动广播...');
+  try {
+    const { sendMovieCardToTelegram, detectChatId } = await import('./telegram-service.js');
+    let chatId = process.env.TELEGRAM_CHAT_ID;
+    if (!chatId) {
+      const detected = await detectChatId();
+      if (detected?.id) {
+        chatId = detected.id;
+        console.log(`✓ 自动侦测到目标 Telegram 群组: ${detected.title} (ID: ${chatId})`);
+      }
+    }
+    if (chatId) {
+      const tgMovieRes = await pool.query(
+        `SELECT id, title, year, score, intro, poster_url, share_link, share_link_uc, online_play_url, category, actors
+         FROM resources
+         WHERE (online_play_url IS NOT NULL OR share_link_uc IS NOT NULL OR share_link IS NOT NULL)
+         ORDER BY id DESC
+         LIMIT 1`
+      );
+      if (tgMovieRes.rows.length > 0) {
+        await sendMovieCardToTelegram(tgMovieRes.rows[0], { chatId });
+        console.log(`📢 成功向 Telegram 广播新片: 《${tgMovieRes.rows[0].title}》`);
+      }
+    } else {
+      console.log('ℹ️ 暂未配置 TELEGRAM_CHAT_ID 或机器人尚未被拉入群聊，跳过本轮 TG 发送');
+    }
+  } catch (tgErr) {
+    console.warn('⚠️ Telegram 广播异常（不阻断主流程）:', tgErr.message);
+  }
+
   // 获取数据库现存总数
   const totalCountRes = await pool.query('SELECT count(*) FROM resources');
   const totalMovies = parseInt(totalCountRes.rows[0]?.count || '232');
 
-  // 5. 发送钉钉任务完成大盘报告
-  console.log('\n[步骤 5/5] 正在推送本次自动化运营大盘至钉钉群...');
+  // 6. 发送钉钉任务完成大盘报告
+  console.log('\n[步骤 6/6] 正在推送本次自动化运营大盘至钉钉群...');
   try {
     await sendDingTalkTaskSummary({
       addedCount: (metaStats.doubanStats?.insertedCount || 0) + (metaStats.tmdbStats?.insertedCount || 0),
