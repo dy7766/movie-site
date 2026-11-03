@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "astro dev --host",
     "start": "astro dev",
-    "build": "astro build",
+    "build": "astro build && node -e \"import('fs').then(fs => fs.copyFileSync('dist/sitemap-0.xml', 'dist/sitemap.xml'))\"",
     "preview": "astro preview",
     "pipeline": "node scripts/pipeline-runner.js",
     "probe": "node scripts/online-play-monitor.js",
