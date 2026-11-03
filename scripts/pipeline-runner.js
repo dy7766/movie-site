@@ -65,16 +65,17 @@ export async function runAutomationPipeline() {
       }
     }
     if (chatId) {
+      // 优先选取具备 UC 网盘专属转存链接的热门影视推送至 TG 群
       const tgMovieRes = await pool.query(
         `SELECT id, title, year, score, intro, poster_url, share_link, share_link_uc, online_play_url, category, actors
          FROM resources
-         WHERE (online_play_url IS NOT NULL OR share_link_uc IS NOT NULL OR share_link IS NOT NULL)
-         ORDER BY id DESC
+         WHERE share_link_uc IS NOT NULL
+         ORDER BY year DESC, score DESC
          LIMIT 1`
       );
       if (tgMovieRes.rows.length > 0) {
         await sendMovieCardToTelegram(tgMovieRes.rows[0], { chatId });
-        console.log(`📢 成功向 Telegram 广播新片: 《${tgMovieRes.rows[0].title}》`);
+        console.log(`📢 成功向 Telegram 广播新片: 《${tgMovieRes.rows[0].title}》 (UC 专属转存就绪)`);
       }
     } else {
       console.log('ℹ️ 暂未配置 TELEGRAM_CHAT_ID 或机器人尚未被拉入群聊，跳过本轮 TG 发送');
