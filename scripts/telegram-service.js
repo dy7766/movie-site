@@ -79,8 +79,33 @@ export async function sendMovieCardToTelegram(movie, { chatId = null } = {}) {
   const title = movie.title || '最新热播佳作';
   const year = movie.year || '2024';
   const score = movie.score ? `★ ${Number(movie.score).toFixed(1)} 分` : '★ 8.5+ 推荐';
-  const intro = movie.intro ? movie.intro.slice(0, 120) + '...' : '高清原盘无损转存，免广告在线极速秒播。';
+  const intro = movie.intro ? movie.intro.slice(0, 100) + '...' : '高清原盘无损转存，免广告在线极速秒播。';
   const siteUrl = `https://movie-site-8r4.pages.dev/movie/${movie.id}`;
+
+  // 构造规范化可检索的 Telegram 标签 (#片名 #类型 #年份 #渠道 #画质)
+  const cleanTitleTag = title.replace(/[\s·:：\-—_—\(\)（）\+]/g, '');
+  const tagList = [
+    `#${cleanTitleTag}`,
+    `#${movie.category || '电影'}`
+  ];
+
+  if (year) tagList.push(`#${year}年`);
+
+  // 题材流派标签
+  if (Array.isArray(movie.tags)) {
+    movie.tags.slice(0, 3).forEach(t => {
+      const cleanT = t.replace(/[\s·:：\-]/g, '');
+      if (cleanT && !tagList.includes(`#${cleanT}`)) tagList.push(`#${cleanT}`);
+    });
+  }
+
+  // 网盘与播放渠道检索标签
+  if (movie.share_link_uc) tagList.push('#UC网盘');
+  if (movie.share_link) tagList.push('#夸克网盘');
+  if (movie.online_play_url) tagList.push('#在线播放');
+  tagList.push('#4K原盘', '#星光影库');
+
+  const hashtagsText = tagList.join(' ');
 
   const caption = `🎬 <b>【每日热映·4K高清推荐】</b>\n` +
     `━━━━━━━━━━━━━━━\n` +
@@ -93,7 +118,8 @@ export async function sendMovieCardToTelegram(movie, { chatId = null } = {}) {
     (movie.online_play_url ? `▶️ <a href="${siteUrl}#onlinePlayerSection">在线极速播放</a>\n` : '') +
     (movie.share_link_uc ? `📥 <a href="${movie.share_link_uc}">UC网盘专属转存</a>\n` : '') +
     (movie.share_link ? `💾 <a href="${movie.share_link}">夸克网盘无损秒传</a>\n` : '') +
-    `🌐 <a href="${siteUrl}">进入网站详情页完整浏览</a>`;
+    `🌐 <a href="${siteUrl}">进入网站详情页完整浏览</a>\n\n` +
+    `🏷️ <b>检索标签</b>：\n${hashtagsText}`;
 
   // 快捷内联按钮 (Inline Keyboard)
   const inlineButtons = [];
