@@ -284,12 +284,13 @@ export function generateXhsCopy(movie) {
   const actors = movie.actors || '众星云集';
   const score = movie.score || 8.0;
 
-  // 3 组爆款高点击标题
+  // 小红书标题上限严格为 20 个字（包含标点和空格，超出会变红并阻断发布）
+  const cleanTitle = title.length > 7 ? title.slice(0, 7) : title;
   const titles = [
-    `🔥绝了！被全网催更的《${title}》4K原盘终于出来了！`,
-    `哭死又笑疯！2024评分封神的《${title}》，大屏画质太绝了！`,
-    `答应我一定要看4K！《${title}》无删减原盘+在线免流看`
-  ];
+    `被全网催更的《${cleanTitle}》4K来了`,
+    `强烈推荐《${cleanTitle}》4K超清原盘`,
+    `封神必看！《${cleanTitle}》4K原画已存好`
+  ].map(t => t.slice(0, 20));
 
   // 正文文案 (融入情绪挂钩 + 安全导流机制，绝不出现违禁外部网址)
   const body = `

@@ -107,8 +107,9 @@ export async function publishToXiaohongshu({
     });
     await new Promise(r => setTimeout(r, 1000));
 
-    // 2. 填写笔记标题
-    console.log('✍️ 正在自动填写笔记标题...');
+    // 2. 填写笔记标题（严格限制 20 字符以内）
+    const safeTitle = title.length > 20 ? title.slice(0, 20) : title;
+    console.log(`✍️ 正在自动填写笔记标题 ("${safeTitle}")...`);
     const titleInput = await page.waitForSelector('input[placeholder*="填写标题"]', { timeout: 15000 });
     await titleInput.click();
     // 清空可能存在的文本
@@ -116,8 +117,8 @@ export async function publishToXiaohongshu({
     await page.keyboard.press('A');
     await page.keyboard.up('Control');
     await page.keyboard.press('Backspace');
-    await titleInput.type(title, { delay: 40 });
-    console.log(`✓ 标题已填写: "${title}"`);
+    await titleInput.type(safeTitle, { delay: 40 });
+    console.log(`✓ 标题已填写: "${safeTitle}"`);
 
     // 3. 填写正文内容与话题标签
     console.log('📝 正在自动填写正文与安全导流文案...');
@@ -139,11 +140,15 @@ export async function publishToXiaohongshu({
     if (autoSubmit) {
       console.log('🚀 正在查找并触发【发布】操作...');
       const triggered = await page.evaluate(() => {
-        // 优先寻找 xhs-publish-btn
+        // 优先触发 Web Component <xhs-publish-btn>
         const pBtn = document.querySelector('xhs-publish-btn');
         if (pBtn) {
-          pBtn.click();
-          return 'xhs-publish-btn';
+          if (typeof pBtn._onPublish === 'function') {
+            pBtn._onPublish();
+            return 'xhs-publish-btn._onPublish()';
+          }
+          pBtn.dispatchEvent(new CustomEvent('publish', { bubbles: true, composed: true }));
+          return 'xhs-publish-btn.dispatchEvent(publish)';
         }
         // 备选查找文本发布按钮
         const candidates = Array.from(document.querySelectorAll('button, .d-button, [role="button"], div, span'));
@@ -158,8 +163,9 @@ export async function publishToXiaohongshu({
       });
 
       if (triggered) {
-        console.log(`🎉 笔记已成功提交发布！(触发器: ${triggered}) 等待 5 秒确认响应...`);
-        await new Promise(r => setTimeout(r, 5000));
+        console.log(`🎉 笔记已成功提交发布！(触发器: ${triggered}) 等待 6 秒确认响应...`);
+        await new Promise(r => setTimeout(r, 6000));
+        console.log('✓ 发布响应确认完毕，当前页面:', page.url());
       } else {
         console.warn('⚠️ 未定位到发布触发器，保持页面打开以供确认...');
       }
