@@ -15,8 +15,8 @@ export async function runAutomationPipeline() {
   // 1. 登录凭证健康心跳
   console.log('\n[步骤 1/5] 正在检测网盘登录凭证健康状态...');
   const cookieReport = await checkDriveCookies();
-  if (cookieReport.hasAlert) {
-    console.warn('⚠️ 检测到网盘凭证异常，已触发告警；降级保护：跳过转存，继续执行元数据拉取与全站发布！');
+  if (cookieReport.isAuthExpired) {
+    console.warn('⚠️ 检测到网盘凭证真实失效，已触发告警；降级保护：跳过转存，继续执行元数据拉取与全站发布！');
   } else {
     console.log('🟢 网盘凭证健康，剩余容量充裕，流水线正常运转！');
   }
@@ -33,8 +33,8 @@ export async function runAutomationPipeline() {
   // 3. 阶段二：靶向新片搜源与转存 (基于库中待补资源精准搜源挂载)
   console.log('\n[步骤 3/5] 启动靶向搜源与转存流水线 (阶段二)...');
   let harvestStats = { processed: 0, ucSuccess: 0, streamSuccess: 0 };
-  if (cookieReport.hasAlert) {
-    console.log('⚠️ 网盘凭证不健康，跳过本批次新片转存，保护现有资源与账号安全');
+  if (cookieReport.isAuthExpired) {
+    console.log('⚠️ 网盘凭证已失效，跳过本批次新片转存，保护现有资源与账号安全');
   } else {
     try {
       harvestStats = await harvestResourceData(5);
