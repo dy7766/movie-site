@@ -13,10 +13,10 @@ export async function runAutomationPipeline() {
   console.log('\n[步骤 1/4] 正在检测网盘登录凭证健康状态...');
   const cookieReport = await checkDriveCookies();
   if (cookieReport.hasAlert) {
-    console.error('🚨 网盘 Cookie 已失效，流水线启动熔断，已在钉钉发送 P0 紧急告警！');
-    process.exit(1);
+    console.warn('⚠️ 检测到网盘凭证异常，已触发告警；降级保护：跳过转存，继续执行播放源探活与全站发布！');
+  } else {
+    console.log('🟢 网盘凭证健康，剩余容量充裕，流水线继续运行！');
   }
-  console.log('🟢 网盘凭证健康，剩余容量充裕，流水线继续运行！');
 
   // 2. 在线播放源定时探活与自愈、老片自动补齐
   console.log('\n[步骤 2/4] 执行在线播放源探活自愈与老片补齐...');
@@ -40,11 +40,15 @@ export async function runAutomationPipeline() {
   ];
 
   let harvestedItems = [];
-  try {
-    harvestedItems = await harvestBatchMovies(CANDIDATES);
-    console.log(`✓ 本批次成功完成 ${harvestedItems.length} 部新片自动化转存`);
-  } catch (err) {
-    console.warn('⚠️ 影视自动转存异常:', err.message);
+  if (cookieReport.hasAlert) {
+    console.log('⚠️ 网盘凭证不健康，跳过本批次新片转存，保护现有资源与账号安全');
+  } else {
+    try {
+      harvestedItems = await harvestBatchMovies(CANDIDATES);
+      console.log(`✓ 本批次成功完成 ${harvestedItems.length} 部新片自动化转存`);
+    } catch (err) {
+      console.warn('⚠️ 影视自动转存异常:', err.message);
+    }
   }
 
   // 获取数据库现存总数

@@ -98,6 +98,8 @@ export async function checkDriveCookies() {
   // 若有告警，触发钉钉精准强提醒
   if (report.hasAlert) {
     console.error(`🚨 检测到网盘凭证失效: ${report.expiredDrives.join(', ')}`);
+    console.error(`   Quark 原因: ${report.quark.message}`);
+    console.error(`   UC 原因: ${report.uc.message}`);
     try {
       await sendDingTalkExpiredAlert({
         expiredDrives: report.expiredDrives,
