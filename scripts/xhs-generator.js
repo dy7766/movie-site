@@ -30,7 +30,15 @@ export async function getMovieData(keyword) {
 /**
  * 2. 使用 Chrome 无头渲染生成 3:4 爆款视觉封面图 (1080 x 1440)
  */
-export async function renderXhsCover(movie) {
+export async function renderXhsCover(movie, forceRegenerate = false) {
+  const fileName = `${movie.title.replace(/[\/\\?%*:|"<>]/g, '_')}_xhs_3x4.jpg`;
+  const outputPath = path.join(OUTPUT_DIR, fileName);
+
+  if (!forceRegenerate && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 10000) {
+    console.log(`  ✓ 复用已缓存的高清视觉海报: ${outputPath}`);
+    return outputPath;
+  }
+
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
     headless: true,
@@ -257,13 +265,14 @@ export async function renderXhsCover(movie) {
 </html>
   `;
 
-  await page.setContent(html, { waitUntil: 'networkidle0' });
-  const fileName = `${movie.title.replace(/[\/\\?%*:|"<>]/g, '_')}_xhs_3x4.jpg`;
-  const outputPath = path.join(OUTPUT_DIR, fileName);
-  await page.screenshot({ path: outputPath, type: 'jpeg', quality: 95 });
-  await browser.close();
-
-  return outputPath;
+  try {
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await new Promise(r => setTimeout(r, 1000));
+    await page.screenshot({ path: outputPath, type: 'jpeg', quality: 95 });
+    return outputPath;
+  } finally {
+    await browser.close().catch(() => {});
+  }
 }
 
 /**

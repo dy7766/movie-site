@@ -79,25 +79,33 @@ export async function publishToXiaohongshu({
       await new Promise(r => setTimeout(r, 3000));
     }
 
-    // 尝试点击【上传图文】Tab (若默认停留在上传视频)
-    try {
-      const tabs = await page.$$('.tab-item, div, span');
+    // 1.5 确保切换至【上传图文】Tab
+    console.log('🔄 正在切换至【上传图文】模块...');
+    await page.evaluate(() => {
+      const tabs = Array.from(document.querySelectorAll('.creator-tab, span.title, div, span'));
       for (const t of tabs) {
-        const text = await page.evaluate(el => el.innerText, t);
-        if (text && text.trim() === '上传图文') {
-          await t.click();
-          await new Promise(r => setTimeout(r, 1000));
-          break;
+        if (t.innerText && t.innerText.trim() === '上传图文') {
+          t.click();
+          return true;
         }
       }
-    } catch {}
+      return false;
+    });
+    await new Promise(r => setTimeout(r, 2000));
 
     console.log('📤 正在上传 3:4 高清视觉封面图...');
     // 等待上传 input
     const fileInput = await page.waitForSelector('input[type="file"]', { timeout: 20000 });
     await fileInput.uploadFile(imagePath);
     console.log('✓ 图片文件已注入上传队列，等待渲染完成...');
-    await new Promise(r => setTimeout(r, 4000));
+    await new Promise(r => setTimeout(r, 6000));
+
+    // 尝试关闭新手指引弹窗（"我知道了"）
+    await page.evaluate(() => {
+      const guideBtn = document.querySelector('.feature-guide__btn, .feature-guide__close');
+      if (guideBtn) guideBtn.click();
+    });
+    await new Promise(r => setTimeout(r, 1000));
 
     // 2. 填写笔记标题
     console.log('✍️ 正在自动填写笔记标题...');
@@ -113,30 +121,48 @@ export async function publishToXiaohongshu({
 
     // 3. 填写正文内容与话题标签
     console.log('📝 正在自动填写正文与安全导流文案...');
-    const contentArea = await page.waitForSelector('.c-input_inner, [contenteditable="true"], textarea[placeholder*="填写更详细"]', { timeout: 15000 });
+    const contentArea = await page.waitForSelector('.tiptap.ProseMirror, [contenteditable="true"], textarea', { timeout: 15000 });
     await contentArea.click();
     await page.keyboard.down('Control');
     await page.keyboard.press('A');
     await page.keyboard.up('Control');
     await page.keyboard.press('Backspace');
     
-    // 分段粘贴正文
-    await page.evaluate((text) => {
-      navigator.clipboard.writeText(text);
-    }, content).catch(() => {});
-    
     // 模拟输入
     await contentArea.type(content, { delay: 10 });
     console.log('✓ 正文文案与话题标签已完整注入！');
 
-    await new Promise(r => setTimeout(r, 1500));
+    // 滚动到底部以确保所有底部操作条就绪
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await new Promise(r => setTimeout(r, 2000));
 
     if (autoSubmit) {
-      console.log('🚀 执行自动点击【发布】按钮...');
-      const publishBtn = await page.waitForSelector('button:has-text("发布"), .publishBtn', { timeout: 10000 });
-      await publishBtn.click();
-      console.log('🎉 笔记已成功提交发布！等待 5 秒确认...');
-      await new Promise(r => setTimeout(r, 5000));
+      console.log('🚀 正在查找并触发【发布】操作...');
+      const triggered = await page.evaluate(() => {
+        // 优先寻找 xhs-publish-btn
+        const pBtn = document.querySelector('xhs-publish-btn');
+        if (pBtn) {
+          pBtn.click();
+          return 'xhs-publish-btn';
+        }
+        // 备选查找文本发布按钮
+        const candidates = Array.from(document.querySelectorAll('button, .d-button, [role="button"], div, span'));
+        for (const el of candidates) {
+          const t = el.innerText ? el.innerText.trim() : '';
+          if (t === '发布' || t === '发布笔记') {
+            el.click();
+            return `Element: <${el.tagName}> "${t}"`;
+          }
+        }
+        return false;
+      });
+
+      if (triggered) {
+        console.log(`🎉 笔记已成功提交发布！(触发器: ${triggered}) 等待 5 秒确认响应...`);
+        await new Promise(r => setTimeout(r, 5000));
+      } else {
+        console.warn('⚠️ 未定位到发布触发器，保持页面打开以供确认...');
+      }
     } else {
       console.log('\n===============================================================');
       console.log('🟢【安全保护模式】：素材、标题与正文已全部自动填入！');
