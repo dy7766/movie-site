@@ -84,12 +84,21 @@ export async function runAutomationPipeline() {
     console.warn('⚠️ Telegram 广播异常（不阻断主流程）:', tgErr.message);
   }
 
+  // 6. 搜索引擎 IndexNow 全网即时推送 (通知必应 / 微软蜘蛛爬取全站)
+  console.log('\n[步骤 6/7] 执行搜索引擎 IndexNow 全量页面即时推送...');
+  try {
+    const { submitToIndexNow } = await import('./submit-indexnow.js');
+    await submitToIndexNow();
+  } catch (idxErr) {
+    console.warn('⚠️ IndexNow 推送异常（不阻断主流程）:', idxErr.message);
+  }
+
   // 获取数据库现存总数
   const totalCountRes = await pool.query('SELECT count(*) FROM resources');
   const totalMovies = parseInt(totalCountRes.rows[0]?.count || '232');
 
-  // 6. 发送钉钉任务完成大盘报告
-  console.log('\n[步骤 6/6] 正在推送本次自动化运营大盘至钉钉群...');
+  // 7. 发送钉钉任务完成大盘报告
+  console.log('\n[步骤 7/7] 正在推送本次自动化运营大盘至钉钉群...');
   try {
     await sendDingTalkTaskSummary({
       addedCount: (metaStats.doubanStats?.insertedCount || 0) + (metaStats.tmdbStats?.insertedCount || 0),
