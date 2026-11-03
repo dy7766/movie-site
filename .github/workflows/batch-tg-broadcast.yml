@@ -1,0 +1,34 @@
+name: 📢 Batch Telegram Broadcast
+
+on:
+  workflow_dispatch:
+
+jobs:
+  broadcast:
+    name: 🚀 批量推送全量可转存影视到 Telegram
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 检出最新代码
+        uses: actions/checkout@v4
+
+      - name: ⚡ 安装 Node.js 运行环境 (v20)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 📦 安装项目依赖
+        run: npm ci
+
+      - name: 📢 执行批量广播程序
+        env:
+          SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+          SUPABASE_DB_PORT: ${{ secrets.SUPABASE_DB_PORT }}
+          SUPABASE_DB_NAME: ${{ secrets.SUPABASE_DB_NAME }}
+          SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/batch-broadcast-tg.js
