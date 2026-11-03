@@ -43,8 +43,18 @@ export async function runAutomationPipeline() {
     }
   }
 
-  // 4. 在线播放源定时探活自愈与老片补齐
-  console.log('\n[步骤 4/5] 执行在线播放源探活自愈与老片补齐...');
+  // 4. 连载电视剧/综艺每日追更集数同步
+  console.log('\n[步骤 4/7] 正在执行连载电视剧/综艺最新集数追更同步...');
+  let episodeStats = { updatedCount: 0 };
+  try {
+    const { syncOngoingSeriesEpisodes } = await import('./sync-series-episodes.js');
+    episodeStats = await syncOngoingSeriesEpisodes();
+  } catch (epErr) {
+    console.warn('⚠️ 连载追更巡检异常（不阻断主流程）:', epErr.message);
+  }
+
+  // 5. 在线播放源定时探活自愈与老片补齐
+  console.log('\n[步骤 5/7] 执行在线播放源探活自愈与老片补齐...');
   let streamStats = { checked: 0, healed: 0, backfilled: 0 };
   try {
     streamStats = await runOnlineStreamAudit();
@@ -52,8 +62,8 @@ export async function runAutomationPipeline() {
     console.warn('⚠️ 在线播放巡检异常（不阻断主流程）:', err.message);
   }
 
-  // 5. Telegram 影迷私域群每日新片自动广播
-  console.log('\n[步骤 5/6] 正在执行 Telegram 影迷群新片自动广播...');
+  // 6. Telegram 影迷私域群每日新片自动广播
+  console.log('\n[步骤 6/7] 正在执行 Telegram 影迷群新片自动广播...');
   try {
     const { sendMovieCardToTelegram, detectChatId } = await import('./telegram-service.js');
     let chatId = process.env.TELEGRAM_CHAT_ID;

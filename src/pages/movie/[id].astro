@@ -13,25 +13,45 @@ export async function getStaticPaths() {
 const { movie } = Astro.props;
 
 const isTvShow = movie.category === '电视剧' || movie.category === '动漫' || movie.category === '综艺';
+const epUnit = movie.category === '综艺' ? '期' : '集';
 
-// 智能提取剧集总集数
-let totalEpisodes = 0;
+// 智能提取剧集与连载状态
+let totalEpisodes = movie.total_episodes || 0;
+let currentEpisodes = movie.current_episode || 0;
+const isFinished = movie.is_finished !== false;
+
 if (isTvShow) {
-  const allText = (movie.tags?.join(' ') || '') + ' ' + (movie.title || '') + ' ' + (movie.intro || '');
-  const match = allText.match(/全?(\d+)集/);
-  if (match) {
-    totalEpisodes = parseInt(match[1]);
-  } else {
-    if (movie.title.includes('繁花')) totalEpisodes = 30;
-    else if (movie.title.includes('狂飙')) totalEpisodes = 39;
-    else if (movie.title.includes('阿勒泰')) totalEpisodes = 8;
-    else if (movie.title.includes('庆余年')) totalEpisodes = 36;
-    else if (movie.title.includes('进击的巨人')) totalEpisodes = 28;
-    else totalEpisodes = 24; // 常见剧集默认集数
+  if (!totalEpisodes) {
+    const allText = (movie.tags?.join(' ') || '') + ' ' + (movie.title || '') + ' ' + (movie.intro || '');
+    const match = allText.match(/全?(\d+)集/);
+    if (match) {
+      totalEpisodes = parseInt(match[1]);
+    } else {
+      if (movie.title.includes('繁花')) totalEpisodes = 30;
+      else if (movie.title.includes('狂飙')) totalEpisodes = 39;
+      else if (movie.title.includes('阿勒泰')) totalEpisodes = 8;
+      else if (movie.title.includes('庆余年')) totalEpisodes = 36;
+      else if (movie.title.includes('进击的巨人')) totalEpisodes = 28;
+      else if (movie.title.includes('歌手')) totalEpisodes = 12;
+      else if (movie.title.includes('喜人')) totalEpisodes = 11;
+      else if (movie.title.includes('脱口秀')) totalEpisodes = 10;
+      else if (movie.title.includes('种地吧')) totalEpisodes = 50;
+      else totalEpisodes = 24; // 常见剧集默认集数
+    }
+  }
+  if (!currentEpisodes) {
+    currentEpisodes = isFinished ? totalEpisodes : Math.min(totalEpisodes, 12);
   }
 }
 
-const pageTitle = `《${movie.title}》${movie.year ? `(${movie.year})` : ''} ${isTvShow ? `全${totalEpisodes}集完整版` : '4K完整版'} - 夸克/迅雷网盘在线转存下载`;
+const episodesList = Array.from({ length: totalEpisodes }, (_, i) => {
+  const ep = i + 1;
+  const isAvailable = Boolean(movie.share_link_uc || movie.share_link) && ep <= currentEpisodes;
+  const targetUrl = movie.share_link_uc || movie.share_link;
+  return { ep, isAvailable, targetUrl };
+});
+
+const pageTitle = `《${movie.title}》${movie.year ? `(${movie.year})` : ''} ${isTvShow ? (isFinished ? `全${totalEpisodes}${epUnit}完整版` : `连载追更至第${currentEpisodes}${epUnit}`) : '4K完整版'} - 夸克/UC网盘在线转存与播放`;
 const pageDesc = `免费提供《${movie.title}》高清4K原盘资源高速转存与在线播放。主演：${movie.actors || '精选演员'}。剧情简介：${movie.intro ? movie.intro.slice(0, 120) : '暂无简介'}...`;
 
 // 解析剧照与短评
@@ -107,9 +127,17 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
               {movie.category || '电影'}
             </span>
             {isTvShow && (
-              <span class="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-semibold">
-                更新至全 {totalEpisodes} 集完整版
-              </span>
+              isFinished ? (
+                <span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  已完结 · 全 {totalEpisodes} {epUnit}完整版
+                </span>
+              ) : (
+                <span class="px-2.5 py-1 rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/30 text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+                  <span class="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse"></span>
+                  🔥 连载追更中 · 每日更新至第 {currentEpisodes} {epUnit}
+                </span>
+              )
             )}
             {movie.year && (
               <span class="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-300 border border-slate-700 text-xs font-medium">
@@ -356,9 +384,9 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
       <div class="mt-8 bg-slate-900/40 rounded-3xl p-6 sm:p-8 border border-slate-800/80 backdrop-blur-xl space-y-6">
         <div class="flex items-center justify-between flex-wrap gap-4 border-b border-slate-800 pb-4">
           <div class="flex items-center gap-2">
-            <div class={`w-2.5 h-2.5 rounded-full ${movie.share_link ? 'bg-orange-500' : 'bg-slate-600'}`}></div>
-            <h2 class="text-lg font-bold text-white">剧集选集播放与转存</h2>
-            <span class="text-xs text-slate-400">（共 {totalEpisodes} 集 · 4K原画无损）</span>
+            <div class={`w-2.5 h-2.5 rounded-full ${(movie.share_link || movie.share_link_uc) ? 'bg-orange-500' : 'bg-slate-600'}`}></div>
+            <h2 class="text-lg font-bold text-white">{movie.category === '综艺' ? '节目期数与转存' : '剧集选集播放与转存'}</h2>
+            <span class="text-xs text-slate-400">（{isFinished ? `共 ${totalEpisodes} ${epUnit}` : `连载至第 ${currentEpisodes} ${epUnit} / 全 ${totalEpisodes} ${epUnit}`} · 4K原画）</span>
           </div>
 
           <!-- 全集打包转存大按钮或待更新 -->
@@ -393,14 +421,14 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
             </div>
           ) : (
             <span class="px-4 py-2 rounded-xl bg-slate-800/80 text-slate-400 text-xs font-medium border border-slate-700/60 flex items-center gap-1.5">
-              <span>⏳ 剧集资源排期上传中</span>
+              <span>⏳ 资源排期上传中</span>
             </span>
           )}
         </div>
 
         {(!movie.share_link && !movie.share_link_uc) && (
           <div class="rounded-xl bg-slate-950/50 border border-amber-500/30 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-            <span class="text-amber-400">⚠️ 本剧全集 4K 原盘链接正在处理校验中，暂未开放下载。推荐先观看已上线大片：</span>
+            <span class="text-amber-400">⚠️ 本内容 4K 原盘链接正在处理校验中，暂未开放下载。推荐先观看已上线大片：</span>
             <div class="flex gap-2">
               <a href="/movie/b25c137c-8ee5-4f4b-8640-0578e3f8c061" class="text-orange-400 hover:underline font-semibold">《空枪》4K完整版 →</a>
               <a href="/movie/4eb48c96-df04-4e0f-ac19-49dd029fda9e" class="text-slate-300 hover:underline">《夜王》→</a>
@@ -410,32 +438,32 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
 
         <!-- 选集网格按钮 -->
         <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2.5 sm:gap-3">
-          {Array.from({ length: totalEpisodes }, (_, i) => i + 1).map((ep) => (
-            movie.share_link ? (
+          {episodesList.map((item) => (
+            item.isAvailable ? (
               <a 
-                href={movie.share_link} 
+                href={item.targetUrl} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 class="group relative py-3 px-2 rounded-xl bg-slate-800/80 hover:bg-orange-500 text-slate-200 hover:text-white border border-slate-700/70 hover:border-orange-500 text-center transition-all flex flex-col items-center justify-center shadow-sm"
-                title={`点击转存并观看 第 ${ep} 集`}
+                title={`点击转存并观看 第 ${item.ep} ${epUnit}`}
               >
-                <span class="text-xs font-bold">第 {ep < 10 ? `0${ep}` : ep} 集</span>
+                <span class="text-xs font-bold">第 {item.ep < 10 ? `0${item.ep}` : item.ep} {epUnit}</span>
                 <span class="text-[9px] text-slate-400 group-hover:text-orange-100 scale-90">4K超清</span>
               </a>
             ) : (
               <div 
                 class="relative py-3 px-2 rounded-xl bg-slate-900/60 text-slate-500 border border-slate-800/80 text-center flex flex-col items-center justify-center cursor-not-allowed select-none opacity-60"
-                title="该集资源正在排期上传中"
+                title={item.ep > currentEpisodes ? '剧集连载中，待官方后续更新' : '该集资源正在排期上传中'}
               >
-                <span class="text-xs font-medium">第 {ep < 10 ? `0${ep}` : ep} 集</span>
-                <span class="text-[9px] text-slate-600 scale-90">待上线</span>
+                <span class="text-xs font-medium">第 {item.ep < 10 ? `0${item.ep}` : item.ep} {epUnit}</span>
+                <span class="text-[9px] text-slate-600 scale-90">{item.ep > currentEpisodes ? '待更新' : '排期中'}</span>
               </div>
             )
           ))}
         </div>
 
         <p class="text-xs text-slate-400 italic">
-          💡 说明：{movie.share_link ? '点击上方任意分集，即可直接打开网盘对应剧集目录进行保存或原画在线播放。' : '本剧正在批量排期录入网盘，上线后点击任意分集即可直接转存播放。'}
+          💡 说明：{(movie.share_link_uc || movie.share_link) ? `点击上方任意已上线分${epUnit}，即可直接打开网盘对应目录进行保存或原画在线播放。` : `本节目正在批量排期录入网盘，上线后点击任意分${epUnit}即可直接转存播放。`}
         </p>
       </div>
     )}
