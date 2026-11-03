@@ -52,8 +52,8 @@ export async function runBatchTgBroadcast() {
       console.error(`  ❌ 异常:`, e.message);
     }
 
-    // 防 TG 速率限制 (每秒不超过 1 条)
-    await sleep(1500);
+    // 防 Telegram 官方 20条/分钟 频率限制 (每条间隔 3.2 秒)
+    await sleep(3200);
   }
 
   console.log('\n===============================================================');
