@@ -1,6 +1,7 @@
 import { checkDriveCookies } from './cookie-monitor.js';
+import { runMetadataIngestion } from './ingest-metadata.js';
+import { harvestResourceData } from './harvest-resource-data.js';
 import { runOnlineStreamAudit } from './online-play-monitor.js';
-import { harvestBatchMovies } from './auto-harvester.js';
 import { sendDingTalkTaskSummary } from './dingtalk-service.js';
 import { getDbPool } from '../src/lib/db.js';
 
@@ -9,17 +10,41 @@ export async function runAutomationPipeline() {
   console.log('🚀 影视站全自动化流水线启动:', new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }));
   console.log('===============================================================');
 
+  const pool = getDbPool();
+
   // 1. 登录凭证健康心跳
-  console.log('\n[步骤 1/4] 正在检测网盘登录凭证健康状态...');
+  console.log('\n[步骤 1/5] 正在检测网盘登录凭证健康状态...');
   const cookieReport = await checkDriveCookies();
   if (cookieReport.hasAlert) {
-    console.warn('⚠️ 检测到网盘凭证异常，已触发告警；降级保护：跳过转存，继续执行播放源探活与全站发布！');
+    console.warn('⚠️ 检测到网盘凭证异常，已触发告警；降级保护：跳过转存，继续执行元数据拉取与全站发布！');
   } else {
-    console.log('🟢 网盘凭证健康，剩余容量充裕，流水线继续运行！');
+    console.log('🟢 网盘凭证健康，剩余容量充裕，流水线正常运转！');
   }
 
-  // 2. 在线播放源定时探活与自愈、老片自动补齐
-  console.log('\n[步骤 2/4] 执行在线播放源探活自愈与老片补齐...');
+  // 2. 阶段一：全网最新最热影视元数据策略汇聚 (TMDB + 豆瓣，每日 50~100 部)
+  console.log('\n[步骤 2/5] 启动全网最新最热影视元数据策略汇聚 (阶段一)...');
+  let metaStats = { totalBefore: 0, totalAfter: 0, doubanStats: {}, tmdbStats: {}, pendingCount: 0 };
+  try {
+    metaStats = await runMetadataIngestion({ doubanLimit: 40, tmdbPages: 2 });
+  } catch (err) {
+    console.warn('⚠️ 元数据采集异常（不阻断后续流程）:', err.message);
+  }
+
+  // 3. 阶段二：靶向新片搜源与转存 (基于库中待补资源精准搜源挂载)
+  console.log('\n[步骤 3/5] 启动靶向搜源与转存流水线 (阶段二)...');
+  let harvestStats = { processed: 0, ucSuccess: 0, streamSuccess: 0 };
+  if (cookieReport.hasAlert) {
+    console.log('⚠️ 网盘凭证不健康，跳过本批次新片转存，保护现有资源与账号安全');
+  } else {
+    try {
+      harvestStats = await harvestResourceData(5);
+    } catch (err) {
+      console.warn('⚠️ 影视自动搜源转存异常:', err.message);
+    }
+  }
+
+  // 4. 在线播放源定时探活自愈与老片补齐
+  console.log('\n[步骤 4/5] 执行在线播放源探活自愈与老片补齐...');
   let streamStats = { checked: 0, healed: 0, backfilled: 0 };
   try {
     streamStats = await runOnlineStreamAudit();
@@ -27,45 +52,21 @@ export async function runAutomationPipeline() {
     console.warn('⚠️ 在线播放巡检异常（不阻断主流程）:', err.message);
   }
 
-  // 3. 热门电影自动嗅探与转存 (优先保持电影:电视 10:1 黄金配比)
-  console.log('\n[步骤 3/4] 启动电影优先全自动搜源与转存流水线...');
-  const pool = getDbPool();
-  // 选取候选池
-  const CANDIDATES = [
-    { title: '抓娃娃', year: 2024 },
-    { title: '年会不能停！', year: 2024 },
-    { title: '奥本海默', year: 2023 },
-    { title: '沙丘2', year: 2024 },
-    { title: '解密', year: 2024 }
-  ];
-
-  let harvestedItems = [];
-  if (cookieReport.hasAlert) {
-    console.log('⚠️ 网盘凭证不健康，跳过本批次新片转存，保护现有资源与账号安全');
-  } else {
-    try {
-      harvestedItems = await harvestBatchMovies(CANDIDATES);
-      console.log(`✓ 本批次成功完成 ${harvestedItems.length} 部新片自动化转存`);
-    } catch (err) {
-      console.warn('⚠️ 影视自动转存异常:', err.message);
-    }
-  }
-
   // 获取数据库现存总数
   const totalCountRes = await pool.query('SELECT count(*) FROM resources');
-  const totalMovies = parseInt(totalCountRes.rows[0]?.count || '221');
+  const totalMovies = parseInt(totalCountRes.rows[0]?.count || '232');
 
-  // 4. 发送钉钉任务完成大盘报告
-  console.log('\n[步骤 4/4] 正在推送本次自动化运营大盘至钉钉群...');
+  // 5. 发送钉钉任务完成大盘报告
+  console.log('\n[步骤 5/5] 正在推送本次自动化运营大盘至钉钉群...');
   try {
     await sendDingTalkTaskSummary({
-      addedCount: harvestedItems.length,
-      matchedCount: harvestedItems.length,
-      deployedCount: harvestedItems.length,
+      addedCount: (metaStats.doubanStats?.insertedCount || 0) + (metaStats.tmdbStats?.insertedCount || 0),
+      matchedCount: harvestStats.ucSuccess + harvestStats.streamSuccess,
+      deployedCount: totalMovies,
       healedCount: streamStats.healed,
       backfilledCount: streamStats.backfilled,
       totalMovies: totalMovies,
-      items: harvestedItems
+      items: []
     });
     console.log('📢 钉钉数据大盘报告推送成功！');
   } catch (err) {

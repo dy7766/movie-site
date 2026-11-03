@@ -60,26 +60,46 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
   </section>
 
   <!-- 资源列表与分类筛选 -->
-  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-    <!-- 分类标签 -->
-    <div class="flex items-center justify-between flex-wrap gap-4 mb-8">
-      <div class="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-        {categories.map((cat, idx) => (
-          <button 
-            class={`category-tab px-4 py-1.5 rounded-xl text-xs font-medium transition-all ${
-              idx === 0 
-                ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/30' 
-                : 'bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
-            }`}
-            data-category={cat}
-          >
-            {cat}
-          </button>
-        ))}
+  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10" id="resources-section">
+    <!-- 筛选控制栏：分类与资源可用性 -->
+    <div class="space-y-4 mb-8">
+      <!-- 分类标签 -->
+      <div class="flex items-center justify-between flex-wrap gap-4">
+        <div class="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+          {categories.map((cat, idx) => (
+            <button 
+              class={`category-tab px-4 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                idx === 0 
+                  ? 'bg-orange-500 text-white shadow-sm shadow-orange-500/30' 
+                  : 'bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+              }`}
+              data-category={cat}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        <div class="text-xs text-slate-400 font-medium">
+          已收录 <span id="movieCount" class="text-orange-400 font-semibold">{movies.length}</span> 部精选资源
+        </div>
       </div>
 
-      <div class="text-xs text-slate-400 font-medium">
-        已收录 <span id="movieCount" class="text-orange-400 font-semibold">{movies.length}</span> 部精选资源
+      <!-- 资源可用性显式过滤 -->
+      <div class="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none text-xs border-t border-slate-800/60 pt-3">
+        <span class="text-slate-400 font-medium whitespace-nowrap min-w-[56px]">资源可用：</span>
+        <button type="button" class="avail-tab px-3 py-1 rounded-lg text-xs font-semibold bg-orange-500 text-white shadow-sm transition-all" data-avail="all">
+          全部资源
+        </button>
+        <button type="button" class="avail-tab px-3 py-1 rounded-lg text-xs font-medium bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800 transition-all" data-avail="playable">
+          🟢 仅可在线播放
+        </button>
+        <button type="button" class="avail-tab px-3 py-1 rounded-lg text-xs font-medium bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800 transition-all" data-avail="savable">
+          ⚡ 仅可网盘转存
+        </button>
+        <button type="button" class="avail-tab px-3 py-1 rounded-lg text-xs font-medium bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800 transition-all" data-avail="both">
+          🎬 双料全能 (可播可存)
+        </button>
       </div>
     </div>
 
@@ -90,6 +110,8 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
           data-title={m.title}
           data-actors={m.actors || ''}
           data-category={m.category || '电影'}
+          data-playable={m.online_play_url ? 'true' : 'false'}
+          data-savable={(m.share_link || m.share_link_uc) ? 'true' : 'false'}
         >
           <!-- 封面海报容器 (点击进入详情页) -->
           <a href={`/movie/${m.id}`} class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800 block">
@@ -105,8 +127,18 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
                 ★ {Number(m.score).toFixed(1)}
               </div>
             )}
-            <!-- 网盘/资源状态角标 -->
-            {(m.share_link && m.share_link_uc) ? (
+            <!-- 网盘/在线播放双状态角标 -->
+            {(m.online_play_url && (m.share_link || m.share_link_uc)) ? (
+              <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-gradient-to-r from-emerald-600 to-teal-500 backdrop-blur-md text-white text-[10px] font-bold tracking-wide uppercase shadow flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
+                可播可存
+              </div>
+            ) : m.online_play_url ? (
+              <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-indigo-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide shadow flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-indigo-200 animate-pulse"></span>
+                可在线播放
+              </div>
+            ) : (m.share_link && m.share_link_uc) ? (
               <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-gradient-to-r from-orange-600 to-amber-500 backdrop-blur-md text-white text-[10px] font-bold tracking-wide uppercase shadow flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
                 双网盘秒传
@@ -119,14 +151,9 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
               <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-amber-500/90 backdrop-blur-md text-slate-950 text-[10px] font-bold tracking-wide uppercase shadow">
                 UC秒传
               </div>
-            ) : m.online_play_url ? (
-              <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-indigo-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide shadow flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-indigo-200 animate-pulse"></span>
-                在线播放
-              </div>
             ) : (
               <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-slate-900/90 backdrop-blur-md border border-slate-700/60 text-slate-400 text-[10px] font-medium tracking-wide shadow">
-                待上传
+                待补资源
               </div>
             )}
           </a>
@@ -142,6 +169,25 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
               <p class="text-xs text-slate-400 line-clamp-1 mt-0.5">
                 {m.year ? `${m.year} · ` : ''}{m.country ? `${m.country} · ` : ''}{m.actors || '暂无主演信息'}
               </p>
+
+              <!-- 资源标签：可播放 / 可转存 -->
+              <div class="flex items-center gap-1.5 flex-wrap pt-1.5">
+                {m.online_play_url && (
+                  <span class="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                    <span class="w-1 h-1 rounded-full bg-emerald-400"></span>可播放
+                  </span>
+                )}
+                {(m.share_link || m.share_link_uc) && (
+                  <span class="inline-flex items-center gap-1 text-[10px] font-medium text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                    <span class="w-1 h-1 rounded-full bg-amber-400"></span>可转存
+                  </span>
+                )}
+                {(!m.online_play_url && !m.share_link && !m.share_link_uc) && (
+                  <span class="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-slate-800/80 border border-slate-700/50 px-1.5 py-0.5 rounded">
+                    待补资源
+                  </span>
+                )}
+              </div>
             </div>
 
             <!-- 转存按钮或暂无资源说明 -->
@@ -233,6 +279,7 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
     const searchInput = document.getElementById('searchInput');
     const searchBtn = document.getElementById('searchBtn');
     const categoryTabs = document.querySelectorAll('.category-tab');
+    const availTabs = document.querySelectorAll('.avail-tab');
     const cards = Array.from(document.querySelectorAll('.movie-card'));
     const emptyState = document.getElementById('emptyState');
     const movieCount = document.getElementById('movieCount');
@@ -245,6 +292,7 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
     const PAGE_SIZE = 20;
     let currentPage = 1;
     let currentCategory = '全部';
+    let currentAvail = 'all';
     let currentKeyword = '';
     let currentMatchedCards = [];
 
@@ -364,11 +412,22 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
         const title = card.getAttribute('data-title')?.toLowerCase() || '';
         const actors = card.getAttribute('data-actors')?.toLowerCase() || '';
         const cat = card.getAttribute('data-category') || '';
+        const isPlayable = card.getAttribute('data-playable') === 'true';
+        const isSavable = card.getAttribute('data-savable') === 'true';
 
         const matchCat = currentCategory === '全部' || cat === currentCategory;
         const matchSearch = !currentKeyword || title.includes(currentKeyword) || actors.includes(currentKeyword);
+        
+        let matchAvail = true;
+        if (currentAvail === 'playable') {
+          matchAvail = isPlayable;
+        } else if (currentAvail === 'savable') {
+          matchAvail = isSavable;
+        } else if (currentAvail === 'both') {
+          matchAvail = (isPlayable && isSavable);
+        }
 
-        if (matchCat && matchSearch) {
+        if (matchCat && matchSearch && matchAvail) {
           currentMatchedCards.push(card);
         }
       });
@@ -405,6 +464,21 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
         tab.classList.add('bg-orange-500', 'text-white', 'shadow-sm', 'shadow-orange-500/30');
 
         currentCategory = tab.getAttribute('data-category');
+        filterCards(true);
+      });
+    });
+
+    // 资源可用性过滤切换
+    availTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        availTabs.forEach(t => {
+          t.classList.remove('bg-orange-500', 'text-white', 'shadow-sm', 'font-semibold');
+          t.classList.add('bg-slate-900/80', 'text-slate-400', 'border', 'border-slate-800', 'font-medium');
+        });
+        tab.classList.remove('bg-slate-900/80', 'text-slate-400', 'border', 'border-slate-800', 'font-medium');
+        tab.classList.add('bg-orange-500', 'text-white', 'shadow-sm', 'font-semibold');
+
+        currentAvail = tab.getAttribute('data-avail') || 'all';
         filterCards(true);
       });
     });

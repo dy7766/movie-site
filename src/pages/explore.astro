@@ -136,6 +136,41 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
           ))}
         </div>
       </div>
+
+      <!-- 维度7：资源可用性 (显式过滤) -->
+      <div class="flex items-start sm:items-center gap-3 text-xs flex-col sm:flex-row pt-2 border-t border-slate-800/60">
+        <span class="text-slate-400 font-medium whitespace-nowrap min-w-[56px] pt-1 sm:pt-0">资源可用：</span>
+        <div class="flex flex-wrap gap-2 filter-group" data-filter="avail">
+          <button 
+            type="button"
+            class="filter-btn px-3 py-1 rounded-lg text-xs font-semibold bg-orange-500 text-white shadow-md shadow-orange-500/20 transition-all"
+            data-val="全部"
+          >
+            全部资源
+          </button>
+          <button 
+            type="button"
+            class="filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 transition-all"
+            data-val="playable"
+          >
+            🟢 仅可在线播放
+          </button>
+          <button 
+            type="button"
+            class="filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 transition-all"
+            data-val="savable"
+          >
+            ⚡ 仅可网盘转存
+          </button>
+          <button 
+            type="button"
+            class="filter-btn px-3 py-1 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 transition-all"
+            data-val="both"
+          >
+            🎬 双料全能 (可播可存)
+          </button>
+        </div>
+      </div>
     </div>
 
     <!-- 检索状态栏与重置 -->
@@ -169,6 +204,8 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
           data-tags={JSON.stringify(m.tags || [])}
           data-year={m.year || 0}
           data-score={m.score ? Number(m.score) : 0}
+          data-playable={m.online_play_url ? 'true' : 'false'}
+          data-savable={(m.share_link || m.share_link_uc) ? 'true' : 'false'}
         >
           <!-- 封面海报容器 -->
           <a href={`/movie/${m.id}`} class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800 block">
@@ -184,28 +221,33 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
                 ★ {Number(m.score).toFixed(1)}
               </div>
             )}
-            <!-- 状态角标 -->
-            {(m.share_link && m.share_link_uc) ? (
+            <!-- 网盘/在线播放双状态角标 -->
+            {(m.online_play_url && (m.share_link || m.share_link_uc)) ? (
+              <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-gradient-to-r from-emerald-600 to-teal-500 backdrop-blur-md text-white text-[10px] font-bold tracking-wide uppercase shadow flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
+                可播可存
+              </div>
+            ) : m.online_play_url ? (
+              <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-indigo-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide shadow flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-indigo-200 animate-pulse"></span>
+                可在线播放
+              </div>
+            ) : (m.share_link && m.share_link_uc) ? (
               <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-gradient-to-r from-orange-600 to-amber-500 backdrop-blur-md text-white text-[10px] font-bold tracking-wide uppercase shadow flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
                 双网盘秒传
               </div>
             ) : m.share_link ? (
               <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-orange-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide uppercase shadow">
-                4K秒传
+                夸克秒传
               </div>
             ) : m.share_link_uc ? (
               <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-amber-500/90 backdrop-blur-md text-slate-950 text-[10px] font-bold tracking-wide uppercase shadow">
                 UC秒传
               </div>
-            ) : m.online_play_url ? (
-              <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-indigo-600/90 backdrop-blur-md text-white text-[10px] font-semibold tracking-wide shadow flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-indigo-200 animate-pulse"></span>
-                在线播放
-              </div>
             ) : (
               <div class="absolute top-2 left-2 px-2 py-0.5 rounded-md bg-slate-900/90 backdrop-blur-md border border-slate-700/60 text-slate-400 text-[10px] font-medium tracking-wide shadow">
-                待上传
+                待补资源
               </div>
             )}
           </a>
@@ -221,6 +263,25 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
               <p class="text-xs text-slate-400 line-clamp-1 mt-0.5">
                 {m.year ? `${m.year} · ` : ''}{m.country ? `${m.country} · ` : ''}{m.actors || '暂无主演信息'}
               </p>
+
+              <!-- 资源标签：可播放 / 可转存 -->
+              <div class="flex items-center gap-1.5 flex-wrap pt-1.5">
+                {m.online_play_url && (
+                  <span class="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-1.5 py-0.5 rounded">
+                    <span class="w-1 h-1 rounded-full bg-emerald-400"></span>可播放
+                  </span>
+                )}
+                {(m.share_link || m.share_link_uc) && (
+                  <span class="inline-flex items-center gap-1 text-[10px] font-medium text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                    <span class="w-1 h-1 rounded-full bg-amber-400"></span>可转存
+                  </span>
+                )}
+                {(!m.online_play_url && !m.share_link && !m.share_link_uc) && (
+                  <span class="inline-flex items-center gap-1 text-[10px] font-medium text-slate-400 bg-slate-800/80 border border-slate-700/50 px-1.5 py-0.5 rounded">
+                    待补资源
+                  </span>
+                )}
+              </div>
             </div>
 
             <!-- 标签展示 -->
@@ -337,6 +398,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
         year: '全部',
         score: '全部',
         sort: 'default',
+        avail: '全部',
         page: 1
       };
 
@@ -364,6 +426,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
       if (params.get('year')) state.year = params.get('year');
       if (params.get('score')) state.score = params.get('score');
       if (params.get('sort')) state.sort = params.get('sort');
+      if (params.get('avail')) state.avail = params.get('avail');
       if (params.get('page')) state.page = parseInt(params.get('page')) || 1;
 
       // 渲染按钮高亮
@@ -494,6 +557,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
         if (state.year !== '全部') newParams.set('year', state.year);
         if (state.score !== '全部') newParams.set('score', state.score);
         if (state.sort !== 'default') newParams.set('sort', state.sort);
+        if (state.avail !== '全部') newParams.set('avail', state.avail);
         if (state.page > 1) newParams.set('page', state.page);
 
         const newUrl = window.location.pathname + (newParams.toString() ? '?' + newParams.toString() : '');
@@ -549,6 +613,13 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
           if (state.score === '8.0分以上' && score < 8.0) return;
           if (state.score === '7.0分以上' && score < 7.0) return;
 
+          // 资源可用性校验 (显式过滤)
+          const isPlayable = card.dataset.playable === 'true';
+          const isSavable = card.dataset.savable === 'true';
+          if (state.avail === 'playable' && !isPlayable) return;
+          if (state.avail === 'savable' && !isSavable) return;
+          if (state.avail === 'both' && (!isPlayable || !isSavable)) return;
+
           matchedMovies.push(card);
         });
 
@@ -595,6 +666,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
         state.year = '全部';
         state.score = '全部';
         state.sort = 'default';
+        state.avail = '全部';
         state.page = 1;
         applyFilter(true);
       }

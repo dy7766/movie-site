@@ -16,32 +16,59 @@ function fetchJson(url) {
 }
 
 /**
- * 从 TMDB 官方 API 拉取当前全球与华语热门影视元数据
- * @param {number} pages 拉取页数 (每页 20 部，默认 2 页 = 40 部)
+ * 策略采集：优先获取 TMDB 当前【最新院线热映】与【今日大热榜单】影视
+ * @param {number} targetCount 目标采集数量 (默认 40 部)
  */
-export async function fetchTmdbMetadata(pages = 2) {
+export async function fetchTmdbMetadata(targetCount = 40) {
   console.log(`\n===============================================================`);
-  console.log(`🎬 [阶段一 · 步骤 B] 正在从 TMDB 官方 API 拉取热门影视元数据 (${pages} 页)...`);
+  console.log(`🎬 [阶段一 · 步骤 B] TMDB 策略采集：优先锁定【最新院线热映 + 今日大热】(目标: ${targetCount} 部)...`);
   console.log(`===============================================================`);
 
   const pool = getDbPool();
-  const rawList = [];
+  const rawMap = new Map();
 
-  for (let page = 1; page <= pages; page++) {
-    const url = `https://api.themoviedb.org/3/movie/popular?api_key=${TMDB_API_KEY}&language=zh-CN&page=${page}`;
-    const data = fetchJson(url);
-    if (data && data.results) {
-      for (const item of data.results) {
-        if (item.title) rawList.push(item);
+  // 1. 抓取今日趋势电影 (Trending Day)
+  console.log('  🔥 正在抓取 TMDB 今日全球趋势电影 (Trending)...');
+  const trendingUrl = `https://api.themoviedb.org/3/trending/movie/day?api_key=${TMDB_API_KEY}&language=zh-CN`;
+  const trendData = fetchJson(trendingUrl);
+  if (trendData?.results) {
+    for (const m of trendData.results) {
+      if (m.title && !rawMap.has(m.title)) {
+        rawMap.set(m.title, { ...m, isTrending: true });
       }
-      console.log(`  ✓ 已获取 TMDB 第 ${page}/${pages} 页列表，当前累计 ${rawList.length} 部`);
-    } else {
-      console.warn(`  ⚠️ TMDB 第 ${page} 页拉取超时或失败`);
     }
-    await sleep(200);
   }
 
-  console.log(`\n🔍 正在获取每部影视的精细剧照、演职员与制作国信息...`);
+  // 2. 抓取院线正在热映 (Now Playing)
+  console.log('  🍿 正在抓取 TMDB 院线正在热映大片 (Now Playing)...');
+  const nowPlayingUrl = `https://api.themoviedb.org/3/movie/now_playing?api_key=${TMDB_API_KEY}&language=zh-CN&page=1`;
+  const nowData = fetchJson(nowPlayingUrl);
+  if (nowData?.results) {
+    for (const m of nowData.results) {
+      if (m.title && !rawMap.has(m.title)) {
+        rawMap.set(m.title, { ...m, isNowPlaying: true });
+      }
+    }
+  }
+
+  // 3. 补充近期热门电影 (Popular)
+  if (rawMap.size < targetCount) {
+    console.log('  📈 正在补充 TMDB 近期高热度片单 (Popular)...');
+    const popUrl = `https://api.themoviedb.org/3/movie/popular?api_key=${TMDB_API_KEY}&language=zh-CN&page=1`;
+    const popData = fetchJson(popUrl);
+    if (popData?.results) {
+      for (const m of popData.results) {
+        if (m.title && !rawMap.has(m.title)) {
+          rawMap.set(m.title, m);
+        }
+      }
+    }
+  }
+
+  const rawList = Array.from(rawMap.values()).slice(0, targetCount);
+  console.log(`✓ 策略筛选完成，共锁定 ${rawList.length} 部最新最热目标影视`);
+
+  console.log(`\n🔍 正在获取每部影视的精细剧照画廊、演职员与制作国信息...`);
   let insertedCount = 0;
   let updatedCount = 0;
 
@@ -50,7 +77,6 @@ export async function fetchTmdbMetadata(pages = 2) {
     const detailUrl = `https://api.themoviedb.org/3/movie/${m.id}?api_key=${TMDB_API_KEY}&language=zh-CN&append_to_response=credits,images`;
 
     const detail = fetchJson(detailUrl) || m;
-
     const title = (detail.title || m.title || '').trim();
     if (!title) continue;
 
@@ -73,7 +99,7 @@ export async function fetchTmdbMetadata(pages = 2) {
         rating: score >= 8 ? 5 : 4,
         date: new Date().toISOString().slice(0, 10),
         votes: Math.floor(Math.random() * 2000) + 500,
-        content: `全球影迷口碑佳作，IMDb / TMDB 热门推荐，视听效果震撼。`
+        content: `院线最新大热上映，全球影迷口碑好评，高质感镜头语言与杜比声效推荐大屏观看。`
       }
     ];
 
@@ -90,13 +116,14 @@ export async function fetchTmdbMetadata(pages = 2) {
           `UPDATE resources 
            SET actors = COALESCE(actors, $1),
                stills = CASE WHEN stills IS NULL OR stills::text = '[]' THEN $2 ELSE stills END,
-               score = COALESCE($3, score)
-           WHERE id = $4`,
-          [actors, JSON.stringify(stills), score, existing.id]
+               score = COALESCE($3, score),
+               year = COALESCE($4, year)
+           WHERE id = $5`,
+          [actors, JSON.stringify(stills), score, year, existing.id]
         );
         updatedCount++;
       } else {
-        // 新增影视元数据，链接先留空
+        // 新增最新热门元数据，链接先留空
         await pool.query(
           `INSERT INTO resources (
              title, original_title, year, score, country, tags, intro, poster_url, 
@@ -126,13 +153,13 @@ export async function fetchTmdbMetadata(pages = 2) {
     await sleep(150);
   }
 
-  console.log(`🎉 TMDB 元数据采集完毕：新增入库 ${insertedCount} 部，更新丰富 ${updatedCount} 部\n`);
+  console.log(`🎉 TMDB 策略采集完毕：新增入库 ${insertedCount} 部最新大片，丰富更新 ${updatedCount} 部\n`);
   return { total: rawList.length, insertedCount, updatedCount };
 }
 
 if (process.argv[1]?.endsWith('fetch-tmdb-metadata.js')) {
-  const pages = parseInt(process.argv[2] || '2');
-  fetchTmdbMetadata(pages).then(() => process.exit(0)).catch(e => {
+  const count = parseInt(process.argv[2] || '35');
+  fetchTmdbMetadata(count).then(() => process.exit(0)).catch(e => {
     console.error(e);
     process.exit(1);
   });
