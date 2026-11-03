@@ -58,7 +58,9 @@ jobs:
         run: npm run build
 
       - name: 🌐 触发 Cloudflare Pages 线上重新发布 (Deploy Hook)
-        if: ${{ secrets.CLOUDFLARE_DEPLOY_HOOK != '' }}
+        env:
+          CLOUDFLARE_DEPLOY_HOOK: ${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}
+        if: env.CLOUDFLARE_DEPLOY_HOOK != ''
         run: |
-          curl -s -X POST "${{ secrets.CLOUDFLARE_DEPLOY_HOOK }}"
+          curl -s -X POST "$CLOUDFLARE_DEPLOY_HOOK"
           echo "✓ Cloudflare Pages 部署钩子已触发！"

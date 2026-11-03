@@ -49,84 +49,104 @@ export async function publishToXiaohongshu({
   const page = pages[0] || await browser.newPage();
 
   console.log('🌐 正在访问小红书创作者服务平台发布页...');
-  await page.goto('https://creator.xiaohongshu.com/publish/publish?source=official', {
-    waitUntil: 'networkidle2',
-    timeout: 60000
-  });
+  try {
+    await page.goto('https://creator.xiaohongshu.com/publish/publish?source=official', {
+      waitUntil: 'domcontentloaded',
+      timeout: 30000
+    });
 
-  // 1. 检查是否需要登录
-  const currentUrl = page.url();
-  if (currentUrl.includes('login') || !currentUrl.includes('publish')) {
-    if (silent) {
-      await browser.close();
-      throw new Error('小红书创作者平台未登录或登录已失效，请先运行 npm run xhs:publish 扫码登录！');
+    // 等待页面异步鉴权与路由跳转稳定
+    await new Promise(r => setTimeout(r, 3000));
+
+    // 1. 检查是否需要登录
+    const currentUrl = page.url();
+    if (currentUrl.includes('login') || !currentUrl.includes('publish')) {
+      if (silent) {
+        throw new Error('小红书创作者平台未登录或登录已失效，请在电脑上运行 npm run xhs:publish 完成一次扫码登录！');
+      }
+
+      console.log('\n===============================================================');
+      console.log('🔔 提示：首次使用请在弹出的浏览器中扫码登录小红书创作者平台！');
+      console.log('💡（登录成功后会话将永久保存在本地，下次执行无需再次扫码）');
+      console.log('===============================================================\n');
+
+      // 等待用户扫码跳转至发布页
+      await page.waitForFunction(
+        () => window.location.href.includes('publish/publish'),
+        { timeout: 180000 }
+      );
+      console.log('🎉 检测到创作者登录成功！继续执行自动化发布...');
+      await new Promise(r => setTimeout(r, 3000));
     }
 
-    console.log('\n===============================================================');
-    console.log('🔔 提示：首次使用请在弹出的浏览器中扫码登录小红书创作者平台！');
-    console.log('💡（登录成功后会话将永久保存在本地，下次执行无需再次扫码）');
-    console.log('===============================================================\n');
+    // 尝试点击【上传图文】Tab (若默认停留在上传视频)
+    try {
+      const tabs = await page.$$('.tab-item, div, span');
+      for (const t of tabs) {
+        const text = await page.evaluate(el => el.innerText, t);
+        if (text && text.trim() === '上传图文') {
+          await t.click();
+          await new Promise(r => setTimeout(r, 1000));
+          break;
+        }
+      }
+    } catch {}
 
-    // 等待用户扫码跳转至发布页
-    await page.waitForFunction(
-      () => window.location.href.includes('publish/publish'),
-      { timeout: 180000 }
-    );
-    console.log('🎉 检测到创作者登录成功！继续执行自动化发布...');
-    await new Promise(r => setTimeout(r, 2000));
-  }
+    console.log('📤 正在上传 3:4 高清视觉封面图...');
+    // 等待上传 input
+    const fileInput = await page.waitForSelector('input[type="file"]', { timeout: 20000 });
+    await fileInput.uploadFile(imagePath);
+    console.log('✓ 图片文件已注入上传队列，等待渲染完成...');
+    await new Promise(r => setTimeout(r, 4000));
 
-  console.log('📤 正在上传 3:4 高清视觉封面图...');
-  // 等待上传 input
-  const fileInput = await page.waitForSelector('input[type="file"]', { timeout: 20000 });
-  await fileInput.uploadFile(imagePath);
-  console.log('✓ 图片文件已注入上传队列，等待渲染完成...');
-  await new Promise(r => setTimeout(r, 4000));
+    // 2. 填写笔记标题
+    console.log('✍️ 正在自动填写笔记标题...');
+    const titleInput = await page.waitForSelector('input[placeholder*="填写标题"]', { timeout: 15000 });
+    await titleInput.click();
+    // 清空可能存在的文本
+    await page.keyboard.down('Control');
+    await page.keyboard.press('A');
+    await page.keyboard.up('Control');
+    await page.keyboard.press('Backspace');
+    await titleInput.type(title, { delay: 40 });
+    console.log(`✓ 标题已填写: "${title}"`);
 
-  // 2. 填写笔记标题
-  console.log('✍️ 正在自动填写笔记标题...');
-  const titleInput = await page.waitForSelector('input[placeholder*="填写标题"]', { timeout: 15000 });
-  await titleInput.click();
-  // 清空可能存在的文本
-  await page.keyboard.down('Control');
-  await page.keyboard.press('A');
-  await page.keyboard.up('Control');
-  await page.keyboard.press('Backspace');
-  await titleInput.type(title, { delay: 40 });
-  console.log(`✓ 标题已填写: "${title}"`);
+    // 3. 填写正文内容与话题标签
+    console.log('📝 正在自动填写正文与安全导流文案...');
+    const contentArea = await page.waitForSelector('.c-input_inner, [contenteditable="true"], textarea[placeholder*="填写更详细"]', { timeout: 15000 });
+    await contentArea.click();
+    await page.keyboard.down('Control');
+    await page.keyboard.press('A');
+    await page.keyboard.up('Control');
+    await page.keyboard.press('Backspace');
+    
+    // 分段粘贴正文
+    await page.evaluate((text) => {
+      navigator.clipboard.writeText(text);
+    }, content).catch(() => {});
+    
+    // 模拟输入
+    await contentArea.type(content, { delay: 10 });
+    console.log('✓ 正文文案与话题标签已完整注入！');
 
-  // 3. 填写正文内容与话题标签
-  console.log('📝 正在自动填写正文与安全导流文案...');
-  const contentArea = await page.waitForSelector('.c-input_inner, [contenteditable="true"], textarea[placeholder*="填写更详细"]', { timeout: 15000 });
-  await contentArea.click();
-  await page.keyboard.down('Control');
-  await page.keyboard.press('A');
-  await page.keyboard.up('Control');
-  await page.keyboard.press('Backspace');
-  
-  // 分段粘贴正文
-  await page.evaluate((text) => {
-    navigator.clipboard.writeText(text);
-  }, content).catch(() => {});
-  
-  // 模拟输入
-  await contentArea.type(content, { delay: 10 });
-  console.log('✓ 正文文案与话题标签已完整注入！');
+    await new Promise(r => setTimeout(r, 1500));
 
-  await new Promise(r => setTimeout(r, 1500));
-
-  if (autoSubmit) {
-    console.log('🚀 执行自动点击【发布】按钮...');
-    const publishBtn = await page.waitForSelector('button:has-text("发布"), .publishBtn', { timeout: 10000 });
-    await publishBtn.click();
-    console.log('🎉 笔记已成功提交发布！等待 5 秒确认...');
-    await new Promise(r => setTimeout(r, 5000));
-    await browser.close();
-  } else {
-    console.log('\n===============================================================');
-    console.log('🟢【安全保护模式】：素材、标题与正文已全部自动填入！');
-    console.log('👀 浏览器窗口保持打开，您可以进行最后的微调或直接在窗口中点击【发布】。');
-    console.log('===============================================================\n');
+    if (autoSubmit) {
+      console.log('🚀 执行自动点击【发布】按钮...');
+      const publishBtn = await page.waitForSelector('button:has-text("发布"), .publishBtn', { timeout: 10000 });
+      await publishBtn.click();
+      console.log('🎉 笔记已成功提交发布！等待 5 秒确认...');
+      await new Promise(r => setTimeout(r, 5000));
+    } else {
+      console.log('\n===============================================================');
+      console.log('🟢【安全保护模式】：素材、标题与正文已全部自动填入！');
+      console.log('👀 浏览器窗口保持打开，您可以进行最后的微调或直接在窗口中点击【发布】。');
+      console.log('===============================================================\n');
+    }
+  } finally {
+    if (autoSubmit || silent) {
+      await browser.close().catch(() => {});
+    }
   }
 }
 
