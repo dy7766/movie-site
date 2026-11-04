@@ -269,6 +269,7 @@ const serializedMovies = JSON.stringify(allMovies);
           <!-- 排序依据 -->
           <div class="md:col-span-2">
             <select id="sortBy" class="w-full py-2 px-3 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-orange-500/70">
+              <option value="year_score_created" selected>发布年份+评分+更新 ↓ (最新优先)</option>
               <option value="created_desc">入库时间: 最新优先</option>
               <option value="score_desc">口碑评分: 从高到低</option>
               <option value="year_desc">上映年份: 最新优先</option>
@@ -527,7 +528,7 @@ const serializedMovies = JSON.stringify(allMovies);
         currentCategory: '全部',
         currentStatus: 'all',
         searchTerm: '',
-        sortBy: 'created_desc',
+        sortBy: 'year_score_created',
         pageSize: 50,
         currentPage: 1,
         viewMode: 'table', // 'table' or 'grid'
@@ -610,7 +611,15 @@ const serializedMovies = JSON.stringify(allMovies);
         }
 
         // 4. 排序
-        if (state.sortBy === 'created_desc') {
+        if (state.sortBy === 'year_score_created') {
+          list.sort((a, b) => {
+            const yDiff = (b.year || 0) - (a.year || 0);
+            if (yDiff !== 0) return yDiff;
+            const sDiff = (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0);
+            if (sDiff !== 0) return sDiff;
+            return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+          });
+        } else if (state.sortBy === 'created_desc') {
           list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
         } else if (state.sortBy === 'score_desc') {
           list.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));

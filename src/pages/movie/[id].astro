@@ -3,7 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import { getMovies } from '../../lib/db.js';
 
 export async function getStaticPaths() {
-  const movies = await getMovies({ limit: 500 });
+  const movies = await getMovies({ limit: 2000 });
   return movies.map((movie) => ({
     params: { id: movie.id },
     props: { movie }

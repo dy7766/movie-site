@@ -3,7 +3,7 @@ import Layout from '../layouts/Layout.astro';
 import { getMovies } from '../lib/db.js';
 
 // 获取所有影视资源供客户端秒级多维检索
-const movies = await getMovies({ limit: 500 });
+const movies = await getMovies({ limit: 2000 });
 
 // 提取所有流派与标签
 const categories = ['全部', '电影', '电视剧', '动漫', '纪录片'];
@@ -12,7 +12,7 @@ const countries = ['全部', '中国大陆', '中国香港', '美国', '日本',
 const years = ['全部', '2026', '2025', '2024', '2020-2023', '2010年代', '2000年代', '更早'];
 const scores = ['全部', '9.0分以上', '8.0分以上', '7.0分以上'];
 const sorts = [
-  { label: '默认排序', value: 'default' },
+  { label: '最新发布 · 高分精选', value: 'default' },
   { label: '评分最高 ↓', value: 'score_desc' },
   { label: '年份最新 ↓', value: 'year_desc' },
 ];
@@ -204,6 +204,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
           data-tags={JSON.stringify(m.tags || [])}
           data-year={m.year || 0}
           data-score={m.score ? Number(m.score) : 0}
+          data-created-at={m.created_at || ''}
           data-playable={m.online_play_url ? 'true' : 'false'}
           data-savable={(m.share_link || m.share_link_uc) ? 'true' : 'false'}
         >
@@ -628,6 +629,15 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
           matchedMovies.sort((a, b) => parseFloat(b.dataset.score) - parseFloat(a.dataset.score));
         } else if (state.sort === 'year_desc') {
           matchedMovies.sort((a, b) => parseInt(b.dataset.year) - parseInt(a.dataset.year));
+        } else {
+          // 默认排序: 按影片发布年份(倒序) -> 评分(倒序) -> 入库更新时间(倒序)
+          matchedMovies.sort((a, b) => {
+            const yDiff = (parseInt(b.dataset.year) || 0) - (parseInt(a.dataset.year) || 0);
+            if (yDiff !== 0) return yDiff;
+            const sDiff = (parseFloat(b.dataset.score) || 0) - (parseFloat(a.dataset.score) || 0);
+            if (sDiff !== 0) return sDiff;
+            return (new Date(b.dataset.createdAt || 0).getTime()) - (new Date(a.dataset.createdAt || 0).getTime());
+          });
         }
 
         // 更新计数与空状态
