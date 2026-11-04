@@ -47,7 +47,7 @@ export async function runAutomationPipeline() {
     console.log('⚠️ 网盘凭证已失效，跳过本批次新片转存，保护现有资源与账号安全');
   } else {
     try {
-      harvestStats = await harvestResourceData(5);
+      harvestStats = await harvestResourceData(15);
     } catch (err) {
       console.warn('⚠️ 影视自动搜源转存异常:', err.message);
     }

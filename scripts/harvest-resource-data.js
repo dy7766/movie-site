@@ -6,20 +6,20 @@ import { searchCmsStream } from './online-play-monitor.js';
  * 阶段二：根据阶段一入库的影视元数据，精准搜源并挂载转存与在线播放资源
  * @param {number} batchSize 本批次处理数量 (默认 5 部，避免网盘 API 频率限制)
  */
-export async function harvestResourceData(batchSize = 5) {
+export async function harvestResourceData(batchSize = 15) {
   console.log('===============================================================');
   console.log(`🚀【阶段二 · 靶向影视资源搜源与转存流水线启动】(批次上限: ${batchSize} 部)`);
   console.log('===============================================================');
 
   const pool = getDbPool();
 
-  // 1. 查找库中元数据已就绪、但缺少网盘链接或缺少在线播放源的影片（优先高分、近年代）
+  // 1. 优先为最新入库、元数据已就绪但缺少网盘或在线源的影视补齐资源 (按入库时间倒序，彻底杜绝队头阻塞)
   const query = `
     SELECT id, title, year, score, share_link, share_link_uc, online_play_url
     FROM resources
     WHERE has_metadata = TRUE
       AND (share_link_uc IS NULL OR online_play_url IS NULL)
-    ORDER BY score DESC, year DESC
+    ORDER BY created_at DESC, year DESC
     LIMIT $1
   `;
   const res = await pool.query(query, [batchSize]);

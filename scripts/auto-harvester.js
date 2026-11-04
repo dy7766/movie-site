@@ -23,9 +23,9 @@ function fetchJson(url) {
   }
 }
 
-// 1. 搜源 (调用公共 UC/夸克 索引接口，使用 curl 避免 Node fetch 代理连接重置)
-export async function searchPublicShares(title) {
-  const url = `https://gugeso.com/api/other/web_search?title=${encodeURIComponent(title)}&is_type=3`;
+// 1. 搜源 (调用公共 UC/夸克 索引接口，多变体清洗搜索)
+async function querySingleShareTitle(keyword) {
+  const url = `https://gugeso.com/api/other/web_search?title=${encodeURIComponent(keyword)}&is_type=3`;
   try {
     const isWin = process.platform === 'win32';
     const cmd = isWin 
@@ -50,6 +50,34 @@ export async function searchPublicShares(title) {
   } catch {
     return [];
   }
+}
+
+export async function searchPublicShares(title) {
+  const rawTitle = (title || '').trim();
+  const variants = [rawTitle];
+
+  // 变体1: 去除括号及其中内容，如《蓝色星球 第二季 (Blue Planet II)》 -> 《蓝色星球 第二季》
+  const cleanParen = rawTitle.replace(/\([^)]*\)/g, '').replace(/（[^）]*）/g, '').trim();
+  if (cleanParen && cleanParen !== rawTitle && !variants.includes(cleanParen)) {
+    variants.push(cleanParen);
+  }
+
+  // 变体2: 去除季数与特殊冒号标点，如《极限挑战 第一季》 -> 《极限挑战》
+  const cleanSeason = cleanParen.replace(/[:：]/g, ' ').replace(/\s*第[一二三四五六七八九十\d]+[季期部]/g, '').trim();
+  if (cleanSeason && !variants.includes(cleanSeason)) {
+    variants.push(cleanSeason);
+  }
+
+  for (const q of variants) {
+    const list = await querySingleShareTitle(q);
+    if (list.length > 0) {
+      if (q !== rawTitle) {
+        console.log(`  💡 采用优化关键词《${q}》匹配到 ${list.length} 个公开分享`);
+      }
+      return list;
+    }
+  }
+  return [];
 }
 
 // 2. 深度质检 (统一 pr=UCBrowser&fr=pc，拦截压缩包与 >30 文件的非会员限制)
@@ -130,8 +158,11 @@ export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken
     headers: HEADERS
   });
   const fData = await folderRes.json();
-  const savedItem = fData.data?.list?.find(f => f.file_name === rootItem.file_name);
-  if (!savedItem) return null;
+  const savedItem = fData.data?.list?.find(f => f.file_name === rootItem.file_name) || fData.data?.list?.[0];
+  if (!savedItem) {
+    console.log(`  ✗ 未能在目标目录定位到新转存的项 (目录为空)`);
+    return null;
+  }
 
   // 规范重命名
   const standardName = `${targetTitle}.${year}.4K.高码率.原盘`;
@@ -161,7 +192,7 @@ export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken
     headers: HEADERS
   });
   const myData = await myRes.json();
-  const share = myData.data?.list?.find(s => s.first_fid === savedItem.fid || s.title === standardName);
+  const share = myData.data?.list?.find(s => s.first_fid === savedItem.fid || s.title === standardName) || myData.data?.list?.[0];
   return share?.share_url || null;
 }
 
