@@ -80,20 +80,63 @@ export async function searchPublicShares(title) {
   return [];
 }
 
-// 2. 深度质检 (统一 pr=UCBrowser&fr=pc，拦截压缩包与 >30 文件的非会员限制)
+const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+
+// 统一的 UC API 网络请求器 (内置 IPv4 降级，彻底解决海外 Linux 节点 IPv6 丢包重置问题)
+async function ucFetch(url, options = {}) {
+  const method = options.method || 'GET';
+  const headers = { 'User-Agent': BROWSER_UA, ...options.headers };
+  const body = options.body;
+
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, { ...options, headers, signal: controller.signal });
+    clearTimeout(timer);
+    return res;
+  } catch (err) {
+    // 触发海外节点降级 curl -4 强制走 IPv4
+  }
+
+  try {
+    const isWin = process.platform === 'win32';
+    const headerArgs = Object.entries(headers)
+      .map(([k, v]) => `-H "${k}: ${v.replace(/"/g, '\\"')}"`)
+      .join(' ');
+    let cmd = isWin ? `curl.exe -s -4 -m 12` : `curl -s -4 -m 12`;
+    cmd += ` -X ${method} ${headerArgs}`;
+    if (body) {
+      const escapedBody = body.replace(/"/g, '\\"');
+      cmd += ` -d "${escapedBody}"`;
+    }
+    cmd += ` "${url}"`;
+
+    const stdout = execSync(cmd, { encoding: 'utf-8', timeout: 15000 });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => JSON.parse(stdout),
+      text: async () => stdout
+    };
+  } catch (err) {
+    throw new Error(`UC 请求异常(IPv4降级亦未果): ${err.message}`);
+  }
+}
+
+// 2. 深度质检 (统一 pr=UCBrowser&fr=pc，拦截压缩包与纯文本小说，放宽单次转存至 50)
 export async function inspectAndFilterUcShare(pwd_id) {
   try {
-    const tokenRes = await fetch('https://pc-api.uc.cn/1/clouddrive/share/sharepage/token?pr=UCBrowser&fr=pc', {
+    const tokenRes = await ucFetch('https://pc-api.uc.cn/1/clouddrive/share/sharepage/token?pr=UCBrowser&fr=pc', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pwd_id })
     });
     const tData = await tokenRes.json();
-    if (tData.code !== 0 || !tData.data?.stoken) return { pass: false, reason: '链接失效或不存在' };
+    if (tData.code !== 0 || !tData.data?.stoken) return { pass: false, reason: `链接失效或无stoken (${tData.message || 'error'})` };
     const stoken = tData.data.stoken;
 
-    const detailRes = await fetch(`https://pc-api.uc.cn/1/clouddrive/share/sharepage/detail?pr=UCBrowser&fr=pc&pwd_id=${pwd_id}&stoken=${encodeURIComponent(stoken)}&pdir_fid=0&force=0&_page=1&_size=50`, {
-      headers: { 'User-Agent': 'Mozilla/5.0' }
+    const detailRes = await ucFetch(`https://pc-api.uc.cn/1/clouddrive/share/sharepage/detail?pr=UCBrowser&fr=pc&pwd_id=${pwd_id}&stoken=${encodeURIComponent(stoken)}&pdir_fid=0&force=0&_page=1&_size=50`, {
+      headers: { 'User-Agent': BROWSER_UA }
     });
     const dData = await detailRes.json();
     const list = dData.data?.list || [];
@@ -103,8 +146,12 @@ export async function inspectAndFilterUcShare(pwd_id) {
     const hasZip = list.some(f => /\.(zip|rar|7z|tar|gz|exe|apk)$/i.test(f.file_name));
     if (hasZip) return { pass: false, reason: '包含压缩包/程序包' };
 
+    // 必须包含有效视频文件或目录 (过滤纯文本/小说)
+    const hasVideoOrDir = list.some(f => f.file_type === 'dir' || /\.(mp4|mkv|ts|mov|avi|flv|wmv|m3u8|iso)$/i.test(f.file_name));
+    if (!hasVideoOrDir) return { pass: false, reason: '无有效视频或目录(过滤纯文本)' };
+
     // 单次转存文件数上限防护
-    if (list.length > 30) return { pass: false, reason: `项目数量过多(${list.length})，规避会员等级限制` };
+    if (list.length > 50) return { pass: false, reason: `项目数量过多(${list.length})，规避会员等级限制` };
 
     return {
       pass: true,
@@ -130,11 +177,11 @@ export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken
     'content-type': 'application/json',
     'origin': 'https://drive.uc.cn',
     'referer': 'https://drive.uc.cn/',
-    'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    'user-agent': BROWSER_UA
   };
 
   const rootItem = list[0];
-  const saveRes = await fetch('https://pc-api.uc.cn/1/clouddrive/share/sharepage/save?pr=UCBrowser&fr=pc', {
+  const saveRes = await ucFetch('https://pc-api.uc.cn/1/clouddrive/share/sharepage/save?pr=UCBrowser&fr=pc', {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({
@@ -154,7 +201,7 @@ export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken
   await new Promise(r => setTimeout(r, 2000));
 
   // 定位新存入的项
-  const folderRes = await fetch(`https://pc-api.uc.cn/1/clouddrive/file/sort?pr=UCBrowser&fr=pc&pdir_fid=${TARGET_FOLDER_FID}&_page=1&_size=10&_sort=file_type:asc,updated_at:desc`, {
+  const folderRes = await ucFetch(`https://pc-api.uc.cn/1/clouddrive/file/sort?pr=UCBrowser&fr=pc&pdir_fid=${TARGET_FOLDER_FID}&_page=1&_size=10&_sort=file_type:asc,updated_at:desc`, {
     headers: HEADERS
   });
   const fData = await folderRes.json();
@@ -166,14 +213,14 @@ export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken
 
   // 规范重命名
   const standardName = `${targetTitle}.${year}.4K.高码率.原盘`;
-  await fetch('https://pc-api.uc.cn/1/clouddrive/file/rename?pr=UCBrowser&fr=pc', {
+  await ucFetch('https://pc-api.uc.cn/1/clouddrive/file/rename?pr=UCBrowser&fr=pc', {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({ fid: savedItem.fid, file_name: standardName })
   });
 
   // 创建专属永久分享
-  await fetch('https://pc-api.uc.cn/1/clouddrive/share?pr=UCBrowser&fr=pc', {
+  await ucFetch('https://pc-api.uc.cn/1/clouddrive/share?pr=UCBrowser&fr=pc', {
     method: 'POST',
     headers: HEADERS,
     body: JSON.stringify({
@@ -188,7 +235,7 @@ export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken
   await new Promise(r => setTimeout(r, 1200));
 
   // 提取带用户 UID 的专属链接
-  const myRes = await fetch('https://pc-api.uc.cn/1/clouddrive/share/mypage/detail?pr=UCBrowser&fr=pc&_page=1&_size=8', {
+  const myRes = await ucFetch('https://pc-api.uc.cn/1/clouddrive/share/mypage/detail?pr=UCBrowser&fr=pc&_page=1&_size=8', {
     headers: HEADERS
   });
   const myData = await myRes.json();

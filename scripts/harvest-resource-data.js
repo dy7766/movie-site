@@ -50,7 +50,10 @@ export async function harvestResourceData(batchSize = 15) {
         const publicShares = await searchPublicShares(m.title);
         for (const s of publicShares) {
           const inspect = await inspectAndFilterUcShare(s.pwd_id);
-          if (!inspect.pass) continue;
+          if (!inspect.pass) {
+            console.log(`    - 候选链接 [${s.pwd_id}] 质检跳过: ${inspect.reason}`);
+            continue;
+          }
 
           console.log(`  📥 正在执行免流秒存与生成带 PID 专属分享链接...`);
           const ucLink = await saveAndShareUc(m.title, m.year, '电影', s.pwd_id, inspect.stoken, inspect.list);
