@@ -85,25 +85,37 @@ export async function runAutomationPipeline() {
       }
     }
     if (chatId) {
-      // 优先选取尚未广播推送过、且已具备网盘专属转存链接（UC 或 夸克）的优质新片
+      // 严格资源门禁：只有拥有有效网盘转存（UC/夸克）或在线播放流的影视，才允许纳入 TG 发送池
+      const validResourceSql = `
+        has_metadata = TRUE AND (
+          (share_link_uc IS NOT NULL AND LENGTH(TRIM(share_link_uc)) > 10) OR
+          (share_link IS NOT NULL AND LENGTH(TRIM(share_link)) > 10) OR
+          (online_play_url IS NOT NULL AND LENGTH(TRIM(online_play_url)) > 10)
+        )
+      `;
+
+      // 优先选取尚未广播推送过、且已就绪资源的优质新片（优先转存网盘，其次在线切片）
       let tgMovieRes = await pool.query(
         `SELECT id, title, year, score, intro, poster_url, share_link, share_link_uc, online_play_url, category, actors
          FROM resources
-         WHERE (share_link_uc IS NOT NULL OR share_link IS NOT NULL)
-           AND has_metadata = TRUE
+         WHERE ${validResourceSql}
            AND tg_pushed_at IS NULL
-         ORDER BY year DESC, score DESC, created_at DESC
+         ORDER BY 
+           CASE WHEN ((share_link_uc IS NOT NULL AND LENGTH(TRIM(share_link_uc)) > 10) OR (share_link IS NOT NULL AND LENGTH(TRIM(share_link)) > 10)) THEN 1 ELSE 2 END ASC,
+           year DESC, score DESC, created_at DESC
          LIMIT 1`
       );
 
-      // 若所有已转存影视均已完成过广播，则轮循广播推送时间最早的条目，实现平滑轮播
+      // 若所有已就绪且有资源的影视均已广播过一轮，则按最早推送时间平滑轮播，绝不推送无资源的影视
       if (tgMovieRes.rows.length === 0) {
         tgMovieRes = await pool.query(
           `SELECT id, title, year, score, intro, poster_url, share_link, share_link_uc, online_play_url, category, actors
            FROM resources
-           WHERE (share_link_uc IS NOT NULL OR share_link IS NOT NULL)
-             AND has_metadata = TRUE
-           ORDER BY tg_pushed_at ASC NULLS FIRST, year DESC, score DESC
+           WHERE ${validResourceSql}
+           ORDER BY 
+             tg_pushed_at ASC NULLS FIRST,
+             CASE WHEN ((share_link_uc IS NOT NULL AND LENGTH(TRIM(share_link_uc)) > 10) OR (share_link IS NOT NULL AND LENGTH(TRIM(share_link)) > 10)) THEN 1 ELSE 2 END ASC,
+             year DESC, score DESC
            LIMIT 1`
         );
       }
@@ -113,13 +125,15 @@ export async function runAutomationPipeline() {
         const ok = await sendMovieCardToTelegram(movieToPush, { chatId });
         if (ok) {
           await pool.query('UPDATE resources SET tg_pushed_at = NOW() WHERE id = $1', [movieToPush.id]);
-          const driveLabel = movieToPush.share_link_uc ? 'UC专属' : '夸克专属';
+          const driveLabel = movieToPush.share_link_uc 
+            ? 'UC专属' 
+            : (movieToPush.share_link ? '夸克专属' : '极速在线看');
           console.log(`📢 成功向 Telegram 广播新片: 《${movieToPush.title}》 (${movieToPush.year}) [${driveLabel}] 并标记已推送防重`);
         } else {
           console.warn(`⚠️ Telegram 广播发送未成功，暂不标记已推送: 《${movieToPush.title}》`);
         }
       } else {
-        console.log('ℹ️ 当前暂无可供 Telegram 广播的影视条目');
+        console.log('ℹ️ 当前暂无任何带可用资源的影视条目可供 Telegram 广播');
       }
     } else {
       console.log('ℹ️ 暂未配置 TELEGRAM_CHAT_ID 或机器人尚未被拉入群聊，跳过本轮 TG 发送');

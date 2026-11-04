@@ -77,6 +77,17 @@ export async function sendMovieCardToTelegram(movie, { chatId = null } = {}) {
   if (!targetChatId) return false;
 
   const title = movie.title || '最新热播佳作';
+
+  // 严格资源质检门禁：只有包含有效可用网盘（UC/夸克）或在线播放流的影视，才允许推送至 TG 交流群
+  const hasUc = Boolean(movie.share_link_uc && movie.share_link_uc.trim().length > 10);
+  const hasQuark = Boolean(movie.share_link && movie.share_link.trim().length > 10);
+  const hasStream = Boolean(movie.online_play_url && movie.online_play_url.trim().length > 10);
+  const hasValidResource = hasUc || hasQuark || hasStream;
+
+  if (!hasValidResource) {
+    console.warn(`  ⚠️ 影视《${title}》暂无任何可用资源（无网盘、无在线流），严格拦截不予推送到 TG 群！`);
+    return false;
+  }
   const year = movie.year || '2024';
   const score = movie.score ? `★ ${Number(movie.score).toFixed(1)} 分` : '★ 8.5+ 推荐';
   const intro = movie.intro ? movie.intro.slice(0, 100) + '...' : '高清原盘无损转存，免广告在线极速秒播。';

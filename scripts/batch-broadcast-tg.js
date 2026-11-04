@@ -14,12 +14,14 @@ export async function runBatchTgBroadcast() {
 
   console.log(`🤖 目标频道/群组: ${chatId}`);
 
-  // 查询全库所有已挂载网盘转存（UC 或 夸克）的影视
+  // 查询全库所有已挂载网盘转存（UC 或 夸克）的已就绪影视（严格排除无资源条目）
   const query = `
     SELECT id, title, year, score, intro, poster_url, share_link, share_link_uc, online_play_url, category, actors
     FROM resources
-    WHERE (share_link IS NOT NULL AND share_link != '') 
-       OR (share_link_uc IS NOT NULL AND share_link_uc != '')
+    WHERE has_metadata = TRUE AND (
+      (share_link IS NOT NULL AND LENGTH(TRIM(share_link)) > 10) 
+      OR (share_link_uc IS NOT NULL AND LENGTH(TRIM(share_link_uc)) > 10)
+    )
     ORDER BY year DESC, score DESC
   `;
   const res = await pool.query(query);
