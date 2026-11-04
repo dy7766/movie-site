@@ -147,7 +147,9 @@ export async function inspectAndFilterUcShare(pwd_id) {
     if (hasZip) return { pass: false, reason: '包含压缩包/程序包' };
 
     // 必须包含有效视频文件或目录 (过滤纯文本/小说)
-    const hasVideoOrDir = list.some(f => f.file_type === 'dir' || /\.(mp4|mkv|ts|mov|avi|flv|wmv|m3u8|iso)$/i.test(f.file_name));
+    const isDir = f => (f.dir === true || f.file_type === 0 || f.file_type === 'dir') && !/(txt|小说|电子书|网文)/i.test(f.file_name);
+    const isVideoFile = f => /\.(mp4|mkv|ts|mov|avi|flv|wmv|m3u8|iso)$/i.test(f.file_name);
+    const hasVideoOrDir = list.some(f => isDir(f) || isVideoFile(f));
     if (!hasVideoOrDir) return { pass: false, reason: '无有效视频或目录(过滤纯文本)' };
 
     // 单次转存文件数上限防护
@@ -180,7 +182,13 @@ export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken
     'user-agent': BROWSER_UA
   };
 
-  const rootItem = list[0];
+  // 优先选取目录或视频文件作为转存目标项
+  const sortedList = [...list].sort((a, b) => {
+    const aScore = (a.dir || a.file_type === 0 || a.file_type === 'dir') ? 2 : (/\.(mp4|mkv|ts|mov|avi)$/i.test(a.file_name) ? 1 : 0);
+    const bScore = (b.dir || b.file_type === 0 || b.file_type === 'dir') ? 2 : (/\.(mp4|mkv|ts|mov|avi)$/i.test(b.file_name) ? 1 : 0);
+    return bScore - aScore;
+  });
+  const rootItem = sortedList[0] || list[0];
   const saveRes = await ucFetch('https://pc-api.uc.cn/1/clouddrive/share/sharepage/save?pr=UCBrowser&fr=pc', {
     method: 'POST',
     headers: HEADERS,
