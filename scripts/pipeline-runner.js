@@ -1,5 +1,6 @@
 import { checkDriveCookies } from './cookie-monitor.js';
-import { runMetadataIngestion } from './ingest-metadata.js';
+import { fetchDoubanHotSeeds } from './fetch-douban-hot.js';
+import { enrichTmdbMetadata } from './enrich-tmdb-metadata.js';
 import { harvestResourceData } from './harvest-resource-data.js';
 import { runOnlineStreamAudit } from './online-play-monitor.js';
 import { sendDingTalkTaskSummary } from './dingtalk-service.js';
@@ -13,7 +14,7 @@ export async function runAutomationPipeline() {
   const pool = getDbPool();
 
   // 1. 登录凭证健康心跳
-  console.log('\n[步骤 1/5] 正在检测网盘登录凭证健康状态...');
+  console.log('\n[步骤 1/8] 正在检测网盘登录凭证健康状态...');
   const cookieReport = await checkDriveCookies();
   if (cookieReport.isAuthExpired) {
     console.warn('⚠️ 检测到网盘凭证真实失效，已触发告警；降级保护：跳过转存，继续执行元数据拉取与全站发布！');
@@ -21,17 +22,26 @@ export async function runAutomationPipeline() {
     console.log('🟢 网盘凭证健康，剩余容量充裕，流水线正常运转！');
   }
 
-  // 2. 阶段一：全网最新最热影视元数据策略汇聚 (TMDB + 豆瓣，每日 50~100 部)
-  console.log('\n[步骤 2/5] 启动全网最新最热影视元数据策略汇聚 (阶段一)...');
-  let metaStats = { totalBefore: 0, totalAfter: 0, doubanStats: {}, tmdbStats: {}, pendingCount: 0 };
+  // 2. 模块一：从豆瓣抓取本地没有的热门电影与热播剧集种子
+  console.log('\n[步骤 2/8] 启动豆瓣热门电影与热播剧集种子抓取 (模块一)...');
+  let doubanStats = { totalCandidates: 0, insertedCount: 0, skippedCount: 0 };
   try {
-    metaStats = await runMetadataIngestion({ doubanLimit: 40, tmdbPages: 2 });
+    doubanStats = await fetchDoubanHotSeeds({ movieLimit: 30, tvLimit: 30 });
   } catch (err) {
-    console.warn('⚠️ 元数据采集异常（不阻断后续流程）:', err.message);
+    console.warn('⚠️ 豆瓣热门种子采集异常（不阻断后续流程）:', err.message);
   }
 
-  // 3. 阶段二：靶向新片搜源与转存 (基于库中待补资源精准搜源挂载)
-  console.log('\n[步骤 3/5] 启动靶向搜源与转存流水线 (阶段二)...');
+  // 3. 模块二：用 TMDB 补全本地未完善元数据的影视资料，合格者赋予发布资格 (has_metadata = true)
+  console.log('\n[步骤 3/8] 启动 TMDB 元数据精准清洗与补齐引擎 (模块二)...');
+  let enrichStats = { processed: 0, enrichedCount: 0, failedCount: 0 };
+  try {
+    enrichStats = await enrichTmdbMetadata({ batchLimit: 25 });
+  } catch (err) {
+    console.warn('⚠️ TMDB 元数据补齐异常（不阻断后续流程）:', err.message);
+  }
+
+  // 4. 模块三：为已具备完整元数据的影视执行靶向搜源转存与切片流挂载
+  console.log('\n[步骤 4/8] 启动靶向搜源与转存流水线 (模块三)...');
   let harvestStats = { processed: 0, ucSuccess: 0, streamSuccess: 0 };
   if (cookieReport.isAuthExpired) {
     console.log('⚠️ 网盘凭证已失效，跳过本批次新片转存，保护现有资源与账号安全');
@@ -43,8 +53,8 @@ export async function runAutomationPipeline() {
     }
   }
 
-  // 4. 连载电视剧/综艺每日追更集数同步
-  console.log('\n[步骤 4/7] 正在执行连载电视剧/综艺最新集数追更同步...');
+  // 5. 连载电视剧/综艺每日追更集数同步
+  console.log('\n[步骤 5/8] 正在执行连载电视剧/综艺最新集数追更同步...');
   let episodeStats = { updatedCount: 0 };
   try {
     const { syncOngoingSeriesEpisodes } = await import('./sync-series-episodes.js');
@@ -53,8 +63,8 @@ export async function runAutomationPipeline() {
     console.warn('⚠️ 连载追更巡检异常（不阻断主流程）:', epErr.message);
   }
 
-  // 5. 在线播放源定时探活自愈与老片补齐
-  console.log('\n[步骤 5/7] 执行在线播放源探活自愈与老片补齐...');
+  // 6. 在线播放源定时探活自愈与老片补齐
+  console.log('\n[步骤 6/8] 执行在线播放源探活自愈与老片补齐...');
   let streamStats = { checked: 0, healed: 0, backfilled: 0 };
   try {
     streamStats = await runOnlineStreamAudit();
@@ -62,8 +72,8 @@ export async function runAutomationPipeline() {
     console.warn('⚠️ 在线播放巡检异常（不阻断主流程）:', err.message);
   }
 
-  // 6. Telegram 影迷私域群每日新片自动广播
-  console.log('\n[步骤 6/7] 正在执行 Telegram 影迷群新片自动广播...');
+  // 7. Telegram 影迷私域群每日新片自动广播
+  console.log('\n[步骤 7/8] 正在执行 Telegram 影迷群新片自动广播...');
   try {
     const { sendMovieCardToTelegram, detectChatId } = await import('./telegram-service.js');
     let chatId = process.env.TELEGRAM_CHAT_ID;
@@ -79,7 +89,7 @@ export async function runAutomationPipeline() {
       const tgMovieRes = await pool.query(
         `SELECT id, title, year, score, intro, poster_url, share_link, share_link_uc, online_play_url, category, actors
          FROM resources
-         WHERE share_link_uc IS NOT NULL
+         WHERE share_link_uc IS NOT NULL AND has_metadata = TRUE
          ORDER BY year DESC, score DESC
          LIMIT 1`
       );
@@ -94,8 +104,8 @@ export async function runAutomationPipeline() {
     console.warn('⚠️ Telegram 广播异常（不阻断主流程）:', tgErr.message);
   }
 
-  // 6. 搜索引擎 IndexNow 全网即时推送 (通知必应 / 微软蜘蛛爬取全站)
-  console.log('\n[步骤 6/7] 执行搜索引擎 IndexNow 全量页面即时推送...');
+  // 8. 搜索引擎 IndexNow 全网即时推送 (通知必应 / 微软蜘蛛爬取全站)
+  console.log('\n[步骤 8/8] 执行搜索引擎 IndexNow 全量页面即时推送...');
   try {
     const { submitToIndexNow } = await import('./submit-indexnow.js');
     await submitToIndexNow();
@@ -106,17 +116,17 @@ export async function runAutomationPipeline() {
   // 获取数据库现存总数
   let totalMovies = 255;
   try {
-    const totalCountRes = await pool.query('SELECT count(*) FROM resources');
+    const totalCountRes = await pool.query('SELECT count(*) FROM resources WHERE has_metadata = TRUE');
     totalMovies = parseInt(totalCountRes.rows[0]?.count || '255');
   } catch (countErr) {
     console.warn('⚠️ 查询现存总数异常（采用预设值保底）:', countErr.message);
   }
 
-  // 7. 发送钉钉任务完成大盘报告
-  console.log('\n[步骤 7/7] 正在推送本次自动化运营大盘至钉钉群...');
+  // 9. 发送钉钉任务完成大盘报告
+  console.log('\n[汇总大盘] 正在推送本次自动化运营大盘至钉钉群...');
   try {
     await sendDingTalkTaskSummary({
-      addedCount: (metaStats.doubanStats?.insertedCount || 0) + (metaStats.tmdbStats?.insertedCount || 0),
+      addedCount: (doubanStats.insertedCount || 0) + (enrichStats.enrichedCount || 0),
       matchedCount: harvestStats.ucSuccess + harvestStats.streamSuccess,
       deployedCount: totalMovies,
       healedCount: streamStats.healed,

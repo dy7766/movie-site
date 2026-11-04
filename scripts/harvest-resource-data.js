@@ -13,11 +13,12 @@ export async function harvestResourceData(batchSize = 5) {
 
   const pool = getDbPool();
 
-  // 1. 查找库中缺少网盘链接或缺少在线播放源的影片（优先高分、近年代）
+  // 1. 查找库中元数据已就绪、但缺少网盘链接或缺少在线播放源的影片（优先高分、近年代）
   const query = `
     SELECT id, title, year, score, share_link, share_link_uc, online_play_url
     FROM resources
-    WHERE (share_link_uc IS NULL OR online_play_url IS NULL)
+    WHERE has_metadata = TRUE
+      AND (share_link_uc IS NULL OR online_play_url IS NULL)
     ORDER BY score DESC, year DESC
     LIMIT $1
   `;
@@ -54,7 +55,7 @@ export async function harvestResourceData(batchSize = 5) {
           console.log(`  📥 正在执行免流秒存与生成带 PID 专属分享链接...`);
           const ucLink = await saveAndShareUc(m.title, m.year, '电影', s.pwd_id, inspect.stoken, inspect.list);
           if (ucLink) {
-            await pool.query('UPDATE resources SET share_link_uc = $1, drive_type = COALESCE(drive_type, \'uc\') WHERE id = $2', [ucLink, m.id]);
+            await pool.query('UPDATE resources SET share_link_uc = $1, drive_type = COALESCE(drive_type, \'uc\'), status = \'published\' WHERE id = $2', [ucLink, m.id]);
             console.log(`  ✓ 成功挂载 UC 网盘专属链接: ${ucLink}`);
             ucSuccess++;
             break;

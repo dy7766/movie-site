@@ -27,11 +27,15 @@ export async function closeDbPool() {
   }
 }
 
-// 获取影视列表
-export async function getMovies({ category = null, search = null, limit = 50 } = {}) {
+// 获取影视列表（默认只输出元数据已补全、可发布的合格条目）
+export async function getMovies({ category = null, search = null, limit = 50, requireMetadata = true } = {}) {
   const p = getDbPool();
   let query = 'SELECT * FROM resources WHERE 1=1';
   const params = [];
+
+  if (requireMetadata) {
+    query += ' AND has_metadata = TRUE';
+  }
 
   if (category && category !== '全部') {
     params.push(category);
