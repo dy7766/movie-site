@@ -85,17 +85,41 @@ export async function runAutomationPipeline() {
       }
     }
     if (chatId) {
-      // 优先选取具备 UC 网盘专属转存链接的热门影视推送至 TG 群
-      const tgMovieRes = await pool.query(
+      // 优先选取尚未广播推送过、且已具备网盘专属转存链接（UC 或 夸克）的优质新片
+      let tgMovieRes = await pool.query(
         `SELECT id, title, year, score, intro, poster_url, share_link, share_link_uc, online_play_url, category, actors
          FROM resources
-         WHERE share_link_uc IS NOT NULL AND has_metadata = TRUE
-         ORDER BY year DESC, score DESC
+         WHERE (share_link_uc IS NOT NULL OR share_link IS NOT NULL)
+           AND has_metadata = TRUE
+           AND tg_pushed_at IS NULL
+         ORDER BY year DESC, score DESC, created_at DESC
          LIMIT 1`
       );
+
+      // 若所有已转存影视均已完成过广播，则轮循广播推送时间最早的条目，实现平滑轮播
+      if (tgMovieRes.rows.length === 0) {
+        tgMovieRes = await pool.query(
+          `SELECT id, title, year, score, intro, poster_url, share_link, share_link_uc, online_play_url, category, actors
+           FROM resources
+           WHERE (share_link_uc IS NOT NULL OR share_link IS NOT NULL)
+             AND has_metadata = TRUE
+           ORDER BY tg_pushed_at ASC NULLS FIRST, year DESC, score DESC
+           LIMIT 1`
+        );
+      }
+
       if (tgMovieRes.rows.length > 0) {
-        await sendMovieCardToTelegram(tgMovieRes.rows[0], { chatId });
-        console.log(`📢 成功向 Telegram 广播新片: 《${tgMovieRes.rows[0].title}》 (UC 专属转存就绪)`);
+        const movieToPush = tgMovieRes.rows[0];
+        const ok = await sendMovieCardToTelegram(movieToPush, { chatId });
+        if (ok) {
+          await pool.query('UPDATE resources SET tg_pushed_at = NOW() WHERE id = $1', [movieToPush.id]);
+          const driveLabel = movieToPush.share_link_uc ? 'UC专属' : '夸克专属';
+          console.log(`📢 成功向 Telegram 广播新片: 《${movieToPush.title}》 (${movieToPush.year}) [${driveLabel}] 并标记已推送防重`);
+        } else {
+          console.warn(`⚠️ Telegram 广播发送未成功，暂不标记已推送: 《${movieToPush.title}》`);
+        }
+      } else {
+        console.log('ℹ️ 当前暂无可供 Telegram 广播的影视条目');
       }
     } else {
       console.log('ℹ️ 暂未配置 TELEGRAM_CHAT_ID 或机器人尚未被拉入群聊，跳过本轮 TG 发送');

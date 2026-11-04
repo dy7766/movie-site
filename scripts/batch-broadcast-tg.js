@@ -42,6 +42,7 @@ export async function runBatchTgBroadcast() {
       const ok = await sendMovieCardToTelegram(m, { chatId });
       if (ok) {
         successCount++;
+        await pool.query('UPDATE resources SET tg_pushed_at = NOW() WHERE id = $1', [m.id]);
         console.log(`  ✓ 成功送达群组！`);
       } else {
         failCount++;
