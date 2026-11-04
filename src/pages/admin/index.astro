@@ -1,0 +1,1153 @@
+---
+import { getAllMoviesForAdmin } from '../../lib/db.js';
+
+// 获取全量影视资源数据（包含已发布与待补元数据的种子条目）
+const allMovies = await getAllMoviesForAdmin();
+
+// 基础统计大盘指标计算
+const totalCount = allMovies.length;
+const readyMetaCount = allMovies.filter(m => m.has_metadata === true).length;
+const pendingMetaCount = allMovies.filter(m => !m.has_metadata).length;
+const ucCount = allMovies.filter(m => !!m.share_link_uc).length;
+const quarkCount = allMovies.filter(m => !!m.share_link).length;
+const playCount = allMovies.filter(m => !!m.online_play_url).length;
+const ongoingSeriesCount = allMovies.filter(m => (m.category === '电视剧' || m.category === '综艺') && m.is_finished === false).length;
+
+// 分类数量汇总
+const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录片'];
+const categoryCounts: Record<string, number> = { 全部: totalCount };
+for (const cat of categories.slice(1)) {
+  categoryCounts[cat] = allMovies.filter(m => m.category === cat).length;
+}
+
+// 格式化数据传递给客户端（避免超长不可序列化数据）
+const serializedMovies = JSON.stringify(allMovies);
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>星光影库 · 资产与数据中枢管理后台</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- 引入 Hls.js 便于后台直接播放测试 M3U8 视频源 -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest" defer></script>
+  </head>
+  <body class="bg-[#0b0f19] text-slate-100 min-h-screen antialiased selection:bg-orange-500 selection:text-white flex flex-col font-sans">
+    
+    <!-- 顶部全局导航栏 -->
+    <header class="sticky top-0 z-40 backdrop-blur-md bg-[#0b0f19]/90 border-b border-slate-800 px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/" class="flex items-center gap-2.5 group">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-orange-500 to-amber-400 flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:scale-105 transition-transform">
+            <svg class="w-5 h-5 text-white fill-current" viewBox="0 0 24 24">
+              <path d="M4 6.47v11.06c0 .77.85 1.25 1.51.84l8.84-5.53c.63-.39.63-1.3 0-1.69L5.51 5.63C4.85 5.22 4 5.7 4 6.47z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-base font-bold bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-slate-400">
+                星光影库
+              </span>
+              <span class="text-xs px-2 py-0.5 rounded-full font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                Data Hub
+              </span>
+            </div>
+            <p class="text-[11px] text-slate-400 hidden sm:block">采集资产全景监控 · 资源转存状态 · 门禁就绪大盘</p>
+          </div>
+        </a>
+      </div>
+
+      <div class="flex items-center gap-2.5">
+        <button id="exportCsvBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors shadow-sm">
+          <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          <span>导出 CSV</span>
+        </button>
+
+        <button id="exportJsonBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors shadow-sm">
+          <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span>导出 JSON</span>
+        </button>
+
+        <a href="/" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/40 transition-colors shadow-sm">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+          <span>前台首页</span>
+        </a>
+      </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+      
+      <!-- 顶部统计 KPI 指标卡片矩阵 -->
+      <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
+        <!-- 1. 全库收录 -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between shadow-sm hover:border-slate-700 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-slate-400 font-medium">全库总收录</span>
+            <span class="p-1.5 rounded-lg bg-blue-500/10 text-blue-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-1.5">
+            <span class="text-2xl font-bold tracking-tight text-white">{totalCount}</span>
+            <span class="text-[11px] text-slate-400">部</span>
+          </div>
+          <span class="text-[10px] text-slate-400 mt-1">豆瓣+TMDB双源汇聚</span>
+        </div>
+
+        <!-- 2. 已上线/元数据就绪 -->
+        <div class="bg-slate-900/80 border border-emerald-900/40 rounded-xl p-3.5 flex flex-col justify-between shadow-sm hover:border-emerald-800/60 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-emerald-400 font-medium">已上线 (门禁过审)</span>
+            <span class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-1.5">
+            <span class="text-2xl font-bold tracking-tight text-emerald-300">{readyMetaCount}</span>
+            <span class="text-[11px] text-emerald-500 font-mono">({Math.round(readyMetaCount / (totalCount || 1) * 100)}%)</span>
+          </div>
+          <span class="text-[10px] text-emerald-500/80 mt-1">前台可独立访问页面</span>
+        </div>
+
+        <!-- 3. 待补元数据种子池 -->
+        <div class="bg-slate-900/80 border border-amber-900/40 rounded-xl p-3.5 flex flex-col justify-between shadow-sm hover:border-amber-800/60 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-amber-400 font-medium">待补元数据种子</span>
+            <span class="p-1.5 rounded-lg bg-amber-500/10 text-amber-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-1.5">
+            <span class="text-2xl font-bold tracking-tight text-amber-300">{pendingMetaCount}</span>
+            <span class="text-[11px] text-amber-500">部</span>
+          </div>
+          <span class="text-[10px] text-amber-500/80 mt-1">门禁隔离 · 待TMDB补齐</span>
+        </div>
+
+        <!-- 4. 在线播放源 -->
+        <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between shadow-sm hover:border-slate-700 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-rose-400 font-medium">在线播放切片</span>
+            <span class="p-1.5 rounded-lg bg-rose-500/10 text-rose-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-1.5">
+            <span class="text-2xl font-bold tracking-tight text-rose-300">{playCount}</span>
+            <span class="text-[11px] text-slate-400">部</span>
+          </div>
+          <span class="text-[10px] text-rose-400/80 mt-1">免广告 M3U8 秒播流</span>
+        </div>
+
+        <!-- 5. UC 转存 -->
+        <div class="bg-slate-900/80 border border-cyan-900/40 rounded-xl p-3.5 flex flex-col justify-between shadow-sm hover:border-cyan-800/60 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-cyan-400 font-medium">UC网盘转存 (7TB)</span>
+            <span class="p-1.5 rounded-lg bg-cyan-500/10 text-cyan-400 font-bold text-xs">
+              UC
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-1.5">
+            <span class="text-2xl font-bold tracking-tight text-cyan-300">{ucCount}</span>
+            <span class="text-[11px] text-cyan-500">部</span>
+          </div>
+          <span class="text-[10px] text-cyan-400/80 mt-1">带个人 PID 推广返佣</span>
+        </div>
+
+        <!-- 6. 夸克转存 -->
+        <div class="bg-slate-900/80 border border-purple-900/40 rounded-xl p-3.5 flex flex-col justify-between shadow-sm hover:border-purple-800/60 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-purple-400 font-medium">夸克网盘转存</span>
+            <span class="p-1.5 rounded-lg bg-purple-500/10 text-purple-400 font-bold text-xs">
+              QK
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-1.5">
+            <span class="text-2xl font-bold tracking-tight text-purple-300">{quarkCount}</span>
+            <span class="text-[11px] text-purple-500">部</span>
+          </div>
+          <span class="text-[10px] text-purple-400/80 mt-1">带个人 PID 专属收益</span>
+        </div>
+
+        <!-- 7. 连载追更中 -->
+        <div class="bg-slate-900/80 border border-amber-900/30 rounded-xl p-3.5 flex flex-col justify-between shadow-sm hover:border-amber-800/50 transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-orange-400 font-medium">连载追更中</span>
+            <span class="p-1.5 rounded-lg bg-orange-500/10 text-orange-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </span>
+          </div>
+          <div class="mt-2 flex items-baseline gap-1.5">
+            <span class="text-2xl font-bold tracking-tight text-orange-300">{ongoingSeriesCount}</span>
+            <span class="text-[11px] text-orange-500">部</span>
+          </div>
+          <span class="text-[10px] text-orange-400/80 mt-1">每日定时巡检更新集数</span>
+        </div>
+      </section>
+
+      <!-- 搜索、分类与多维过滤控制器 -->
+      <section class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 space-y-4">
+        <!-- 分类快速标签切换 -->
+        <div class="flex flex-wrap items-center gap-2 border-b border-slate-800/80 pb-3">
+          <span class="text-xs font-semibold text-slate-400 mr-2 flex items-center gap-1">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+            <span>影视频道:</span>
+          </span>
+          {categories.map((cat) => (
+            <button 
+              type="button" 
+              data-cat-btn={cat}
+              class={`cat-filter-btn px-3 py-1 rounded-lg text-xs font-medium transition-all duration-200 border ${
+                cat === '全部' 
+                  ? 'bg-orange-500/20 text-orange-300 border-orange-500/40 shadow-sm' 
+                  : 'bg-slate-800/60 text-slate-300 border-slate-700/60 hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              {cat} <span class="text-[10px] opacity-75 font-mono ml-1">({categoryCounts[cat]})</span>
+            </button>
+          ))}
+        </div>
+
+        <!-- 详细条件过滤栏 -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+          <!-- 实时关键词搜索 -->
+          <div class="md:col-span-5 relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input 
+              type="text" 
+              id="searchInput" 
+              placeholder="快速搜索片名、演员、年份、国家或原始译名..." 
+              class="w-full pl-9 pr-9 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-orange-500/70 focus:ring-1 focus:ring-orange-500/50 transition-all"
+            />
+            <button id="clearSearchBtn" class="hidden absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- 状态筛选 -->
+          <div class="md:col-span-3">
+            <select id="statusFilter" class="w-full py-2 px-3 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-orange-500/70">
+              <option value="all">资产状态: 全部 ({totalCount})</option>
+              <option value="ready">✅ 元数据已就绪 (已发布 {readyMetaCount})</option>
+              <option value="pending">⏳ 待补元数据 (种子池 {pendingMetaCount})</option>
+              <option value="has_play">🎬 有在线播放源 ({playCount})</option>
+              <option value="has_uc">📦 有 UC 网盘转存 ({ucCount})</option>
+              <option value="has_quark">⚡ 有夸克网盘转存 ({quarkCount})</option>
+              <option value="ongoing">📺 连载更新中 ({ongoingSeriesCount})</option>
+              <option value="missing_res">⚠️ 暂无任何资源</option>
+            </select>
+          </div>
+
+          <!-- 排序依据 -->
+          <div class="md:col-span-2">
+            <select id="sortBy" class="w-full py-2 px-3 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-orange-500/70">
+              <option value="created_desc">入库时间: 最新优先</option>
+              <option value="score_desc">口碑评分: 从高到低</option>
+              <option value="year_desc">上映年份: 最新优先</option>
+              <option value="views_desc">浏览热度: 从高到低</option>
+            </select>
+          </div>
+
+          <!-- 视图模式切换与每页条数 -->
+          <div class="md:col-span-2 flex items-center justify-end gap-2">
+            <div class="flex items-center rounded-lg bg-slate-950 border border-slate-800 p-0.5">
+              <button id="viewTableBtn" title="表格紧凑视图" class="px-2 py-1 rounded text-xs transition bg-orange-500 text-white">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+              </button>
+              <button id="viewGridBtn" title="视觉卡片视图" class="px-2 py-1 rounded text-xs transition text-slate-400 hover:text-white">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+              </button>
+            </div>
+            
+            <select id="pageSizeSelect" class="py-1.5 px-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300">
+              <option value="20">20 条/页</option>
+              <option value="50" selected>50 条/页</option>
+              <option value="100">100 条/页</option>
+              <option value="9999">全量展示</option>
+            </select>
+          </div>
+        </div>
+      </section>
+
+      <!-- 结果状态统计条 -->
+      <div class="flex items-center justify-between text-xs text-slate-400 px-1">
+        <div id="filterResultSummary">
+          正在展示全部 <span class="text-orange-400 font-bold font-mono">{totalCount}</span> 部影视数据
+        </div>
+        <div class="text-[11px] text-slate-500">
+          💡 点击任意行可打开详情抽屉查看 M3U8 在线点播测试与原始 JSON
+        </div>
+      </div>
+
+      <!-- 数据主容器：表格视图 -->
+      <section id="tableViewWrapper" class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-lg">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr class="bg-slate-950/90 text-slate-400 border-b border-slate-800 uppercase font-medium tracking-wider">
+                <th class="py-3 px-3 w-14 text-center">封面</th>
+                <th class="py-3 px-4 min-w-[200px]">影视片名 / 原名</th>
+                <th class="py-3 px-3 w-20 text-center">分类</th>
+                <th class="py-3 px-3 w-16 text-center">评分</th>
+                <th class="py-3 px-3 w-28 text-center">门禁与元数据</th>
+                <th class="py-3 px-3 min-w-[160px] text-center">转存与播放矩阵</th>
+                <th class="py-3 px-3 w-24 text-center">连载进度</th>
+                <th class="py-3 px-3 w-28 text-center">入库时间</th>
+                <th class="py-3 px-4 w-32 text-center">管理操作</th>
+              </tr>
+            </thead>
+            <tbody id="tableBody" class="divide-y divide-slate-800/60 font-normal">
+              <!-- 由客户端 JavaScript 动态高效渲染 -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 数据主容器：卡片网格视图 (默认隐藏) -->
+      <section id="gridViewWrapper" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3.5">
+        <!-- 由客户端 JavaScript 动态渲染 -->
+      </section>
+
+      <!-- 分页导航栏 -->
+      <section id="paginationWrapper" class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 pb-8 border-t border-slate-800/80">
+        <div id="paginationInfo" class="text-xs text-slate-400">
+          显示第 1 到 50 条，共 320 条
+        </div>
+        <div id="paginationButtons" class="flex items-center gap-1.5">
+          <!-- 动态注入分页按钮 -->
+        </div>
+      </section>
+
+    </main>
+
+    <!-- 影视详情与探活诊断抽屉 (Modal) -->
+    <div id="detailModal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+      <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl relative my-auto animate-in fade-in duration-200">
+        <!-- 弹窗顶栏 -->
+        <div class="px-6 py-4 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-xs px-2 py-0.5 rounded font-mono font-bold bg-orange-500/20 text-orange-300 border border-orange-500/40" id="modalCategory">
+              电影
+            </span>
+            <h3 class="text-base sm:text-lg font-bold text-white truncate max-w-[420px]" id="modalTitle">
+              影视详情
+            </h3>
+            <span class="text-xs text-slate-400" id="modalYear">2026</span>
+          </div>
+          <button id="closeModalBtn" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- 弹窗主体内容 -->
+        <div class="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
+          <!-- 核心信息卡 -->
+          <div class="flex flex-col sm:flex-row gap-5">
+            <img id="modalPoster" src="" alt="海报" class="w-32 h-48 rounded-xl object-cover bg-slate-800 border border-slate-700 shadow-md flex-shrink-0" />
+            
+            <div class="flex-1 space-y-2 text-xs">
+              <div class="flex items-center gap-2">
+                <span class="text-slate-400">UUID:</span>
+                <span id="modalId" class="font-mono text-slate-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 select-all"></span>
+                <button class="copy-btn text-orange-400 hover:text-orange-300" data-copy-target="modalId" title="复制 ID">📋</button>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <span class="text-slate-400">原始片名:</span>
+                <span id="modalOriginalTitle" class="text-slate-200"></span>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <span class="text-slate-400">豆瓣/TMDB评分:</span>
+                <span id="modalScore" class="text-amber-400 font-bold text-sm"></span>
+              </div>
+
+              <div class="flex items-center gap-2">
+                <span class="text-slate-400">门禁状态:</span>
+                <span id="modalMetaBadge"></span>
+              </div>
+
+              <div>
+                <span class="text-slate-400">主演阵容:</span>
+                <span id="modalActors" class="text-slate-300 ml-1"></span>
+              </div>
+
+              <div>
+                <span class="text-slate-400">剧情简介:</span>
+                <p id="modalIntro" class="text-slate-300 line-clamp-3 mt-0.5 bg-slate-950/50 p-2 rounded-lg border border-slate-800/60 leading-relaxed"></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 资源与播放探活控制台 -->
+          <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
+            <h4 class="text-xs font-semibold text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
+              <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              <span>资源与播放源探活直达</span>
+            </h4>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <!-- UC 转存 -->
+              <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-medium text-cyan-400">UC 网盘 (7TB)</span>
+                  <span id="modalUcStatus" class="text-[10px]"></span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <a id="modalUcLink" href="#" target="_blank" class="flex-1 text-center py-1 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 text-xs rounded border border-cyan-500/30 transition">
+                    打开链接
+                  </a>
+                  <button id="modalUcCopy" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-700" title="复制链接">
+                    复制
+                  </button>
+                </div>
+              </div>
+
+              <!-- 夸克转存 -->
+              <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-medium text-purple-400">夸克网盘</span>
+                  <span id="modalQuarkStatus" class="text-[10px]"></span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <a id="modalQuarkLink" href="#" target="_blank" class="flex-1 text-center py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-xs rounded border border-purple-500/30 transition">
+                    打开链接
+                  </a>
+                  <button id="modalQuarkCopy" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-700" title="复制链接">
+                    复制
+                  </button>
+                </div>
+              </div>
+
+              <!-- 在线播放源 -->
+              <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-medium text-rose-400">M3U8 在线切片</span>
+                  <span id="modalPlayStatus" class="text-[10px]"></span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <button id="modalPlayTestBtn" class="flex-1 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 text-xs rounded border border-rose-500/30 transition">
+                    ▶️ 测试点播
+                  </button>
+                  <button id="modalPlayCopy" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-700" title="复制 M3U8 流地址">
+                    复制
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- 内嵌 HLS 播放器容器 (点击测试点播时展开) -->
+            <div id="playerSection" class="hidden space-y-2 pt-2 border-t border-slate-800">
+              <div class="flex items-center justify-between">
+                <span class="text-[11px] text-slate-400 font-mono" id="currentStreamUrl"></span>
+                <button id="closePlayerBtn" class="text-[11px] text-rose-400 hover:text-rose-300">关闭播放</button>
+              </div>
+              <video id="hlsVideo" controls class="w-full h-56 bg-black rounded-lg border border-slate-800"></video>
+            </div>
+          </div>
+
+          <!-- 剧照画廊缩略图 (如果有) -->
+          <div id="modalStillsSection" class="hidden space-y-2">
+            <h4 class="text-xs font-semibold text-slate-300">官方高清剧照画廊</h4>
+            <div id="modalStillsGrid" class="flex gap-2 overflow-x-auto pb-2"></div>
+          </div>
+
+          <!-- 原始 JSON 调试视窗 -->
+          <details class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs">
+            <summary class="cursor-pointer text-slate-400 hover:text-slate-200 font-mono">
+              查看数据库原始 JSON 结构体 (Raw Record)
+            </summary>
+            <pre id="modalRawJson" class="mt-3 p-3 bg-slate-900 rounded-lg text-slate-300 font-mono text-[11px] overflow-x-auto max-h-52 select-all"></pre>
+          </details>
+        </div>
+
+        <!-- 弹窗底栏 -->
+        <div class="px-6 py-3 bg-slate-950/90 border-t border-slate-800 flex items-center justify-between">
+          <div class="text-[11px] text-slate-500" id="modalCreatedAt">入库时间: -</div>
+          <div class="flex items-center gap-2">
+            <a id="modalFrontLink" href="#" target="_blank" class="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition shadow">
+              在前台网页中查看 ↗
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 浮动提示 Toast -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-10 opacity-0 pointer-events-none transition-all duration-300 px-4 py-2.5 rounded-xl bg-slate-800/95 border border-slate-700 text-slate-100 text-xs shadow-xl flex items-center gap-2">
+      <span id="toastIcon">📋</span>
+      <span id="toastMsg">已复制到剪贴板</span>
+    </div>
+
+    <!-- 原始全量数据安全存放在客户端供即时秒级检索 -->
+    <script id="allMoviesData" type="application/json" set:html={serializedMovies}></script>
+
+    <script is:inline>
+      // 客户端管理面板核心逻辑
+      const rawMovies = JSON.parse(document.getElementById('allMoviesData').textContent);
+      
+      let state = {
+        movies: [...rawMovies],
+        currentCategory: '全部',
+        currentStatus: 'all',
+        searchTerm: '',
+        sortBy: 'created_desc',
+        pageSize: 50,
+        currentPage: 1,
+        viewMode: 'table', // 'table' or 'grid'
+      };
+
+      let hlsInstance = null;
+
+      // DOM 元素引用
+      const tableBody = document.getElementById('tableBody');
+      const gridWrapper = document.getElementById('gridViewWrapper');
+      const tableViewWrapper = document.getElementById('tableViewWrapper');
+      const paginationInfo = document.getElementById('paginationInfo');
+      const paginationButtons = document.getElementById('paginationButtons');
+      const filterResultSummary = document.getElementById('filterResultSummary');
+      const searchInput = document.getElementById('searchInput');
+      const clearSearchBtn = document.getElementById('clearSearchBtn');
+      const statusFilter = document.getElementById('statusFilter');
+      const sortBySelect = document.getElementById('sortBy');
+      const pageSizeSelect = document.getElementById('pageSizeSelect');
+      const viewTableBtn = document.getElementById('viewTableBtn');
+      const viewGridBtn = document.getElementById('viewGridBtn');
+
+      // Toast 提醒函数
+      function showToast(msg, icon = '✅') {
+        const toast = document.getElementById('toast');
+        document.getElementById('toastMsg').textContent = msg;
+        document.getElementById('toastIcon').textContent = icon;
+        toast.classList.remove('translate-y-10', 'opacity-0', 'pointer-events-none');
+        setTimeout(() => {
+          toast.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
+        }, 2200);
+      }
+
+      // 复制工具函数
+      function copyToClipboard(text, successMsg = '已复制到剪贴板') {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast(successMsg, '📋');
+        }).catch(() => {
+          showToast('复制失败，请手动选取', '⚠️');
+        });
+      }
+
+      // 数据筛选与排序核心函数
+      function filterAndSortMovies() {
+        let list = [...rawMovies];
+
+        // 1. 频道分类过滤
+        if (state.currentCategory !== '全部') {
+          list = list.filter(m => m.category === state.currentCategory);
+        }
+
+        // 2. 状态维度过滤
+        if (state.currentStatus === 'ready') {
+          list = list.filter(m => m.has_metadata === true);
+        } else if (state.currentStatus === 'pending') {
+          list = list.filter(m => !m.has_metadata);
+        } else if (state.currentStatus === 'has_play') {
+          list = list.filter(m => !!m.online_play_url);
+        } else if (state.currentStatus === 'has_uc') {
+          list = list.filter(m => !!m.share_link_uc);
+        } else if (state.currentStatus === 'has_quark') {
+          list = list.filter(m => !!m.share_link);
+        } else if (state.currentStatus === 'ongoing') {
+          list = list.filter(m => (m.category === '电视剧' || m.category === '综艺') && m.is_finished === false);
+        } else if (state.currentStatus === 'missing_res') {
+          list = list.filter(m => !m.share_link_uc && !m.share_link && !m.online_play_url);
+        }
+
+        // 3. 搜索关键词模糊匹配
+        if (state.searchTerm) {
+          const q = state.searchTerm.toLowerCase();
+          list = list.filter(m => 
+            (m.title && m.title.toLowerCase().includes(q)) ||
+            (m.original_title && m.original_title.toLowerCase().includes(q)) ||
+            (m.actors && m.actors.toLowerCase().includes(q)) ||
+            (m.country && m.country.toLowerCase().includes(q)) ||
+            (m.id && m.id.toLowerCase().includes(q)) ||
+            (String(m.year).includes(q))
+          );
+        }
+
+        // 4. 排序
+        if (state.sortBy === 'created_desc') {
+          list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        } else if (state.sortBy === 'score_desc') {
+          list.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));
+        } else if (state.sortBy === 'year_desc') {
+          list.sort((a, b) => (b.year || 0) - (a.year || 0));
+        } else if (state.sortBy === 'views_desc') {
+          list.sort((a, b) => (b.views || 0) - (a.views || 0));
+        }
+
+        state.movies = list;
+        state.currentPage = 1;
+        render();
+      }
+
+      // 主渲染函数
+      function render() {
+        const total = state.movies.length;
+        const totalPages = Math.ceil(total / state.pageSize) || 1;
+        if (state.currentPage > totalPages) state.currentPage = totalPages;
+
+        const startIndex = (state.currentPage - 1) * state.pageSize;
+        const endIndex = Math.min(startIndex + state.pageSize, total);
+        const currentSlice = state.movies.slice(startIndex, endIndex);
+
+        // 更新统计文本
+        filterResultSummary.innerHTML = `展示筛选结果 <span class="text-orange-400 font-bold font-mono">${total}</span> 部 (第 ${state.currentPage}/${totalPages} 页)`;
+        paginationInfo.textContent = total > 0 
+          ? `显示第 ${startIndex + 1} 到 ${endIndex} 条，共 ${total} 条`
+          : '暂无匹配的影视资产';
+
+        // 渲染表格或网格
+        if (state.viewMode === 'table') {
+          tableViewWrapper.classList.remove('hidden');
+          gridWrapper.classList.add('hidden');
+          renderTable(currentSlice);
+        } else {
+          tableViewWrapper.classList.add('hidden');
+          gridWrapper.classList.remove('hidden');
+          renderGrid(currentSlice);
+        }
+
+        // 渲染分页按钮
+        renderPagination(totalPages);
+      }
+
+      // 渲染表格视图
+      function renderTable(list) {
+        if (list.length === 0) {
+          tableBody.innerHTML = `<tr><td colspan="9" class="text-center py-12 text-slate-500">没有找到符合条件的影视记录</td></tr>`;
+          return;
+        }
+
+        let html = '';
+        for (const m of list) {
+          const dateStr = m.created_at ? new Date(m.created_at).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
+          const hasMeta = m.has_metadata === true;
+          const score = m.score ? parseFloat(m.score).toFixed(1) : '-';
+          
+          // 资源状态胶囊
+          const ucBadge = m.share_link_uc 
+            ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" title="已转存个人 UC 盘">UC</span>` 
+            : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-500">无UC</span>`;
+          
+          const quarkBadge = m.share_link 
+            ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30" title="已转存夸克盘">夸克</span>` 
+            : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-500">无夸克</span>`;
+          
+          const playBadge = m.online_play_url 
+            ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30" title="已切片在线播">在线播</span>` 
+            : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-500">无切片</span>`;
+
+          // 连载进度
+          let seriesStatus = '-';
+          if (m.category === '电视剧' || m.category === '综艺') {
+            if (m.is_finished) {
+              seriesStatus = `<span class="text-slate-400">已完结 (${m.total_episodes || m.current_episode || '-'}集)</span>`;
+            } else {
+              seriesStatus = `<span class="text-orange-400 font-medium">连载至 ${m.current_episode || 1} 集</span>`;
+            }
+          }
+
+          html += `
+            <tr class="hover:bg-slate-800/40 transition-colors group cursor-pointer" onclick="openDetailModal('${m.id}')">
+              <td class="py-2.5 px-3 text-center">
+                <img src="${m.poster_url || '/favicon.svg'}" alt="${m.title}" loading="lazy" class="w-9 h-13 object-cover rounded bg-slate-800 border border-slate-700/60 mx-auto group-hover:scale-105 transition-transform" />
+              </td>
+              <td class="py-2.5 px-4">
+                <div class="font-bold text-slate-100 group-hover:text-orange-400 transition-colors text-sm">${m.title}</div>
+                <div class="text-[11px] text-slate-400 truncate max-w-xs">${m.original_title || m.actors || '暂无译名'}</div>
+                <div class="text-[10px] text-slate-500 font-mono mt-0.5">${m.year || '-'} · ${m.country || '华语'}</div>
+              </td>
+              <td class="py-2.5 px-3 text-center">
+                <span class="px-2 py-0.5 rounded text-[11px] font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                  ${m.category || '电影'}
+                </span>
+              </td>
+              <td class="py-2.5 px-3 text-center">
+                <span class="font-bold text-amber-400 font-mono text-sm">${score}</span>
+              </td>
+              <td class="py-2.5 px-3 text-center">
+                ${hasMeta 
+                  ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                       <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                       <span>已过审就绪</span>
+                     </span>`
+                  : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                       <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                       <span>待补元数据</span>
+                     </span>`
+                }
+              </td>
+              <td class="py-2.5 px-3 text-center">
+                <div class="flex items-center justify-center gap-1">
+                  ${ucBadge}
+                  ${quarkBadge}
+                  ${playBadge}
+                </div>
+              </td>
+              <td class="py-2.5 px-3 text-center text-[11px]">
+                ${seriesStatus}
+              </td>
+              <td class="py-2.5 px-3 text-center text-slate-400 text-[11px] font-mono">
+                ${dateStr}
+              </td>
+              <td class="py-2.5 px-4 text-center" onclick="event.stopPropagation()">
+                <div class="flex items-center justify-center gap-1.5">
+                  ${hasMeta 
+                    ? `<a href="/movie/${m.id}" target="_blank" class="px-2 py-1 bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 rounded text-[11px] border border-orange-500/40 transition">
+                         直达 ↗
+                       </a>`
+                    : `<span class="px-2 py-1 bg-slate-800 text-slate-500 rounded text-[11px] cursor-not-allowed" title="门禁拦截中：尚未通过 TMDB 补齐元数据">
+                         门禁拦截
+                       </span>`
+                  }
+                  <button onclick="openDetailModal('${m.id}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] border border-slate-700 transition">
+                    详情
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }
+        tableBody.innerHTML = html;
+      }
+
+      // 渲染网格卡片视图
+      function renderGrid(list) {
+        if (list.length === 0) {
+          gridWrapper.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500">没有找到符合条件的影视记录</div>`;
+          return;
+        }
+
+        let html = '';
+        for (const m of list) {
+          const score = m.score ? parseFloat(m.score).toFixed(1) : '-';
+          const hasMeta = m.has_metadata === true;
+
+          html += `
+            <div class="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden hover:border-slate-700 transition shadow flex flex-col group cursor-pointer" onclick="openDetailModal('${m.id}')">
+              <div class="relative aspect-[2/3] bg-slate-950 overflow-hidden">
+                <img src="${m.poster_url || '/favicon.svg'}" alt="${m.title}" loading="lazy" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                <div class="absolute top-2 left-2 flex flex-col gap-1">
+                  <span class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-black/60 backdrop-blur-md text-amber-300 border border-amber-500/30">
+                    ★ ${score}
+                  </span>
+                </div>
+                <div class="absolute top-2 right-2">
+                  ${hasMeta 
+                    ? `<span class="w-2 h-2 rounded-full bg-emerald-400 block shadow" title="已发布"></span>`
+                    : `<span class="w-2 h-2 rounded-full bg-amber-400 block animate-pulse" title="待补元数据"></span>`
+                  }
+                </div>
+                <div class="absolute bottom-2 left-2 right-2 flex items-center gap-1 justify-end">
+                  ${m.share_link_uc ? `<span class="px-1 bg-cyan-600/80 text-white text-[9px] rounded font-bold">UC</span>` : ''}
+                  ${m.share_link ? `<span class="px-1 bg-purple-600/80 text-white text-[9px] rounded font-bold">QK</span>` : ''}
+                  ${m.online_play_url ? `<span class="px-1 bg-rose-600/80 text-white text-[9px] rounded font-bold">播</span>` : ''}
+                </div>
+              </div>
+              <div class="p-2.5 flex-1 flex flex-col justify-between space-y-1">
+                <div class="font-bold text-xs text-slate-100 truncate group-hover:text-orange-400 transition-colors">
+                  ${m.title}
+                </div>
+                <div class="flex items-center justify-between text-[10px] text-slate-400">
+                  <span>${m.category}</span>
+                  <span class="font-mono">${m.year || '-'}</span>
+                </div>
+              </div>
+            </div>
+          `;
+        }
+        gridWrapper.innerHTML = html;
+      }
+
+      // 渲染分页器
+      function renderPagination(totalPages) {
+        if (totalPages <= 1) {
+          paginationButtons.innerHTML = '';
+          return;
+        }
+
+        let btns = '';
+        // 上一页
+        btns += `
+          <button 
+            onclick="goToPage(${state.currentPage - 1})" 
+            ${state.currentPage === 1 ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="hover:bg-slate-800 text-slate-300"'}
+            class="px-2.5 py-1 text-xs rounded-lg bg-slate-900 border border-slate-800 transition"
+          >
+            上一页
+          </button>
+        `;
+
+        // 简易页码逻辑
+        for (let i = 1; i <= totalPages; i++) {
+          if (i === 1 || i === totalPages || (i >= state.currentPage - 2 && i <= state.currentPage + 2)) {
+            const isActive = i === state.currentPage;
+            btns += `
+              <button 
+                onclick="goToPage(${i})" 
+                class="px-2.5 py-1 text-xs rounded-lg transition font-mono ${
+                  isActive 
+                    ? 'bg-orange-500 text-white font-bold' 
+                    : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
+                }"
+              >
+                ${i}
+              </button>
+            `;
+          } else if (i === state.currentPage - 3 || i === state.currentPage + 3) {
+            btns += `<span class="text-xs text-slate-600 px-1">...</span>`;
+          }
+        }
+
+        // 下一页
+        btns += `
+          <button 
+            onclick="goToPage(${state.currentPage + 1})" 
+            ${state.currentPage === totalPages ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="hover:bg-slate-800 text-slate-300"'}
+            class="px-2.5 py-1 text-xs rounded-lg bg-slate-900 border border-slate-800 transition"
+          >
+            下一页
+          </button>
+        `;
+
+        paginationButtons.innerHTML = btns;
+      }
+
+      window.goToPage = function(page) {
+        state.currentPage = page;
+        render();
+        window.scrollTo({ top: 380, behavior: 'smooth' });
+      };
+
+      // 详情弹窗控制
+      window.openDetailModal = function(id) {
+        const m = rawMovies.find(x => x.id === id);
+        if (!m) return;
+
+        document.getElementById('modalTitle').textContent = m.title;
+        document.getElementById('modalCategory').textContent = m.category || '电影';
+        document.getElementById('modalYear').textContent = m.year ? `${m.year} 年` : '';
+        document.getElementById('modalPoster').src = m.poster_url || '/favicon.svg';
+        document.getElementById('modalId').textContent = m.id;
+        document.getElementById('modalOriginalTitle').textContent = m.original_title || '与中文名同名';
+        document.getElementById('modalScore').textContent = m.score ? `★ ${parseFloat(m.score).toFixed(1)} 分` : '暂无评分';
+        document.getElementById('modalActors').textContent = m.actors || '暂未录入演员列表';
+        document.getElementById('modalIntro').textContent = m.intro || '暂无详细剧情介绍';
+        document.getElementById('modalCreatedAt').textContent = `入库时间: ${m.created_at ? new Date(m.created_at).toLocaleString('zh-CN') : '-'}`;
+
+        // 门禁状态
+        const metaBadge = document.getElementById('modalMetaBadge');
+        if (m.has_metadata) {
+          metaBadge.innerHTML = `<span class="px-2 py-0.5 rounded text-[11px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">✅ TMDB官方元数据已就绪 · 已解锁前台发布</span>`;
+        } else {
+          metaBadge.innerHTML = `<span class="px-2 py-0.5 rounded text-[11px] bg-amber-500/20 text-amber-300 border border-amber-500/30">⏳ 豆瓣热门种子 · 待 TMDB 补齐 (门禁隔离中)</span>`;
+        }
+
+        // UC 网盘
+        const ucLink = document.getElementById('modalUcLink');
+        const ucStatus = document.getElementById('modalUcStatus');
+        const ucCopy = document.getElementById('modalUcCopy');
+        if (m.share_link_uc) {
+          ucStatus.textContent = '已转存';
+          ucStatus.className = 'text-[10px] text-cyan-400';
+          ucLink.href = m.share_link_uc;
+          ucLink.classList.remove('opacity-40', 'pointer-events-none');
+          ucCopy.onclick = () => copyToClipboard(m.share_link_uc, '已复制 UC 网盘转存链接');
+        } else {
+          ucStatus.textContent = '未搜得';
+          ucStatus.className = 'text-[10px] text-slate-500';
+          ucLink.href = '#';
+          ucLink.classList.add('opacity-40', 'pointer-events-none');
+          ucCopy.onclick = () => showToast('暂无 UC 链接', '⚠️');
+        }
+
+        // 夸克网盘
+        const quarkLink = document.getElementById('modalQuarkLink');
+        const quarkStatus = document.getElementById('modalQuarkStatus');
+        const quarkCopy = document.getElementById('modalQuarkCopy');
+        if (m.share_link) {
+          quarkStatus.textContent = '已挂载';
+          quarkStatus.className = 'text-[10px] text-purple-400';
+          quarkLink.href = m.share_link;
+          quarkLink.classList.remove('opacity-40', 'pointer-events-none');
+          quarkCopy.onclick = () => copyToClipboard(m.share_link, '已复制夸克转存链接');
+        } else {
+          quarkStatus.textContent = '未挂载';
+          quarkStatus.className = 'text-[10px] text-slate-500';
+          quarkLink.href = '#';
+          quarkLink.classList.add('opacity-40', 'pointer-events-none');
+          quarkCopy.onclick = () => showToast('暂无夸克链接', '⚠️');
+        }
+
+        // 在线播放源
+        const playStatus = document.getElementById('modalPlayStatus');
+        const playTestBtn = document.getElementById('modalPlayTestBtn');
+        const playCopy = document.getElementById('modalPlayCopy');
+        if (m.online_play_url) {
+          playStatus.textContent = '可秒播';
+          playStatus.className = 'text-[10px] text-rose-400';
+          playTestBtn.classList.remove('opacity-40', 'pointer-events-none');
+          playTestBtn.onclick = () => playHlsStream(m.online_play_url);
+          playCopy.onclick = () => copyToClipboard(m.online_play_url, '已复制 M3U8 流媒体地址');
+        } else {
+          playStatus.textContent = '无源';
+          playStatus.className = 'text-[10px] text-slate-500';
+          playTestBtn.classList.add('opacity-40', 'pointer-events-none');
+          playCopy.onclick = () => showToast('暂无在线切片流', '⚠️');
+        }
+
+        // 前台直达链接
+        const frontLink = document.getElementById('modalFrontLink');
+        if (m.has_metadata) {
+          frontLink.href = `/movie/${m.id}`;
+          frontLink.classList.remove('hidden');
+        } else {
+          frontLink.classList.add('hidden');
+        }
+
+        // 剧照画廊
+        const stillsSection = document.getElementById('modalStillsSection');
+        const stillsGrid = document.getElementById('modalStillsGrid');
+        if (m.stills && Array.isArray(m.stills) && m.stills.length > 0) {
+          stillsSection.classList.remove('hidden');
+          stillsGrid.innerHTML = m.stills.map(s => `
+            <img src="${s}" alt="剧照" class="h-16 w-28 object-cover rounded border border-slate-700 flex-shrink-0" />
+          `).join('');
+        } else {
+          stillsSection.classList.add('hidden');
+        }
+
+        // 原始 JSON
+        document.getElementById('modalRawJson').textContent = JSON.stringify(m, null, 2);
+
+        // 展开弹窗
+        document.getElementById('detailModal').classList.remove('hidden');
+      };
+
+      // 播放 HLS 视频流
+      function playHlsStream(url) {
+        const playerSection = document.getElementById('playerSection');
+        const video = document.getElementById('hlsVideo');
+        const streamUrlText = document.getElementById('currentStreamUrl');
+        
+        playerSection.classList.remove('hidden');
+        streamUrlText.textContent = url;
+
+        if (hlsInstance) {
+          hlsInstance.destroy();
+          hlsInstance = null;
+        }
+
+        if (window.Hls && window.Hls.isSupported()) {
+          hlsInstance = new window.Hls();
+          hlsInstance.loadSource(url);
+          hlsInstance.attachMedia(video);
+          hlsInstance.on(window.Hls.Events.MANIFEST_PARSED, () => {
+            video.play();
+          });
+          hlsInstance.on(window.Hls.Events.ERROR, (event, data) => {
+            if (data.fatal) {
+              showToast('M3U8 解析失败或跨域受阻', '⚠️');
+            }
+          });
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+          video.src = url;
+          video.play();
+        } else {
+          showToast('当前浏览器不支持 HLS 原生播放', '⚠️');
+        }
+      }
+
+      // 关闭播放器
+      document.getElementById('closePlayerBtn').addEventListener('click', () => {
+        const video = document.getElementById('hlsVideo');
+        video.pause();
+        if (hlsInstance) {
+          hlsInstance.destroy();
+          hlsInstance = null;
+        }
+        document.getElementById('playerSection').classList.add('hidden');
+      });
+
+      // 关闭弹窗
+      document.getElementById('closeModalBtn').addEventListener('click', () => {
+        document.getElementById('closePlayerBtn').click();
+        document.getElementById('detailModal').classList.add('hidden');
+      });
+
+      document.getElementById('detailModal').addEventListener('click', (e) => {
+        if (e.target.id === 'detailModal') {
+          document.getElementById('closeModalBtn').click();
+        }
+      });
+
+      // 绑定分类筛选按钮
+      document.querySelectorAll('[data-cat-btn]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const cat = btn.getAttribute('data-cat-btn');
+          state.currentCategory = cat;
+
+          // 更新按钮样式
+          document.querySelectorAll('[data-cat-btn]').forEach(b => {
+            b.className = 'cat-filter-btn px-3 py-1 rounded-lg text-xs font-medium transition-all duration-200 border bg-slate-800/60 text-slate-300 border-slate-700/60 hover:bg-slate-800 hover:text-white';
+          });
+          btn.className = 'cat-filter-btn px-3 py-1 rounded-lg text-xs font-medium transition-all duration-200 border bg-orange-500/20 text-orange-300 border-orange-500/40 shadow-sm';
+
+          filterAndSortMovies();
+        });
+      });
+
+      // 搜索框输入事件（防抖）
+      let searchTimer = null;
+      searchInput.addEventListener('input', (e) => {
+        const val = e.target.value.trim();
+        state.searchTerm = val;
+        clearSearchBtn.classList.toggle('hidden', !val);
+
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(() => {
+          filterAndSortMovies();
+        }, 150);
+      });
+
+      clearSearchBtn.addEventListener('click', () => {
+        searchInput.value = '';
+        state.searchTerm = '';
+        clearSearchBtn.classList.add('hidden');
+        filterAndSortMovies();
+      });
+
+      // 状态筛选下拉
+      statusFilter.addEventListener('change', (e) => {
+        state.currentStatus = e.target.value;
+        filterAndSortMovies();
+      });
+
+      // 排序下拉
+      sortBySelect.addEventListener('change', (e) => {
+        state.sortBy = e.target.value;
+        filterAndSortMovies();
+      });
+
+      // 每页条数下拉
+      pageSizeSelect.addEventListener('change', (e) => {
+        state.pageSize = parseInt(e.target.value, 10);
+        state.currentPage = 1;
+        render();
+      });
+
+      // 视图切换
+      viewTableBtn.addEventListener('click', () => {
+        state.viewMode = 'table';
+        viewTableBtn.className = 'px-2 py-1 rounded text-xs transition bg-orange-500 text-white';
+        viewGridBtn.className = 'px-2 py-1 rounded text-xs transition text-slate-400 hover:text-white';
+        render();
+      });
+
+      viewGridBtn.addEventListener('click', () => {
+        state.viewMode = 'grid';
+        viewGridBtn.className = 'px-2 py-1 rounded text-xs transition bg-orange-500 text-white';
+        viewTableBtn.className = 'px-2 py-1 rounded text-xs transition text-slate-400 hover:text-white';
+        render();
+      });
+
+      // 导出 CSV 功能
+      document.getElementById('exportCsvBtn').addEventListener('click', () => {
+        const items = state.movies;
+        if (items.length === 0) {
+          showToast('当前无可用数据导出', '⚠️');
+          return;
+        }
+
+        const headers = ['ID', '片名', '原始片名', '分类', '年份', '评分', '国家', '元数据就绪', 'UC网盘链接', '夸克网盘链接', '在线播放M3U8', '连载集数', '完结状态', '入库时间'];
+        const rows = items.map(m => [
+          m.id,
+          `"${(m.title || '').replace(/"/g, '""')}"`,
+          `"${(m.original_title || '').replace(/"/g, '""')}"`,
+          m.category || '',
+          m.year || '',
+          m.score || '',
+          m.country || '',
+          m.has_metadata ? '是' : '否',
+          `"${(m.share_link_uc || '').replace(/"/g, '""')}"`,
+          `"${(m.share_link || '').replace(/"/g, '""')}"`,
+          `"${(m.online_play_url || '').replace(/"/g, '""')}"`,
+          m.current_episode || '',
+          m.is_finished ? '已完结' : '连载中',
+          m.created_at || ''
+        ]);
+
+        const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `starlight_movies_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast(`已导出 ${items.length} 部影视数据为 CSV`, '📥');
+      });
+
+      // 导出 JSON 功能
+      document.getElementById('exportJsonBtn').addEventListener('click', () => {
+        const items = state.movies;
+        const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `starlight_movies_${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showToast(`已导出 ${items.length} 部影视数据为 JSON`, '📄');
+      });
+
+      // 初始渲染
+      render();
+    </script>
+  </body>
+</html>

@@ -60,3 +60,10 @@ export async function getMovieById(id) {
   const res = await p.query('SELECT * FROM resources WHERE id = $1', [id]);
   return res.rows[0] || null;
 }
+
+// 获取后台管理全量影视资产（包含待补种子、连载状态与各网盘切片信息）
+export async function getAllMoviesForAdmin() {
+  const p = getDbPool();
+  const res = await p.query('SELECT * FROM resources ORDER BY created_at DESC');
+  return res.rows;
+}
