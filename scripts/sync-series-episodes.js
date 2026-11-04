@@ -25,7 +25,6 @@ export async function syncOngoingSeriesEpisodes() {
 
   if (ongoingList.length === 0) {
     console.log('🟢 当前片库中暂无连载中的未完结剧集，全部已完结或已处于最新状态。');
-    await pool.end();
     return { updatedCount: 0, items: [] };
   }
 
@@ -96,12 +95,15 @@ export async function syncOngoingSeriesEpisodes() {
   console.log(`🎉 连载追更巡检完成：共更新 ${updatedItems.length} 部剧集的最新集数！`);
   console.log('===============================================================\n');
 
-  await pool.end();
   return { updatedCount: updatedItems.length, items: updatedItems };
 }
 
 if (process.argv[1]?.endsWith('sync-series-episodes.js')) {
-  syncOngoingSeriesEpisodes().then(() => process.exit(0)).catch(e => {
+  syncOngoingSeriesEpisodes().then(async () => {
+    const p = getDbPool();
+    await p.end();
+    process.exit(0);
+  }).catch(e => {
     console.error(e);
     process.exit(1);
   });

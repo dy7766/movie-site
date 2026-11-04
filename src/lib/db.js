@@ -5,7 +5,7 @@ const { Pool } = pg;
 let pool;
 
 export function getDbPool() {
-  if (!pool) {
+  if (!pool || pool.ended) {
     pool = new Pool({
       host: process.env.SUPABASE_DB_HOST || 'aws-0-ap-south-1.pooler.supabase.com',
       port: parseInt(process.env.SUPABASE_DB_PORT || '5432'),
@@ -18,6 +18,13 @@ export function getDbPool() {
     });
   }
   return pool;
+}
+
+export async function closeDbPool() {
+  if (pool && !pool.ended) {
+    await pool.end();
+    pool = null;
+  }
 }
 
 // 获取影视列表

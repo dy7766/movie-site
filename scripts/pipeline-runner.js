@@ -104,8 +104,13 @@ export async function runAutomationPipeline() {
   }
 
   // 获取数据库现存总数
-  const totalCountRes = await pool.query('SELECT count(*) FROM resources');
-  const totalMovies = parseInt(totalCountRes.rows[0]?.count || '232');
+  let totalMovies = 255;
+  try {
+    const totalCountRes = await pool.query('SELECT count(*) FROM resources');
+    totalMovies = parseInt(totalCountRes.rows[0]?.count || '255');
+  } catch (countErr) {
+    console.warn('⚠️ 查询现存总数异常（采用预设值保底）:', countErr.message);
+  }
 
   // 7. 发送钉钉任务完成大盘报告
   console.log('\n[步骤 7/7] 正在推送本次自动化运营大盘至钉钉群...');

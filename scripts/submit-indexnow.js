@@ -56,12 +56,14 @@ export async function submitToIndexNow() {
       console.error(`❌ 推送 ${endpoint} 异常:`, err.message);
     }
   }
-
-  await pool.end();
 }
 
 if (process.argv[1]?.endsWith('submit-indexnow.js')) {
-  submitToIndexNow().then(() => process.exit(0)).catch(e => {
+  submitToIndexNow().then(async () => {
+    const p = getDbPool();
+    await p.end();
+    process.exit(0);
+  }).catch(e => {
     console.error(e);
     process.exit(1);
   });
