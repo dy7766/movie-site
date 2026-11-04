@@ -1,0 +1,19 @@
+name = "movie-pipeline-watchdog"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Cloudflare 全球边缘定时调度器 (Cron Triggers)
+# 对应北京时间比 GitHub 自带定时延后 15 分钟，专职巡检与漏跑兜底
+[triggers]
+crons = [
+  "50 0 * * *",   # 每天北京时间 08:50 (晨间档 08:35 的兜底守门员)
+  "30 4 * * *",   # 每天北京时间 12:30 (午间档 12:15 的兜底守门员)
+  "50 12 * * *",  # 每天北京时间 20:50 (晚间档 20:35 的兜底守门员)
+  "0 3 * * 0"     # 每周日北京时间 11:00 (Supabase 深度心跳防休眠)
+]
+
+# 环境变量占位说明（在 Cloudflare Dashboard 界面中配置或通过 Secret 写入）
+# [vars]
+# REPO_OWNER = "dy7766"
+# REPO_NAME = "movie-site"
+# DINGTALK_ALERT_PHONE = "15210865171"
