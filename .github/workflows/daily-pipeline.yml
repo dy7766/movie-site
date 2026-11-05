@@ -1,14 +1,8 @@
 name: 🎬 Daily Media Automation Pipeline
 
 on:
-  schedule:
-    # 每天北京时间 08:35 (UTC 00:35，错开整点高峰，避开 GitHub 队列丢任务)
-    - cron: '35 0 * * *'
-    # 每天北京时间 12:15 (UTC 04:15，午间黄金档错峰巡检)
-    - cron: '15 4 * * *'
-    # 每天北京时间 20:35 (UTC 12:35，晚间观影高峰期错峰探活)
-    - cron: '35 12 * * *'
-  workflow_dispatch: # 支持在 GitHub 仓库网页端随时一键手动触发
+  # 统一由 Cloudflare 全球边缘 Worker 独家高优先级准点调度 (北京时间 08:30 / 12:00 / 20:30 / 23:00)
+  workflow_dispatch: # 支持 Cloudflare API 与 GitHub 网页端一键实时触发
 
 concurrency:
   group: media-pipeline

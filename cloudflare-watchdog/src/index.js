@@ -94,11 +94,11 @@ async function executeWatchdog(env, triggerSource = 'cron') {
     const now = Date.now();
     const minutesSinceLastRun = Math.round((now - runCreatedAt) / (1000 * 60));
 
-    // A. 若当前有任务正在排队或执行中 -> 跳过
+    // A. 若当前有任务正在排队或执行中 -> 跳过，避免并发冲突
     if (latestRun.status === 'in_progress' || latestRun.status === 'queued') {
       report.githubCheck = {
         action: 'skipped',
-        reason: '已有流水线正在运行中，无需兜底',
+        reason: '已有流水线正在运行中，跳过本次触发',
         currentStatus: latestRun.status,
         runId: latestRun.id,
         minutesAgo: minutesSinceLastRun
@@ -106,11 +106,11 @@ async function executeWatchdog(env, triggerSource = 'cron') {
       return report;
     }
 
-    // B. 若最近 40 分钟内已经有任务成功完成或刚跑过 -> 视为 GitHub Cron 已自发完成，优雅跳过
-    if (minutesSinceLastRun <= 40) {
+    // B. 若 15 分钟内刚手动或自动执行过 -> 避免短时间内重复拉起
+    if (minutesSinceLastRun < 15) {
       report.githubCheck = {
         action: 'skipped',
-        reason: `上一棒在 ${minutesSinceLastRun} 分钟前已正常运行 (ID: ${latestRun.id})，无需兜底`,
+        reason: `15 分钟内已执行过流水线 (${minutesSinceLastRun} 分钟前，Run ID: ${latestRun.id})，跳过本次调度`,
         lastConclusion: latestRun.conclusion,
         runId: latestRun.id,
         minutesAgo: minutesSinceLastRun
@@ -118,10 +118,10 @@ async function executeWatchdog(env, triggerSource = 'cron') {
       return report;
     }
 
-    // C. 若超过 40 分钟无新运行 -> 判定 GitHub 平台定时漏跑，立即触发兜底！
+    // C. 准点主控触发！调用 GitHub Actions 官方 API 发起最高优先级实时构建
     report.githubCheck = {
-      action: 'trigger_fallback',
-      reason: `距离上一次运行已过去 ${minutesSinceLastRun} 分钟，判定本轮 GitHub Cron 漏跑，正在强制唤醒...`,
+      action: 'dispatched',
+      reason: `Cloudflare 边缘准点主控触发 (距上次运行: ${minutesSinceLastRun} 分钟)`,
       lastRunTime: latestRun.created_at
     };
 
@@ -139,11 +139,12 @@ async function executeWatchdog(env, triggerSource = 'cron') {
 
     if (dispatchRes.status === 204) {
       report.githubCheck.triggerResult = 'SUCCESS (HTTP 204)';
-      // 发送钉钉预警通知管理员
-      report.dingtalkAlert = await sendDingTalkWatchdogAlert(env, minutesSinceLastRun);
+      report.githubCheck.message = '已成功向 GitHub Actions 提交高优先级实时执行指令';
     } else {
       const dispatchErr = await dispatchRes.text();
       report.githubCheck.triggerResult = `FAILED (HTTP ${dispatchRes.status}): ${dispatchErr.slice(0, 150)}`;
+      // 仅在 API 触发失败时向钉钉报警
+      report.dingtalkAlert = await sendDingTalkWatchdogAlert(env, `API 触发失败: HTTP ${dispatchRes.status}`);
     }
 
   } catch (err) {
