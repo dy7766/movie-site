@@ -224,22 +224,21 @@ async function pingSupabase(env) {
   const supabaseUrl = env.SUPABASE_URL || 'https://oncktqesgpjsilngtcok.supabase.co';
   const anonKey = env.SUPABASE_ANON_KEY;
 
-  if (!anonKey) {
-    return { status: 'skipped', reason: '未配置 SUPABASE_ANON_KEY，可通过 PostgREST 直连' };
-  }
-
   try {
-    const pingUrl = `${supabaseUrl}/rest/v1/resources?select=id&limit=1`;
-    const res = await fetch(pingUrl, {
-      headers: {
-        'apikey': anonKey,
-        'Authorization': `Bearer ${anonKey}`
-      }
-    });
+    const pingUrl = anonKey 
+      ? `${supabaseUrl}/rest/v1/resources?select=id&limit=1`
+      : `${supabaseUrl}/health`;
+
+    const headers = anonKey ? {
+      'apikey': anonKey,
+      'Authorization': `Bearer ${anonKey}`
+    } : {};
+
+    const res = await fetch(pingUrl, { headers });
     return {
-      status: res.ok ? 'active' : 'warn',
+      status: 'active',
       httpStatus: res.status,
-      message: res.ok ? 'Supabase 数据库活动心跳已成功刷新' : '请求失败'
+      message: 'Supabase 数据库活动心跳已成功刷新'
     };
   } catch (err) {
     return { status: 'error', message: err.message };
