@@ -13,13 +13,17 @@ export async function harvestResourceData(batchSize = 15) {
 
   const pool = getDbPool();
 
-  // 1. 优先为最新入库、元数据已就绪但缺少网盘或在线源的影视补齐资源 (按入库时间倒序，彻底杜绝队头阻塞)
+  // 1. 优先为最新热播电视剧与新片补齐资源 (电视剧优先 + 年份倒序 + 巡检时间轮换，彻底杜绝队头阻塞)
   const query = `
-    SELECT id, title, year, score, share_link, share_link_uc, online_play_url
+    SELECT id, title, category, year, score, share_link, share_link_uc, online_play_url
     FROM resources
     WHERE has_metadata = TRUE
       AND (share_link_uc IS NULL OR online_play_url IS NULL)
-    ORDER BY created_at DESC, year DESC
+    ORDER BY
+      CASE WHEN category = '电视剧' THEN 1 ELSE 2 END ASC,
+      year DESC NULLS LAST,
+      last_harvest_at ASC NULLS FIRST,
+      created_at DESC
     LIMIT $1
   `;
   const res = await pool.query(query, [batchSize]);
@@ -56,7 +60,7 @@ export async function harvestResourceData(batchSize = 15) {
           }
 
           console.log(`  📥 正在执行免流秒存与生成带 PID 专属分享链接...`);
-          const ucLink = await saveAndShareUc(m.title, m.year, '电影', s.pwd_id, inspect.stoken, inspect.list);
+          const ucLink = await saveAndShareUc(m.title, m.year, m.category || '电影', s.pwd_id, inspect.stoken, inspect.list);
           if (ucLink) {
             await pool.query('UPDATE resources SET share_link_uc = $1, drive_type = COALESCE(drive_type, \'uc\'), status = \'published\' WHERE id = $2', [ucLink, m.id]);
             console.log(`  ✓ 成功挂载 UC 网盘专属链接: ${ucLink}`);
@@ -88,6 +92,11 @@ export async function harvestResourceData(batchSize = 15) {
         console.warn(`  ⚠️ 在线切片流匹配异常:`, err.message);
       }
     }
+
+    // 3. 记录本次搜源巡检时间戳，确保轮转机制生效，彻底消除死循环与队头阻塞
+    try {
+      await pool.query('UPDATE resources SET last_harvest_at = NOW() WHERE id = $1', [m.id]);
+    } catch {}
 
     await new Promise(r => setTimeout(r, 500));
   }
