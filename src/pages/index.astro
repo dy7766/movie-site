@@ -112,6 +112,7 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
           data-category={m.category || '电影'}
           data-playable={m.online_play_url ? 'true' : 'false'}
           data-savable={(m.share_link || m.share_link_uc) ? 'true' : 'false'}
+          data-released={m.is_released === false ? 'false' : 'true'}
         >
           <!-- 封面海报容器 (点击进入详情页) -->
           <a href={`/movie/${m.id}`} class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800 block">
@@ -461,6 +462,13 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
         if (matchCat && matchSearch && matchAvail) {
           currentMatchedCards.push(card);
         }
+      });
+
+      // 无论何种筛选，未公映/未开播资源一律往后压
+      currentMatchedCards.sort((a, b) => {
+        const aUnreleased = a.getAttribute('data-released') === 'false' ? 1 : 0;
+        const bUnreleased = b.getAttribute('data-released') === 'false' ? 1 : 0;
+        return aUnreleased - bUnreleased;
       });
 
       if (movieCount) movieCount.textContent = currentMatchedCards.length;

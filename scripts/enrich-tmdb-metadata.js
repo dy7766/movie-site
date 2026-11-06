@@ -137,14 +137,17 @@ export async function enrichTmdbMetadata({ batchLimit = 30 } = {}) {
       let isReleased = true;
       if (releaseStr && releaseStr > today) {
         isReleased = false;
-      } else if (['Planned', 'In Production', 'Post Production'].includes(details.status) && !item.online_play_url && !item.share_link_uc) {
+      } else if (['Planned', 'In Production', 'Post Production'].includes(details.status) && (!releaseStr || releaseStr > today) && !item.online_play_url && !item.share_link_uc) {
         isReleased = false;
       }
 
-      // 智能识别电视剧完结状态
+      // 智能识别电视剧完结状态 (总集数大于1且当前集数小于总集数时，绝不可标为已完结)
       let isFinished = true;
       if (isTv) {
-        if (details.status === 'Returning Series' || details.in_production === true) {
+        const curEp = item.current_episode || 1;
+        if (totalEpisodes && totalEpisodes > 1 && curEp < totalEpisodes) {
+          isFinished = false;
+        } else if (details.status === 'Returning Series' || details.in_production === true) {
           isFinished = false;
         } else if (details.status === 'Ended' || details.status === 'Canceled') {
           isFinished = true;

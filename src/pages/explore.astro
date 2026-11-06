@@ -207,6 +207,7 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
           data-created-at={m.created_at || ''}
           data-playable={m.online_play_url ? 'true' : 'false'}
           data-savable={(m.share_link || m.share_link_uc) ? 'true' : 'false'}
+          data-released={m.is_released === false ? 'false' : 'true'}
         >
           <!-- 封面海报容器 -->
           <a href={`/movie/${m.id}`} class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800 block">
@@ -655,21 +656,27 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
           matchedMovies.push(card);
         });
 
-        // 排序
-        if (state.sort === 'score_desc') {
-          matchedMovies.sort((a, b) => parseFloat(b.dataset.score) - parseFloat(a.dataset.score));
-        } else if (state.sort === 'year_desc') {
-          matchedMovies.sort((a, b) => parseInt(b.dataset.year) - parseInt(a.dataset.year));
-        } else {
-          // 默认排序: 按影片发布年份(倒序) -> 评分(倒序) -> 入库更新时间(倒序)
-          matchedMovies.sort((a, b) => {
+        // 排序规则：无论选择哪种排序，未上映/未开播资源 (data-released === 'false') 一律往后压
+        matchedMovies.sort((a, b) => {
+          const aUnreleased = a.dataset.released === 'false' ? 1 : 0;
+          const bUnreleased = b.dataset.released === 'false' ? 1 : 0;
+          if (aUnreleased !== bUnreleased) {
+            return aUnreleased - bUnreleased; // 未上映的往后压 (1 排在 0 后面)
+          }
+
+          if (state.sort === 'score_desc') {
+            return parseFloat(b.dataset.score) - parseFloat(a.dataset.score);
+          } else if (state.sort === 'year_desc') {
+            return parseInt(b.dataset.year) - parseInt(a.dataset.year);
+          } else {
+            // 默认排序: 按影片发布年份(倒序) -> 评分(倒序) -> 入库更新时间(倒序)
             const yDiff = (parseInt(b.dataset.year) || 0) - (parseInt(a.dataset.year) || 0);
             if (yDiff !== 0) return yDiff;
             const sDiff = (parseFloat(b.dataset.score) || 0) - (parseFloat(a.dataset.score) || 0);
             if (sDiff !== 0) return sDiff;
             return (new Date(b.dataset.createdAt || 0).getTime()) - (new Date(a.dataset.createdAt || 0).getTime());
-          });
-        }
+          }
+        });
 
         // 更新计数与空状态
         if (countEl) countEl.textContent = matchedMovies.length;

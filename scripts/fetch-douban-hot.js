@@ -194,6 +194,26 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
   console.log('\n[步骤 1.5/3] 正在巡检待播影视是否已开播/公映...');
   let premieredCount = 0;
   try {
+    const today = new Date().toISOString().slice(0, 10);
+    // 批量自动解禁已过公映日期的影视
+    const autoPremieredRes = await pool.query(`
+      UPDATE resources
+      SET is_released = TRUE,
+          last_harvest_at = NULL
+      WHERE is_released = FALSE
+        AND (
+          (release_date IS NOT NULL AND release_date <= $1)
+          OR (score IS NOT NULL AND score > 0)
+          OR (online_play_url IS NOT NULL AND LENGTH(TRIM(online_play_url)) > 10)
+          OR (share_link_uc IS NOT NULL AND LENGTH(TRIM(share_link_uc)) > 10)
+        )
+      RETURNING id, title
+    `, [today]);
+    if (autoPremieredRes.rowCount > 0) {
+      console.log(`  🎉【批量开播】已自动解禁 ${autoPremieredRes.rowCount} 部已公映/已有评分影视进入搜源队列！`);
+      premieredCount += autoPremieredRes.rowCount;
+    }
+
     const unreleasedRes = await pool.query(`
       SELECT id, title, year, category, release_date
       FROM resources
@@ -202,7 +222,6 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
       LIMIT 25
     `);
     if (unreleasedRes.rows.length > 0) {
-      const today = new Date().toISOString().slice(0, 10);
       for (const m of unreleasedRes.rows) {
         let isNowReleased = false;
         if (m.release_date && m.release_date <= today) {
@@ -252,6 +271,21 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
   console.log('\n[步骤 1.6/3] 正在巡检连载剧集的完结状态...');
   let finishedCount = 0;
   try {
+    // 自动纠正总集数大于1且当前集数小于总集数但被误标为完结的剧集
+    const ongoingFix = await pool.query(`
+      UPDATE resources
+      SET is_finished = FALSE
+      WHERE category IN ('电视剧', '动漫', '综艺')
+        AND total_episodes > 1
+        AND current_episode IS NOT NULL
+        AND current_episode < total_episodes
+        AND is_finished = TRUE
+      RETURNING id, title
+    `);
+    if (ongoingFix.rowCount > 0) {
+      console.log(`  🔄 自动校正 ${ongoingFix.rowCount} 部处于连载中的剧集为【连载中】状态`);
+    }
+
     const ongoingRes = await pool.query(`
       SELECT id, title, category, year, total_episodes, current_episode, is_finished
       FROM resources

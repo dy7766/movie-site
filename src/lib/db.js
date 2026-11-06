@@ -47,7 +47,12 @@ export async function getMovies({ category = null, search = null, limit = 50, re
     query += ` AND (title ILIKE $${params.length} OR actors ILIKE $${params.length} OR intro ILIKE $${params.length})`;
   }
 
-  query += ' ORDER BY year DESC NULLS LAST, score DESC NULLS LAST, created_at DESC LIMIT $' + (params.length + 1);
+  query += ` ORDER BY 
+    CASE WHEN is_released IS FALSE THEN 2 ELSE 1 END ASC,
+    year DESC NULLS LAST, 
+    score DESC NULLS LAST, 
+    created_at DESC 
+    LIMIT $${params.length + 1}`;
   params.push(limit);
 
   const res = await p.query(query, params);
@@ -64,6 +69,13 @@ export async function getMovieById(id) {
 // 获取后台管理全量影视资产（包含待补种子、连载状态与各网盘切片信息）
 export async function getAllMoviesForAdmin() {
   const p = getDbPool();
-  const res = await p.query('SELECT * FROM resources ORDER BY year DESC NULLS LAST, score DESC NULLS LAST, created_at DESC');
+  const res = await p.query(`
+    SELECT * FROM resources 
+    ORDER BY 
+      CASE WHEN is_released IS FALSE THEN 2 ELSE 1 END ASC,
+      year DESC NULLS LAST, 
+      score DESC NULLS LAST, 
+      created_at DESC
+  `);
   return res.rows;
 }
