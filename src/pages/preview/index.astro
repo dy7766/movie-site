@@ -55,6 +55,11 @@ const sampleMovies = await getMovies({ limit: 4 });
         --color-arcade-accent: oklch(70% 0.22 25);
         --color-arcade-ink: oklch(95% 0.015 310);
 
+        --color-cinemapro-bg: oklch(14% 0.02 260);
+        --color-cinemapro-panel: oklch(18% 0.03 260);
+        --color-cinemapro-accent: oklch(60% 0.23 15);
+        --color-cinemapro-ink: oklch(98% 0.005 260);
+
         --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       }
@@ -76,6 +81,7 @@ const sampleMovies = await getMovies({ limit: 4 });
       .btn-newsprint { background: var(--color-newsprint-accent); color: var(--color-newsprint-bg); }
       .btn-dusk { background: var(--color-dusk-accent); color: var(--color-dusk-bg); }
       .btn-arcade { background: var(--color-arcade-accent); color: var(--color-arcade-bg); }
+      .btn-cinemapro { background: var(--color-cinemapro-accent); color: var(--color-cinemapro-ink); }
 
       .palette-row { display: flex; gap: 8px; margin-top: 16px; }
       .swatch { width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--color-swatch-border); }
@@ -109,6 +115,11 @@ const sampleMovies = await getMovies({ limit: 4 });
       .swatch-arcade-2 { background: var(--color-arcade-panel); }
       .swatch-arcade-3 { background: var(--color-arcade-accent); }
       .swatch-arcade-4 { background: var(--color-arcade-ink); }
+
+      .swatch-cinemapro-1 { background: var(--color-cinemapro-bg); }
+      .swatch-cinemapro-2 { background: var(--color-cinemapro-panel); }
+      .swatch-cinemapro-3 { background: var(--color-cinemapro-accent); }
+      .swatch-cinemapro-4 { background: var(--color-cinemapro-ink); }
 
       .base-compare { margin-top: 48px; padding: 20px; border: 1px dashed var(--color-border); border-radius: 6px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
       @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -263,6 +274,30 @@ const sampleMovies = await getMovies({ limit: 4 });
           </div>
           <div style="margin-top: 24px;">
             <a href="/preview/arcade" class="btn btn-arcade">进入 Arcade 方案预览</a>
+          </div>
+        </div>
+
+        <!-- 方案 7: Cinema Pro 旗舰版 -->
+        <div class="card" style="border-color: var(--color-cinemapro-accent);">
+          <div>
+            <h2 class="card-title">方案七 · Cinema Pro 旗舰版 (强烈推荐)</h2>
+            <p class="card-desc">
+              基于 UI/UX Pro Max 行业标准规范重构。彻底消除首屏大面积空旷与笨重搜索框，导航栏内置交互式展开搜索，紧凑聚光灯头条与高密度海报阵列首屏直达。
+            </p>
+            <ul class="card-features">
+              <li>色调：OLED 暗夜曜黑、聚光灯玫瑰红与 IMDb 暖金</li>
+              <li>交互：导航栏点击平滑展开搜索，首屏资源一眼全览</li>
+              <li>特色：针对您反馈的痛点量身定制，转化率与颜值巅峰</li>
+            </ul>
+            <div class="palette-row">
+              <div class="swatch swatch-cinemapro-1" title="OLED Dark"></div>
+              <div class="swatch swatch-cinemapro-2" title="Surface Deep"></div>
+              <div class="swatch swatch-cinemapro-3" title="Spotlight Rose"></div>
+              <div class="swatch swatch-cinemapro-4" title="Pure Glow"></div>
+            </div>
+          </div>
+          <div style="margin-top: 24px;">
+            <a href="/preview/design" class="btn btn-cinemapro">进入 Cinema Pro 旗舰版预览</a>
           </div>
         </div>
       </div>

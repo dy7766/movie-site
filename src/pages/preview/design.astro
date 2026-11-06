@@ -1,0 +1,379 @@
+---
+// UI/UX Pro Max · Cinema Pro 旗舰版设计测试页
+import { getMovies } from '../../lib/db.js';
+
+const movies = await getMovies({ limit: 48 });
+const featuredMovie = movies.find(m => m.poster_url && m.score >= 8.5) || movies[0] || {};
+const categories = ['全部精选', '电影', '电视剧', '动漫', '综艺'];
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>星光影库 · Cinema Pro 旗舰版</title>
+    <style>
+      /* Cinema Pro Design System Tokens */
+      :root {
+        color-scheme: dark;
+        --bg-main: oklch(14% 0.02 260);
+        --bg-surface: oklch(18% 0.03 260 / 0.7);
+        --bg-surface-solid: oklch(20% 0.03 260);
+        --bg-surface-hover: oklch(24% 0.04 260 / 0.85);
+        --bg-surface-elevated: oklch(22% 0.03 260);
+        --bg-preview-bar: oklch(16% 0.02 260);
+        --bg-card-box: oklch(12% 0.02 260);
+        
+        --border-subtle: oklch(100% 0 0 / 0.08);
+        --border-hover: oklch(62% 0.22 15 / 0.45);
+        --border-focus: oklch(62% 0.22 15);
+        
+        --text-primary: oklch(98% 0.005 260);
+        --text-secondary: oklch(78% 0.02 260);
+        --text-muted: oklch(60% 0.02 260);
+        --text-accent: oklch(98% 0.01 15);
+        
+        --color-rose: oklch(60% 0.23 15);
+        --color-rose-deep: oklch(52% 0.24 15);
+        --color-rose-tint: oklch(68% 0.18 15);
+        --color-rose-glow: oklch(60% 0.23 15 / 0.28);
+        --color-rose-bg: oklch(60% 0.23 15 / 0.12);
+        --color-rose-border: oklch(60% 0.23 15 / 0.35);
+        
+        --color-gold: oklch(78% 0.18 80);
+        --color-gold-border: oklch(78% 0.18 80 / 0.4);
+        --color-gold-bg: oklch(78% 0.18 80 / 0.12);
+        
+        --color-sky: oklch(75% 0.14 230);
+        --color-sky-border: oklch(75% 0.14 230 / 0.35);
+        --color-sky-bg: oklch(75% 0.14 230 / 0.12);
+        
+        --color-emerald: oklch(75% 0.16 160);
+        --color-emerald-border: oklch(75% 0.16 160 / 0.35);
+        --color-emerald-bg: oklch(75% 0.16 160 / 0.12);
+        
+        --color-cyan: oklch(76% 0.13 200);
+        --color-cyan-border: oklch(76% 0.13 200 / 0.35);
+        --color-cyan-bg: oklch(76% 0.13 200 / 0.12);
+
+        --overlay-gradient-1: oklch(14% 0.02 260);
+        --overlay-gradient-2: oklch(14% 0.02 260 / 0.85);
+        --overlay-gradient-3: oklch(14% 0.02 260 / 0.1);
+        --shadow-elevated: 0 16px 36px oklch(0% 0 0 / 0.45);
+
+        --radius-sm: 6px;
+        --radius-md: 10px;
+        --radius-lg: 16px;
+        --radius-pill: 9999px;
+        --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --container: 1440px;
+        --gutter: 24px;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body { overflow-x: clip; margin: 0; padding: 0; background: var(--bg-main); color: var(--text-primary); font-family: var(--font-sans); }
+      :focus-visible { outline: 2px solid var(--border-focus); outline-offset: 2px; }
+      a { color: inherit; text-decoration: none; }
+
+      /* Top Switcher Bar */
+      .preview-bar { background: var(--bg-preview-bar); border-bottom: 1px solid var(--border-subtle); padding: 8px var(--gutter); font-size: 13px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 1000; }
+      .preview-links { display: flex; gap: 14px; flex-wrap: wrap; }
+      .preview-link { color: var(--text-muted); }
+      .preview-link.active { color: var(--color-rose-tint); font-weight: 600; }
+
+      /* 紧凑通顶导航栏 (解决第一屏空旷痛点: 中间大搜索框剥离，右上角交互式呼出) */
+      .navbar { display: flex; justify-content: space-between; align-items: center; max-width: var(--container); margin: 0 auto; padding: 14px var(--gutter); border-bottom: 1px solid var(--border-subtle); position: relative; }
+      .nav-left { display: flex; align-items: center; gap: 28px; }
+      .brand { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 800; letter-spacing: -0.02em; }
+      .brand-sparkle { width: 30px; height: 30px; border-radius: var(--radius-md); background: linear-gradient(135deg, var(--color-rose), var(--color-rose-tint)); display: flex; align-items: center; justify-content: center; box-shadow: 0 0 16px var(--color-rose-glow); }
+      
+      .nav-menu { display: flex; align-items: center; gap: 6px; }
+      .nav-item { padding: 6px 14px; border-radius: var(--radius-pill); font-size: 14px; color: var(--text-secondary); cursor: pointer; transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease; border: 1px solid transparent; }
+      .nav-item:hover, .nav-item.active { color: var(--text-primary); background: var(--bg-surface-elevated); border-color: var(--border-subtle); }
+      
+      /* 交互式搜索组件：点击呼出展开，支持确定按钮与回车 */
+      .search-box-interactive { display: flex; align-items: center; position: relative; }
+      .search-trigger-btn { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: var(--radius-pill); font-size: 13px; color: var(--text-secondary); background: var(--bg-surface); border: 1px solid var(--border-subtle); cursor: pointer; }
+      .search-trigger-btn:hover { color: var(--text-primary); border-color: var(--border-hover); background: var(--bg-surface-hover); }
+      
+      .search-expand-panel { display: none; align-items: center; gap: 6px; position: absolute; left: 0; top: -4px; z-index: 50; background: var(--bg-surface-solid); border: 1px solid var(--border-focus); border-radius: var(--radius-pill); padding: 3px 6px 3px 14px; box-shadow: var(--shadow-elevated); width: 340px; }
+      .search-expand-panel.open { display: flex; }
+      .search-input { background: transparent; border: none; color: var(--text-primary); font-size: 13px; outline: none; width: 100%; }
+      .search-submit-btn { background: var(--color-rose); color: var(--text-accent); border: none; border-radius: var(--radius-pill); padding: 5px 12px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+      .search-close-btn { background: transparent; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; display: flex; align-items: center; }
+
+      .nav-right { display: flex; align-items: center; gap: 12px; }
+      .btn-tg { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: var(--radius-pill); background: var(--color-sky-bg); border: 1px solid var(--color-sky-border); color: var(--color-sky); font-size: 13px; font-weight: 500; }
+      .btn-filter { display: flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: var(--radius-pill); background: var(--bg-surface); border: 1px solid var(--border-subtle); color: var(--text-secondary); font-size: 13px; }
+
+      /* 第一屏紧凑型头条聚光灯 (高度仅 290px，让下方的影视卡片在首屏直接露出！) */
+      .billboard { max-width: var(--container); margin: 18px auto 0; padding: 0 var(--gutter); position: relative; }
+      .billboard-card { position: relative; border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-card-box); border: 1px solid var(--border-subtle); height: 280px; display: flex; align-items: flex-end; }
+      .billboard-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.32; filter: contrast(1.1) brightness(0.9); }
+      .billboard-gradient { position: absolute; inset: 0; background: linear-gradient(0deg, var(--overlay-gradient-1) 12%, var(--overlay-gradient-2) 50%, var(--overlay-gradient-3) 100%); }
+      .billboard-content { position: relative; z-index: 2; padding: 28px 36px; max-width: 720px; }
+      .billboard-pills { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+      .pill-badge { padding: 3px 9px; border-radius: var(--radius-sm); font-size: 12px; font-weight: 600; }
+      .pill-rose { background: var(--color-rose); color: var(--text-accent); }
+      .pill-glass { background: var(--bg-surface); border: 1px solid var(--border-subtle); color: var(--text-secondary); backdrop-filter: blur(8px); }
+      .billboard-title { font-size: clamp(1.6rem, 2.8vw, 2.4rem); font-weight: 800; line-height: 1.15; margin: 0 0 8px 0; letter-spacing: -0.02em; overflow-wrap: break-word; min-width: 0; }
+      .billboard-desc { font-size: 14px; color: var(--text-secondary); line-height: 1.5; margin: 0 0 16px 0; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      .billboard-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+      .btn-primary { display: inline-flex; align-items: center; gap: 7px; padding: 9px 20px; border-radius: var(--radius-pill); background: linear-gradient(135deg, var(--color-rose), var(--color-rose-deep)); color: var(--text-accent); font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px var(--color-rose-glow); }
+      .btn-primary:hover { opacity: 0.95; transform: translateY(-1px); }
+      .btn-secondary { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; border-radius: var(--radius-pill); background: var(--bg-surface); border: 1px solid var(--border-subtle); color: var(--text-primary); font-size: 13px; font-weight: 500; backdrop-filter: blur(12px); }
+      .btn-secondary:hover { background: var(--bg-surface-hover); border-color: var(--border-hover); }
+
+      /* 分类筛选与状态汇总条 */
+      .filter-strip { max-width: var(--container); margin: 24px auto 0; padding: 0 var(--gutter); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+      .filter-tabs { display: flex; gap: 6px; }
+      .tab-item { padding: 6px 16px; border-radius: var(--radius-pill); background: var(--bg-surface); border: 1px solid var(--border-subtle); color: var(--text-secondary); font-size: 13px; font-weight: 500; cursor: pointer; }
+      .tab-item:hover, .tab-item.active { background: var(--bg-surface-solid); color: var(--text-primary); border-color: var(--color-rose); }
+      .meta-filter-right { display: flex; gap: 10px; align-items: center; font-size: 13px; color: var(--text-muted); }
+      .highlight-stat { color: var(--color-emerald); }
+
+      /* 影视展示网格 (紧凑排列，直接进入首屏视野) */
+      .catalog { max-width: var(--container); margin: 20px auto 80px; padding: 0 var(--gutter); }
+      .catalog-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(195px, 1fr)); gap: 20px; }
+      .movie-card { background: var(--bg-surface); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); overflow: hidden; display: flex; flex-direction: column; position: relative; backdrop-filter: blur(8px); }
+      .movie-card:hover { border-color: var(--border-hover); transform: translateY(-4px); box-shadow: var(--shadow-elevated); }
+      
+      .poster-box { position: relative; aspect-ratio: 2 / 3; overflow: hidden; background: var(--bg-card-box); }
+      .poster-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .card-gradient { position: absolute; inset: 0; background: linear-gradient(180deg, var(--overlay-gradient-3) 0%, var(--overlay-gradient-2) 100%); opacity: 0; transition: opacity 0.2s ease; }
+      .movie-card:hover .card-gradient { opacity: 1; }
+
+      .card-badge-top { position: absolute; top: 8px; left: 8px; right: 8px; display: flex; justify-content: space-between; align-items: center; pointer-events: none; }
+      .badge-score { background: var(--bg-card-box); border: 1px solid var(--color-gold-border); border-radius: var(--radius-sm); padding: 2px 6px; font-size: 12px; font-weight: 700; color: var(--color-gold); display: flex; align-items: center; gap: 3px; }
+      .badge-category { background: var(--bg-card-box); border: 1px solid var(--border-subtle); border-radius: var(--radius-sm); padding: 2px 6px; font-size: 11px; color: var(--text-secondary); }
+
+      .card-info { padding: 12px; display: flex; flex-direction: column; gap: 5px; flex: 1; }
+      .card-title { font-size: 14px; font-weight: 600; line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
+      .card-meta { font-size: 12px; color: var(--text-muted); display: flex; justify-content: space-between; }
+      
+      .status-pills { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+      .pill { font-size: 11px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--border-subtle); background: var(--bg-surface); color: var(--text-muted); }
+      .pill-ongoing { border-color: var(--color-rose-border); color: var(--color-rose-tint); background: var(--color-rose-bg); font-weight: 500; }
+      .pill-finished { border-color: var(--color-sky-border); color: var(--color-sky); background: var(--color-sky-bg); }
+      .pill-stream { border-color: var(--color-emerald-border); color: var(--color-emerald); background: var(--color-emerald-bg); }
+      .pill-uc { border-color: var(--color-cyan-border); color: var(--color-cyan); background: var(--color-cyan-bg); }
+
+      /* Footer */
+      .site-footer { border-top: 1px solid var(--border-subtle); padding: 40px var(--gutter); max-width: var(--container); margin: 0 auto; display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--text-muted); }
+      @media (max-width: 900px) {
+        .navbar { flex-direction: column; gap: 14px; align-items: flex-start; }
+        .nav-left { flex-direction: column; align-items: flex-start; gap: 12px; width: 100%; }
+        .billboard-card { height: auto; min-height: 260px; }
+        .billboard-content { padding: 20px; }
+        .catalog-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+      }
+      @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+    </style>
+  </head>
+  <body>
+    <!-- 顶部方案切换条 -->
+    <div class="preview-bar">
+      <span>UI/UX Pro Max · 方案 G (Cinema Pro 旗舰版)</span>
+      <div class="preview-links">
+        <a href="/preview" class="preview-link">方案选型大厅</a>
+        <a href="/preview/darkroom" class="preview-link">Darkroom</a>
+        <a href="/preview/midnight" class="preview-link">Midnight</a>
+        <a href="/preview/vantage" class="preview-link">Vantage</a>
+        <a href="/preview/newsprint" class="preview-link">Newsprint</a>
+        <a href="/preview/dusk" class="preview-link">Dusk</a>
+        <a href="/preview/arcade" class="preview-link">Arcade</a>
+        <a href="/preview/design" class="preview-link active">Cinema Pro</a>
+      </div>
+    </div>
+
+    <!-- 紧凑通顶导航栏：集成片库检索与交互式展开搜索 -->
+    <header class="navbar">
+      <div class="nav-left">
+        <a href="/preview/design" class="brand">
+          <div class="brand-sparkle">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+          </div>
+          <span>星光影库</span>
+        </a>
+
+        <nav class="nav-menu">
+          <span class="nav-item active">全部精选</span>
+          <a href="/explore" class="nav-item">片库检索</a>
+
+          <!-- 用户特别要求的交互式搜索组件：点击呼出输入框 + 确定按钮 / 回车搜索 -->
+          <div class="search-box-interactive" id="searchWidget">
+            <button type="button" class="search-trigger-btn" id="searchTriggerBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <span>搜索片源</span>
+            </button>
+            <form class="search-expand-panel" id="searchPanel" action="/explore" method="GET">
+              <input type="text" name="q" class="search-input" id="searchInput" placeholder="搜索片名、演员或导演..." />
+              <button type="submit" class="search-submit-btn">确定</button>
+              <button type="button" class="search-close-btn" id="searchCloseBtn" aria-label="关闭搜索">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </form>
+          </div>
+        </nav>
+      </div>
+
+      <div class="nav-right">
+        <a href="/explore" class="btn-filter">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+          </svg>
+          <span>高级筛选</span>
+        </a>
+        <a href="https://t.me/xkykMovie" target="_blank" class="btn-tg">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+          <span>TG 影迷群</span>
+        </a>
+      </div>
+    </header>
+
+    <!-- 紧凑型聚光灯头条：不再挤占首屏，电影海报触手可及 -->
+    {featuredMovie.title && (
+      <section class="billboard">
+        <div class="billboard-card">
+          <img src={featuredMovie.poster_url} alt={featuredMovie.title} class="billboard-backdrop" />
+          <div class="billboard-gradient"></div>
+          <div class="billboard-content">
+            <div class="billboard-pills">
+              <span class="pill-badge pill-rose">今日精选推荐</span>
+              <span class="pill-badge pill-glass">{featuredMovie.category || '精选原盘'}</span>
+              <span class="pill-badge pill-glass">豆瓣 {featuredMovie.score || '9.0'}</span>
+              <span class="pill-badge pill-glass">4K HDR</span>
+            </div>
+            <h1 class="billboard-title">{featuredMovie.title} ({featuredMovie.year || '2026'})</h1>
+            <p class="billboard-desc">{featuredMovie.intro || '精选全网顶级画质影视作品，独家私盘高速秒存与免广告流媒体在线播放。'}</p>
+            <div class="billboard-actions">
+              <a href={`/movie/${featuredMovie.id}`} class="btn-primary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>立即在线播放 / 秒存</span>
+              </a>
+              <a href="/explore" class="btn-secondary">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="3" width="7" height="7"></rect>
+                  <rect x="14" y="14" width="7" height="7"></rect>
+                  <rect x="3" y="14" width="7" height="7"></rect>
+                </svg>
+                <span>探索全部片库</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+    )}
+
+    <!-- 分类筛选导航条 -->
+    <nav class="filter-strip">
+      <div class="filter-tabs">
+        {categories.map((c, i) => (
+          <button type="button" class={`tab-item ${i === 0 ? 'active' : ''}`}>{c}</button>
+        ))}
+      </div>
+      <div class="meta-filter-right">
+        <span>全库收录 {movies.length} 部已就绪原盘资源</span>
+        <span>•</span>
+        <span class="highlight-stat">在线播放流全量自愈</span>
+      </div>
+    </nav>
+
+    <!-- 影视陈列网格：首屏直接可见 -->
+    <main class="catalog">
+      <div class="catalog-grid">
+        {movies.map((m) => {
+          const isSeries = m.category === '电视剧' || m.category === '动漫' || m.category === '综艺';
+          return (
+            <a href={`/movie/${m.id}`} class="movie-card">
+              <div class="poster-box">
+                <img src={m.poster_url || '/placeholder.jpg'} alt={m.title} class="poster-img" loading="lazy" />
+                <div class="card-gradient"></div>
+                <div class="card-badge-top">
+                  <span class="badge-category">{m.category}</span>
+                  {m.score && (
+                    <span class="badge-score">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                      </svg>
+                      {m.score}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div class="card-info">
+                <h3 class="card-title" title={m.title}>{m.title}</h3>
+                <div class="card-meta">
+                  <span>{m.year || '2026'} · {m.country || '华语'}</span>
+                  <span>{m.actors ? m.actors.split('/')[0] : '精选阵容'}</span>
+                </div>
+                <div class="status-pills">
+                  {m.is_released === false ? (
+                    <span class="pill">待映</span>
+                  ) : isSeries ? (
+                    m.is_finished ? (
+                      <span class="pill pill-finished">全{m.total_episodes || m.current_episode}集完结</span>
+                    ) : (
+                      <span class="pill pill-ongoing">更至{m.current_episode || 1}集</span>
+                    )
+                  ) : (
+                    <span class="pill pill-finished">4K原盘</span>
+                  )}
+                  {m.share_link_uc && <span class="pill pill-uc">UC秒存</span>}
+                  {m.share_link && <span class="pill">夸克</span>}
+                  {m.online_play_url && <span class="pill pill-stream">可播放</span>}
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="site-footer">
+      <div>星光影库 · Cinema Pro 旗舰版设计测试页</div>
+      <div>基于 UI/UX Pro Max 规范设计 · 夸克与UC网盘官方分佣驱动</div>
+    </footer>
+
+    <!-- 交互脚本：搜索片源点击展开/收起/快捷键 -->
+    <script>
+      const searchTriggerBtn = document.getElementById('searchTriggerBtn');
+      const searchPanel = document.getElementById('searchPanel');
+      const searchInput = document.getElementById('searchInput');
+      const searchCloseBtn = document.getElementById('searchCloseBtn');
+
+      searchTriggerBtn?.addEventListener('click', () => {
+        searchPanel?.classList.add('open');
+        searchInput?.focus();
+      });
+
+      searchCloseBtn?.addEventListener('click', () => {
+        searchPanel?.classList.remove('open');
+      });
+
+      // 点击外部自动收起
+      document.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest('#searchWidget')) {
+          searchPanel?.classList.remove('open');
+        }
+      });
+    </script>
+  </body>
+</html>
