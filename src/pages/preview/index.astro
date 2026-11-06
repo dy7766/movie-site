@@ -1,0 +1,173 @@
+---
+// Hallmark · Preview Index
+import { getMovies } from '../../lib/db.js';
+
+const sampleMovies = await getMovies({ limit: 4 });
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>星光影库 · Hallmark UI 重构设计方案对比</title>
+    <style>
+      /* Hallmark · shape: Index · genre: modern-minimal · theme: Console · job: try · v2.0.0 */
+      :root {
+        color-scheme: dark;
+        --color-bg: oklch(14% 0.01 260);
+        --color-surface: oklch(18% 0.012 260);
+        --color-surface-hover: oklch(22% 0.015 260);
+        --color-border: oklch(28% 0.01 260);
+        --color-text: oklch(94% 0.005 260);
+        --color-text-muted: oklch(68% 0.01 260);
+        --color-accent: oklch(75% 0.16 70);
+        --color-btn-ink: oklch(15% 0.02 70);
+        --color-swatch-border: oklch(90% 0.01 260 / 0.15);
+
+        --color-darkroom-bg: oklch(13% 0.008 50);
+        --color-darkroom-panel: oklch(17% 0.01 50);
+        --color-darkroom-accent: oklch(74% 0.16 65);
+        --color-darkroom-ink: oklch(93% 0.015 75);
+
+        --color-midnight-bg: oklch(12% 0.02 250);
+        --color-midnight-panel: oklch(16% 0.025 250);
+        --color-midnight-accent: oklch(75% 0.14 220);
+        --color-midnight-ink: oklch(96% 0.005 250);
+
+        --color-vantage-bg: oklch(13% 0.015 230);
+        --color-vantage-panel: oklch(17% 0.02 230);
+        --color-vantage-accent: oklch(82% 0.22 130);
+        --color-vantage-ink: oklch(94% 0.01 230);
+
+        --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body { overflow-x: clip; margin: 0; padding: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-sans); }
+      :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+      .wrap { max-width: 1200px; margin: 0 auto; padding: 48px 24px 80px; }
+      h1, h2, h3 { margin: 0; font-weight: 600; line-height: 1.15; overflow-wrap: break-word; min-width: 0; }
+      .deck { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-top: 36px; }
+      .card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 28px; display: flex; flex-direction: column; justify-content: space-between; text-decoration: none; color: inherit; }
+      .card:hover { border-color: var(--color-accent); background: var(--color-surface-hover); }
+      .card-title { font-size: 22px; margin-bottom: 12px; }
+      .card-desc { font-size: 14px; line-height: 1.6; color: var(--color-text-muted); margin-bottom: 24px; }
+      .card-features { list-style: none; padding: 0; margin: 0 0 24px 0; font-size: 13px; color: var(--color-text-muted); display: flex; flex-direction: column; gap: 8px; }
+      .card-features li::before { content: "— "; color: var(--color-accent); }
+      .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 18px; font-size: 14px; font-weight: 500; border-radius: 6px; text-decoration: none; background: var(--color-accent); color: var(--color-btn-ink); }
+      .btn-midnight { background: var(--color-midnight-accent); color: var(--color-midnight-bg); }
+      .btn-vantage { background: var(--color-vantage-accent); color: var(--color-vantage-bg); }
+      .palette-row { display: flex; gap: 8px; margin-top: 16px; }
+      .swatch { width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--color-swatch-border); }
+      .swatch-darkroom-1 { background: var(--color-darkroom-bg); }
+      .swatch-darkroom-2 { background: var(--color-darkroom-panel); }
+      .swatch-darkroom-3 { background: var(--color-darkroom-accent); }
+      .swatch-darkroom-4 { background: var(--color-darkroom-ink); }
+
+      .swatch-midnight-1 { background: var(--color-midnight-bg); }
+      .swatch-midnight-2 { background: var(--color-midnight-panel); }
+      .swatch-midnight-3 { background: var(--color-midnight-accent); }
+      .swatch-midnight-4 { background: var(--color-midnight-ink); }
+
+      .swatch-vantage-1 { background: var(--color-vantage-bg); }
+      .swatch-vantage-2 { background: var(--color-vantage-panel); }
+      .swatch-vantage-3 { background: var(--color-vantage-accent); }
+      .swatch-vantage-4 { background: var(--color-vantage-ink); }
+
+      .base-compare { margin-top: 48px; padding: 20px; border: 1px dashed var(--color-border); border-radius: 6px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+      @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1 style="font-size: clamp(2rem, 3.5vw, 3.2rem); margin-bottom: 16px;">星光影库 · 全站 UI 视觉重构方案测试中心</h1>
+      <p style="font-size: 16px; color: var(--color-text-muted); max-width: 60ch; line-height: 1.6;">
+        根据 Hallmark 纯正设计工程规范，提炼出三套风格迥异、零同质化、高转化的视觉与交互方向，全部由本地实时读取数据库进行真实渲染。
+      </p>
+
+      <div class="deck">
+        <!-- 方案 1: Darkroom -->
+        <div class="card">
+          <div>
+            <h2 class="card-title">方案一 · Darkroom 胶片暗室</h2>
+            <p class="card-desc">
+              向经典黑胶影院与洗印暗室致敬。暖黑炭底、微细纸纹、琥珀色安全灯光晕点缀，利落的无圆角直线与沉浸式高对比剧照，专为重度影迷打造。
+            </p>
+            <ul class="card-features">
+              <li>色调：暖炭黑、显影红琥珀与象牙白字</li>
+              <li>排版：紧凑高密度与零圆角金属直角切边</li>
+              <li>特色：电影原盘纯正质感，海报纵深高对比</li>
+            </ul>
+            <div class="palette-row">
+              <div class="swatch swatch-darkroom-1" title="Warm Carbon"></div>
+              <div class="swatch swatch-darkroom-2" title="Safetint"></div>
+              <div class="swatch swatch-darkroom-3" title="Amber Safelight"></div>
+              <div class="swatch swatch-darkroom-4" title="Ivory Ink"></div>
+            </div>
+          </div>
+          <div style="margin-top: 28px;">
+            <a href="/preview/darkroom" class="btn">进入 Darkroom 方案预览</a>
+          </div>
+        </div>
+
+        <!-- 方案 2: Midnight -->
+        <div class="card">
+          <div>
+            <h2 class="card-title">方案二 · Midnight 深蓝夜幕</h2>
+            <p class="card-desc">
+              媲美高端流媒体的影音体验。深蓝夜空底色、天青电光点缀、圆润悬浮卡片与微光磨砂玻璃，观影氛围轻松优雅。
+            </p>
+            <ul class="card-features">
+              <li>色调：深邃钴蓝、天青极光蓝与冰白文字</li>
+              <li>排版：大曲率圆角与悬浮卡片阴影</li>
+              <li>特色：触感柔和，流媒体剧集选集直观醒目</li>
+            </ul>
+            <div class="palette-row">
+              <div class="swatch swatch-midnight-1" title="Midnight Blue"></div>
+              <div class="swatch swatch-midnight-2" title="Navy Surface"></div>
+              <div class="swatch swatch-midnight-3" title="Electric Azure"></div>
+              <div class="swatch swatch-midnight-4" title="Ice White"></div>
+            </div>
+          </div>
+          <div style="margin-top: 28px;">
+            <a href="/preview/midnight" class="btn btn-midnight">进入 Midnight 方案预览</a>
+          </div>
+        </div>
+
+        <!-- 方案 3: Vantage -->
+        <div class="card">
+          <div>
+            <h2 class="card-title">方案三 · Vantage 极客云枢</h2>
+            <p class="card-desc">
+              专注极速网盘转存与海量资源吞吐。精钢石墨底色、电光荧绿指示、等宽技术参数仪表盘，将 4K 原盘规格与秒存速度展现得淋漓尽致。
+            </p>
+            <ul class="card-features">
+              <li>色调：石墨黑、电光荧绿与科技冷灰</li>
+              <li>排版：微四角标尺刻度与等宽数字</li>
+              <li>特色：突出网盘秒存通道与高码率信息</li>
+            </ul>
+            <div class="palette-row">
+              <div class="swatch swatch-vantage-1" title="Graphite Base"></div>
+              <div class="swatch swatch-vantage-2" title="Steel Cell"></div>
+              <div class="swatch swatch-vantage-3" title="Acid Lime"></div>
+              <div class="swatch swatch-vantage-4" title="Signal Ink"></div>
+            </div>
+          </div>
+          <div style="margin-top: 28px;">
+            <a href="/preview/vantage" class="btn btn-vantage">进入 Vantage 方案预览</a>
+          </div>
+        </div>
+      </div>
+
+      <!-- 当前线上版本对比链接 -->
+      <div class="base-compare">
+        <div>
+          <span style="font-weight: 500;">对比基准：当前线上生产环境</span>
+          <p style="font-size: 13px; color: var(--color-text-muted); margin-top: 4px;">查看现有线上版本以对比视觉演进效果</p>
+        </div>
+        <a href="/" style="color: var(--color-text); text-decoration: underline; font-size: 14px;">返回当前线上主站</a>
+      </div>
+    </div>
+  </body>
+</html>

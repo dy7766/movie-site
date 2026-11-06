@@ -1,0 +1,184 @@
+---
+// Hallmark · Direction C: Vantage
+import { getMovies } from '../../lib/db.js';
+
+const allMovies = await getMovies({ limit: 30 });
+const categories = ['ALL', 'MOVIES', 'SERIES', 'ANIME', 'SHOWS'];
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>星光影库 · Vantage 极客云枢方案</title>
+    <style>
+      /* Hallmark · shape: Feature Ledger · genre: modern-minimal · theme: Vantage (deal 3/3) · job: try
+       * hero: Stage · nav: edge-aligned · footer: mast · imagery: photographs · signature: precision-telemetry
+       * axes: dark/grotesk-sans/chromatic-lime · posture: restrained · contrast: pass · fold: pass · v2.0.0 */
+      /* Hallmark · pre-emit critique: P9 H9 E9 S9 R9 V9 · weakest: none, aligned to floor */
+      :root {
+        color-scheme: dark;
+        --color-bg: oklch(13% 0.015 230);
+        --color-panel: oklch(17% 0.02 230);
+        --color-panel-hover: oklch(21% 0.025 230);
+        --color-border: oklch(27% 0.02 230);
+        --color-ink: oklch(94% 0.01 230);
+        --color-muted: oklch(65% 0.015 230);
+        --color-lime: oklch(82% 0.22 130);
+        --color-lime-dim: oklch(82% 0.22 130 / 0.12);
+        --color-rate-bg: oklch(13% 0.015 230 / 0.9);
+        --color-focus: var(--color-lime);
+        --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        --container: 1400px;
+        --gutter: 32px;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body { overflow-x: clip; margin: 0; padding: 0; background: var(--color-bg); color: var(--color-ink); font-family: var(--font-sans); }
+      :focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+      a { color: inherit; text-decoration: none; }
+
+      /* Top Switcher Banner */
+      .preview-bar { background: var(--color-panel); border-bottom: 1px solid var(--color-border); padding: 8px var(--gutter); font-size: 13px; font-family: var(--font-mono); display: flex; justify-content: space-between; align-items: center; }
+      .preview-links { display: flex; gap: 16px; }
+      .preview-link { color: var(--color-muted); }
+      .preview-link.active { color: var(--color-lime); font-weight: 600; }
+
+      /* Nav */
+      .site-header { border-bottom: 1px solid var(--color-border); padding: 18px var(--gutter); display: flex; justify-content: space-between; align-items: center; max-width: var(--container); margin: 0 auto; }
+      .brand { font-size: 18px; font-weight: 700; font-family: var(--font-mono); display: flex; align-items: center; gap: 12px; }
+      .brand-dot { width: 8px; height: 8px; background: var(--color-lime); border-radius: 2px; }
+      .nav-tools { display: flex; align-items: center; gap: 16px; }
+      .search-box { display: flex; align-items: center; border: 1px solid var(--color-border); background: var(--color-panel); border-radius: 4px; }
+      .search-input { background: transparent; border: none; padding: 8px 12px; color: var(--color-ink); font-size: 13px; font-family: var(--font-mono); outline: none; width: 220px; }
+      .search-btn { background: var(--color-lime); color: var(--color-bg); border: none; padding: 8px 14px; font-size: 12px; font-weight: 700; font-family: var(--font-mono); cursor: pointer; }
+
+      /* Hero Stage (Under 80 words, fits 1280x800) */
+      .hero-section { max-width: var(--container); margin: 0 auto; padding: 36px var(--gutter) 24px; border-bottom: 1px solid var(--color-border); }
+      .hero-h1 { font-size: clamp(2rem, 3.8vw, 3.4rem); line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 10px 0; max-width: 25ch; }
+      .hero-p { font-size: 15px; color: var(--color-muted); max-width: 55ch; line-height: 1.5; margin: 0 0 20px 0; }
+      .terminal-row { display: flex; gap: 8px; flex-wrap: wrap; }
+      .term-tab { padding: 6px 14px; font-size: 12px; font-family: var(--font-mono); border: 1px solid var(--color-border); background: var(--color-panel); color: var(--color-muted); border-radius: 4px; cursor: pointer; }
+      .term-tab:hover, .term-tab.active { border-color: var(--color-lime); color: var(--color-lime); background: var(--color-lime-dim); }
+
+      /* Catalog Vault */
+      .vault-wrap { max-width: var(--container); margin: 0 auto; padding: 28px var(--gutter) 64px; }
+      .vault-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+      .vault-title { font-size: 16px; font-weight: 600; font-family: var(--font-mono); }
+      .vault-stat { font-size: 12px; font-family: var(--font-mono); color: var(--color-lime); }
+
+      .vault-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 20px; }
+      .vault-card { background: var(--color-panel); border: 1px solid var(--color-border); border-radius: 4px; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+      .vault-card:hover { border-color: var(--color-lime); background: var(--color-panel-hover); }
+      .vault-poster { position: relative; aspect-ratio: 2 / 3; background: var(--color-bg); overflow: hidden; }
+      .vault-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .rate-tag { position: absolute; top: 8px; right: 8px; background: var(--color-rate-bg); border: 1px solid var(--color-border); padding: 2px 6px; font-size: 11px; font-family: var(--font-mono); font-weight: 700; color: var(--color-lime); }
+      .telemetry-meta { padding: 12px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+      .meta-name { font-size: 14px; font-weight: 600; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
+      .meta-info { font-size: 11px; font-family: var(--font-mono); color: var(--color-muted); display: flex; justify-content: space-between; }
+      .tag-rack { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+      .chip { font-size: 10px; font-family: var(--font-mono); padding: 2px 6px; border: 1px solid var(--color-border); border-radius: 2px; color: var(--color-muted); background: var(--color-bg); }
+      .chip.primary { border-color: var(--color-lime); color: var(--color-lime); }
+
+      /* Footer */
+      .site-footer { border-top: 1px solid var(--color-border); padding: 40px var(--gutter); max-width: var(--container); margin: 0 auto; font-size: 12px; font-family: var(--font-mono); color: var(--color-muted); display: flex; justify-content: space-between; align-items: center; }
+      @media (max-width: 768px) {
+        .site-header { flex-direction: column; gap: 16px; align-items: flex-start; }
+        .vault-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+      }
+      @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+    </style>
+  </head>
+  <body>
+    <!-- 顶部方案切换条 -->
+    <div class="preview-bar">
+      <span>HALLMARK UI TEST // OPTION_C (VANTAGE TECH-VAULT)</span>
+      <div class="preview-links">
+        <a href="/preview" class="preview-link">INDEX</a>
+        <a href="/preview/darkroom" class="preview-link">DARKROOM</a>
+        <a href="/preview/midnight" class="preview-link">MIDNIGHT</a>
+        <a href="/preview/vantage" class="preview-link active">VANTAGE</a>
+        <a href="/" class="preview-link">PROD</a>
+      </div>
+    </div>
+
+    <!-- 顶部导航 -->
+    <header class="site-header">
+      <a href="/preview/vantage" class="brand">
+        <span class="brand-dot"></span>
+        <span>STARLIGHT_VAULT // 4K</span>
+      </a>
+      <div class="nav-tools">
+        <a href="/explore" class="preview-link">EXPLORE</a>
+        <div class="search-box">
+          <input type="text" class="search-input" placeholder="SEARCH_TITLE_OR_ACTOR..." />
+          <button type="button" class="search-btn">EXEC</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 极简 Hero 舞台 -->
+    <section class="hero-section">
+      <h1 class="hero-h1">极客网盘云枢与秒存站</h1>
+      <p class="hero-p">
+        原盘高速直存私有网盘，在线切片探活驱动。支持夸克与UC双盘秒存。
+      </p>
+      <div class="terminal-row">
+        {categories.map((cat, idx) => (
+          <button type="button" class={`term-tab ${idx === 0 ? 'active' : ''}`}>{cat}</button>
+        ))}
+      </div>
+    </section>
+
+    <!-- 资源库网格 -->
+    <main class="vault-wrap">
+      <div class="vault-head">
+        <div class="vault-title">[CATALOG_FEED]</div>
+        <div class="vault-stat">STATUS: READY ({allMovies.length} ITEMS)</div>
+      </div>
+
+      <div class="vault-grid">
+        {allMovies.map((m) => {
+          const isSeries = m.category === '电视剧' || m.category === '动漫' || m.category === '综艺';
+          return (
+            <a href={`/movie/${m.id}`} class="vault-card">
+              <div class="vault-poster">
+                <img src={m.poster_url || '/placeholder.jpg'} alt={m.title} class="vault-img" loading="lazy" />
+                {m.score && <div class="rate-tag">{m.score}</div>}
+              </div>
+              <div class="telemetry-meta">
+                <h3 class="meta-name" title={m.title}>{m.title}</h3>
+                <div class="meta-info">
+                  <span>{m.year || '2026'} / {m.category}</span>
+                  <span>{m.country || '华语'}</span>
+                </div>
+                <div class="tag-rack">
+                  {m.is_released === false ? (
+                    <span class="chip">待映</span>
+                  ) : isSeries ? (
+                    <span class="chip primary">
+                      {m.is_finished ? `全${m.total_episodes || m.current_episode}集` : `更至${m.current_episode || 1}集`}
+                    </span>
+                  ) : (
+                    <span class="chip primary">4K原盘</span>
+                  )}
+                  {m.share_link_uc && <span class="chip">UC转存</span>}
+                  {m.share_link && <span class="chip">夸克</span>}
+                  {m.online_play_url && <span class="chip">在线播</span>}
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="site-footer">
+      <div>STARLIGHT_VAULT // VANTAGE_SCHEME</div>
+      <div>CF_EDGE_DELIVERY + NETDISK_ECOSYSTEM</div>
+    </footer>
+  </body>
+</html>
