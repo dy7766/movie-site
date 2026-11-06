@@ -43,6 +43,8 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
+          set -e
+          set -o pipefail
           node scripts/pipeline-runner.js 2>&1 | tee pipeline-execution.log
 
       - name: 📤 上传全流程执行过程日志 (Artifact)

@@ -229,14 +229,6 @@ export async function runAutomationPipeline() {
       items: reportItems,
       listTitle: hasNewHarvest ? '本次新增转存入库清单' : '片库资产健康抽检'
     });
-      matchedCount: harvestStats.ucSuccess + harvestStats.streamSuccess,
-      deployedCount: totalMovies,
-      healedCount: streamStats.healed,
-      backfilledCount: streamStats.backfilled,
-      totalMovies: totalMovies,
-      categoryStatsText: categoryStatsText,
-      items: reportItems
-    });
     console.log('📢 钉钉数据大盘报告推送成功！');
   } catch (err) {
     console.error('钉钉报告推送失败:', err.message);
