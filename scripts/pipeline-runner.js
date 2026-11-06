@@ -189,7 +189,7 @@ export async function runAutomationPipeline() {
           SELECT title, year, category, share_link_uc, share_link, online_play_url
           FROM resources
           WHERE has_metadata = TRUE
-          ORDER BY last_harvest_at DESC NULLS LAST, updated_at DESC NULLS LAST, created_at DESC
+          ORDER BY last_harvest_at DESC NULLS LAST, created_at DESC
           LIMIT 3
         `);
         reportItems = recentRes.rows.map(r => {
