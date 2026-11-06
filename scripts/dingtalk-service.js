@@ -37,15 +37,20 @@ export async function sendDingTalkTaskSummary({
   deployedCount = 0,
   healedCount = 0,
   backfilledCount = 0,
-  totalMovies = 221,
+  totalMovies = 255,
+  categoryStatsText = '',
   items = []
 }) {
   const finalUrl = getSignedUrl();
   const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
 
   const itemListHtml = items.length > 0 
-    ? items.map((it, idx) => `${idx + 1}. **《${it.title}》** (${it.year}) | ${it.quality || '4K 原盘'} | <font color="#008000">UC/夸克双链就绪</font>`).join('\n')
-    : '1. **《抓娃娃》(2024)** | 4.38GB 4K HEVC 原盘 | <font color="#008000">UC专属分佣已绑定</font>\n2. **《九龙城寨之围城》(2024)** | 10.96GB 4K HDR | <font color="#008000">UC专属分佣已绑定</font>\n3. **《十间敢死队》(2026)** | 4K 院线原盘 | <font color="#008000">夸克+UC双分佣已绑定</font>';
+    ? items.map((it, idx) => `${idx + 1}. **《${it.title}》** (${it.year}) | ${it.quality || '4K 原盘'} | <font color="#008000">${it.desc || 'UC专属分佣已绑定'}</font>`).join('\n')
+    : '> *（本轮巡检所有资源均已健康就绪，片库保持平稳运行中）*';
+
+  const categoryLine = categoryStatsText 
+    ? `- 📊 片库品类分布: ${categoryStatsText}` 
+    : '- ⚖️ 电影电视配比: 优质大片与热播剧集全量覆盖';
 
   const text = `
 ## <font color="#008000">✅【影视站自动化流水线·任务执行完成】</font>
@@ -58,10 +63,10 @@ export async function sendDingTalkTaskSummary({
 - 🚀 触发静态部署: **${deployedCount}** 页（全站现存 **${totalMovies}** 页）
 - 🩹 在线播放切片自愈修复: **${healedCount}** 部
 - 📺 老片在线播放新补齐: **${backfilledCount}** 部
-- ⚖️ 电影电视配比: **10 : 1** (以优质大片为主)
+${categoryLine}
 
 ---
-### 🎬 **本次处理与转存入库清单**:
+### 🎬 **${items.length > 0 ? '本次巡检与入库清单' : '片库巡检状态'}:**
 ${itemListHtml}
 
 ---

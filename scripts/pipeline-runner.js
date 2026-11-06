@@ -163,6 +163,54 @@ export async function runAutomationPipeline() {
   // 9. 发送钉钉任务完成大盘报告
   console.log('\n[汇总大盘] 正在推送本次自动化运营大盘至钉钉群...');
   try {
+    let categoryStatsText = '';
+    try {
+      const catRes = await pool.query(`
+        SELECT category, count(*) as cnt 
+        FROM resources 
+        WHERE has_metadata = TRUE 
+        GROUP BY category 
+        ORDER BY cnt DESC
+      `);
+      if (catRes.rows.length > 0) {
+        categoryStatsText = catRes.rows.map(r => `${r.category || '其它'}: **${r.cnt}** 部`).join(' | ');
+      }
+    } catch (catErr) {
+      console.warn('⚠️ 查询分类统计异常:', catErr.message);
+    }
+
+    // 优先展示本次流水线实际转存/挂载切片的资源清单
+    let reportItems = harvestStats.updatedItems || [];
+
+    // 若本次无新增转存（如均已就绪或未匹配到），从数据库拉取最近更新/巡检的真实影视资产动态展示
+    if (reportItems.length === 0) {
+      try {
+        const recentRes = await pool.query(`
+          SELECT title, year, category, share_link_uc, share_link, online_play_url
+          FROM resources
+          WHERE has_metadata = TRUE
+          ORDER BY last_harvest_at DESC NULLS LAST, updated_at DESC NULLS LAST, created_at DESC
+          LIMIT 3
+        `);
+        reportItems = recentRes.rows.map(r => {
+          let desc = '资源健康在库';
+          if (r.share_link_uc && r.online_play_url) desc = 'UC专属 + 在线切片双就绪';
+          else if (r.share_link_uc) desc = 'UC专属分佣生效中';
+          else if (r.share_link) desc = '夸克专属分佣生效中';
+          else if (r.online_play_url) desc = '免广告在线切片已就绪';
+
+          return {
+            title: r.title,
+            year: r.year,
+            quality: r.category || '4K 原盘',
+            desc
+          };
+        });
+      } catch (recentErr) {
+        console.warn('⚠️ 查询最近影视资产异常:', recentErr.message);
+      }
+    }
+
     await sendDingTalkTaskSummary({
       addedCount: (doubanStats.insertedCount || 0) + (enrichStats.enrichedCount || 0),
       matchedCount: harvestStats.ucSuccess + harvestStats.streamSuccess,
@@ -170,7 +218,8 @@ export async function runAutomationPipeline() {
       healedCount: streamStats.healed,
       backfilledCount: streamStats.backfilled,
       totalMovies: totalMovies,
-      items: []
+      categoryStatsText: categoryStatsText,
+      items: reportItems
     });
     console.log('📢 钉钉数据大盘报告推送成功！');
   } catch (err) {

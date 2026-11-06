@@ -31,7 +31,7 @@ export async function harvestResourceData(batchSize = 15) {
 
   if (candidates.length === 0) {
     console.log('🎉 当前片库中所有影视均已拥有完整网盘转存与在线播放源，无需补充！');
-    return { processed: 0, ucSuccess: 0, streamSuccess: 0 };
+    return { processed: 0, ucSuccess: 0, streamSuccess: 0, updatedItems: [] };
   }
 
   console.log(`🎯 命中本批次待补充资源的影视条目 (${candidates.length} 部):`);
@@ -41,9 +41,12 @@ export async function harvestResourceData(batchSize = 15) {
 
   let ucSuccess = 0;
   let streamSuccess = 0;
+  const updatedItems = [];
 
   for (let i = 0; i < candidates.length; i++) {
     const m = candidates[i];
+    let didUpdateUc = false;
+    let didUpdateStream = false;
     console.log(`\n---------------------------------------------------------------`);
     console.log(`🎬 [${i + 1}/${candidates.length}] 正在为《${m.title}》(${m.year}) 搜源与补齐数据...`);
 
@@ -65,6 +68,7 @@ export async function harvestResourceData(batchSize = 15) {
             await pool.query('UPDATE resources SET share_link_uc = $1, drive_type = COALESCE(drive_type, \'uc\'), status = \'published\' WHERE id = $2', [ucLink, m.id]);
             console.log(`  ✓ 成功挂载 UC 网盘专属链接: ${ucLink}`);
             ucSuccess++;
+            didUpdateUc = true;
             break;
           }
         }
@@ -85,12 +89,27 @@ export async function harvestResourceData(batchSize = 15) {
           );
           console.log(`  ✓ 成功挂载极速免广告在线切片源: ${stream.primaryUrl.slice(0, 50)}...`);
           streamSuccess++;
+          didUpdateStream = true;
         } else {
           console.log(`  - 各资源站暂无《${m.title}》的高清切片源`);
         }
       } catch (err) {
         console.warn(`  ⚠️ 在线切片流匹配异常:`, err.message);
       }
+    }
+
+    if (didUpdateUc || didUpdateStream) {
+      let desc = '';
+      if (didUpdateUc && didUpdateStream) desc = 'UC专属分佣 + 在线切片双就绪';
+      else if (didUpdateUc) desc = 'UC专属分佣已绑定';
+      else desc = '免广告在线切片已挂载';
+
+      updatedItems.push({
+        title: m.title,
+        year: m.year,
+        quality: m.category || '4K 原盘',
+        desc
+      });
     }
 
     // 3. 记录本次搜源巡检时间戳，确保轮转机制生效，彻底消除死循环与队头阻塞
@@ -106,7 +125,7 @@ export async function harvestResourceData(batchSize = 15) {
   console.log(`处理条目: ${candidates.length} 部 | 成功挂载网盘: ${ucSuccess} 部 | 成功挂载在线切片: ${streamSuccess} 部`);
   console.log('===============================================================\n');
 
-  return { processed: candidates.length, ucSuccess, streamSuccess };
+  return { processed: candidates.length, ucSuccess, streamSuccess, updatedItems };
 }
 
 if (process.argv[1]?.endsWith('harvest-resource-data.js')) {
