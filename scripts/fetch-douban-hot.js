@@ -271,38 +271,32 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
   console.log('\n[步骤 1.6/3] 正在巡检连载剧集的完结状态...');
   let finishedCount = 0;
   try {
-    // 自动纠正总集数大于1且当前集数小于总集数但被误标为完结的剧集
-    const ongoingFix = await pool.query(`
+    // 1. 已完结剧集自动对齐当前集数为总集数 (展示全集)
+    await pool.query(`
       UPDATE resources
-      SET is_finished = FALSE
+      SET current_episode = total_episodes
       WHERE category IN ('电视剧', '动漫', '综艺')
+        AND is_finished = TRUE
+        AND total_episodes > 1
+        AND (current_episode IS NULL OR current_episode < total_episodes)
+    `);
+
+    // 2. 连载中剧集若集数已达标总集数，自动标记为已完结
+    const finishedRes = await pool.query(`
+      UPDATE resources
+      SET is_finished = TRUE
+      WHERE category IN ('电视剧', '动漫', '综艺')
+        AND is_finished = FALSE
         AND total_episodes > 1
         AND current_episode IS NOT NULL
-        AND current_episode < total_episodes
-        AND is_finished = TRUE
-      RETURNING id, title
+        AND current_episode >= total_episodes
+      RETURNING id, title, current_episode, total_episodes
     `);
-    if (ongoingFix.rowCount > 0) {
-      console.log(`  🔄 自动校正 ${ongoingFix.rowCount} 部处于连载中的剧集为【连载中】状态`);
-    }
-
-    const ongoingRes = await pool.query(`
-      SELECT id, title, category, year, total_episodes, current_episode, is_finished
-      FROM resources
-      WHERE (category = '电视剧' OR category = '综艺' OR category = '动漫')
-        AND is_finished = FALSE
-      ORDER BY year DESC
-      LIMIT 25
-    `);
-    if (ongoingRes.rows.length > 0) {
-      for (const s of ongoingRes.rows) {
-        // 如果已更新集数达到或超过总集数，自动标记为已完结
-        if (s.total_episodes && s.current_episode && s.current_episode >= s.total_episodes) {
-          await pool.query('UPDATE resources SET is_finished = TRUE WHERE id = $1', [s.id]);
-          console.log(`  ✅【剧集完结】《${s.title}》已更新完毕 (${s.current_episode}/${s.total_episodes} 集)，已标记为已完结！`);
-          finishedCount++;
-        }
-      }
+    if (finishedRes.rowCount > 0) {
+      finishedRes.rows.forEach(s => {
+        console.log(`  ✅【剧集完结】《${s.title}》已更新完毕 (${s.current_episode}/${s.total_episodes} 集)，已标记为已完结！`);
+        finishedCount++;
+      });
       console.log(`  ✓ 剧集完结巡检完毕，本批次新完结: ${finishedCount} 部`);
     } else {
       console.log('  ✓ 当前暂无连载中剧集需完结处理');

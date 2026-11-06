@@ -141,16 +141,25 @@ export async function enrichTmdbMetadata({ batchLimit = 30 } = {}) {
         isReleased = false;
       }
 
-      // 智能识别电视剧完结状态 (总集数大于1且当前集数小于总集数时，绝不可标为已完结)
+      // 智能识别电视剧完结状态与集数 (TMDB排期为主 + CMS切片兜底)
       let isFinished = true;
+      let currentEpisode = item.current_episode || 1;
       if (isTv) {
-        const curEp = item.current_episode || 1;
-        if (totalEpisodes && totalEpisodes > 1 && curEp < totalEpisodes) {
-          isFinished = false;
-        } else if (details.status === 'Returning Series' || details.in_production === true) {
-          isFinished = false;
-        } else if (details.status === 'Ended' || details.status === 'Canceled') {
+        if (details.status === 'Ended' || details.status === 'Canceled') {
           isFinished = true;
+          currentEpisode = totalEpisodes || details.number_of_episodes || currentEpisode;
+        } else if (parsedYear && parsedYear < 2026 && !details.in_production && details.status !== 'Returning Series') {
+          isFinished = true;
+          currentEpisode = totalEpisodes || details.number_of_episodes || currentEpisode;
+        } else {
+          // 连载追更中剧集：提取最新播出的官方集数
+          const tmdbAir = details.last_episode_to_air?.episode_number || 1;
+          currentEpisode = Math.max(currentEpisode, tmdbAir);
+          if (totalEpisodes && currentEpisode >= totalEpisodes) {
+            isFinished = true;
+          } else {
+            isFinished = false;
+          }
         }
       }
 
@@ -169,9 +178,10 @@ export async function enrichTmdbMetadata({ batchLimit = 30 } = {}) {
               is_released = $10,
               release_date = $11,
               is_finished = $12,
+              current_episode = $13,
               has_metadata = TRUE,
               status = 'metadata_ready'
-          WHERE id = $13
+          WHERE id = $14
         `, [
           posterUrl,
           JSON.stringify(stills),
@@ -185,6 +195,7 @@ export async function enrichTmdbMetadata({ batchLimit = 30 } = {}) {
           isReleased,
           releaseStr,
           isFinished,
+          currentEpisode,
           item.id
         ]);
 
