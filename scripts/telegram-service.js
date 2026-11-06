@@ -91,7 +91,7 @@ export async function sendMovieCardToTelegram(movie, { chatId = null } = {}) {
   const year = movie.year || '2024';
   const score = movie.score ? `★ ${Number(movie.score).toFixed(1)} 分` : '★ 8.5+ 推荐';
   const intro = movie.intro ? movie.intro.slice(0, 100) + '...' : '高清原盘无损转存，免广告在线极速秒播。';
-  const siteUrl = `https://movie-site-8r4.pages.dev/movie/${movie.id}`;
+  const siteUrl = `https://xkykmovie.com/movie/${movie.id}`;
 
   // 构造规范化可检索的 Telegram 标签 (#片名 #类型 #年份 #渠道 #画质)
   const cleanTitleTag = title.replace(/[\s·:：\-—_—\(\)（）\+]/g, '');
@@ -144,7 +144,7 @@ export async function sendMovieCardToTelegram(movie, { chatId = null } = {}) {
     row1.push({ text: '💾 夸克转存', url: movie.share_link });
   }
   if (row1.length > 0) inlineButtons.push(row1);
-  inlineButtons.push([{ text: '🌐 打开星光影库官网', url: 'https://movie-site-8r4.pages.dev/' }]);
+  inlineButtons.push([{ text: '🌐 打开星光影库官网', url: 'https://xkykmovie.com/' }]);
 
   try {
     const posterUrl = movie.poster_url || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=600';

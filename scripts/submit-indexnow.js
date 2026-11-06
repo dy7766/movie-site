@@ -1,6 +1,6 @@
 import { getDbPool } from '../src/lib/db.js';
 
-const HOST = 'movie-site-8r4.pages.dev';
+const HOST = 'xkykmovie.com';
 const KEY = 'b47c093a18e24c5bb20d6f6e80b2d6a7';
 const KEY_LOCATION = `https://${HOST}/${KEY}.txt`;
 

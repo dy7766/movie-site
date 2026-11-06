@@ -4,7 +4,7 @@ import sitemap from '@astrojs/sitemap';
 
 // https://astro.build/config
 export default defineConfig({
-  site: 'https://movie-site-8r4.pages.dev',
+  site: 'https://xkykmovie.com',
   integrations: [
     tailwind(),
     sitemap({
