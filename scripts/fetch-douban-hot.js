@@ -190,7 +190,94 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
     }
   }
 
-  // 5. 更新连续零新增状态与下探游标
+  // 5. 待播资源开播探活巡检：检查未开播的资源是否已上映/首播，若是则移入网盘搜源序列
+  console.log('\n[步骤 1.5/3] 正在巡检待播影视是否已开播/公映...');
+  let premieredCount = 0;
+  try {
+    const unreleasedRes = await pool.query(`
+      SELECT id, title, year, category, release_date
+      FROM resources
+      WHERE is_released = FALSE
+      ORDER BY year ASC, id ASC
+      LIMIT 25
+    `);
+    if (unreleasedRes.rows.length > 0) {
+      const today = new Date().toISOString().slice(0, 10);
+      for (const m of unreleasedRes.rows) {
+        let isNowReleased = false;
+        if (m.release_date && m.release_date <= today) {
+          isNowReleased = true;
+        } else {
+          // 尝试探测豆瓣实时最新是否有开播评分
+          try {
+            const checkUrl = `https://movie.douban.com/j/search_subjects?type=${m.category === '电视剧' ? 'tv' : 'movie'}&tag=%E6%9C%80%E6%96%B0&page_limit=50&page_start=0`;
+            const cRes = await fetch(checkUrl, {
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://movie.douban.com/explore'
+              },
+              signal: AbortSignal.timeout(3500)
+            });
+            if (cRes.ok) {
+              const cData = await cRes.json();
+              const hit = (cData.subjects || []).find(s => s.title && s.title.includes(m.title));
+              if (hit && hit.rate && parseFloat(hit.rate) > 0) {
+                isNowReleased = true;
+              }
+            }
+          } catch {}
+        }
+
+        if (isNowReleased) {
+          // 标记已开播，同时置 last_harvest_at = NULL，确保在下一阶段靶向搜源转存中绝对置顶优先处理！
+          await pool.query(`
+            UPDATE resources 
+            SET is_released = TRUE, 
+                last_harvest_at = NULL 
+            WHERE id = $1
+          `, [m.id]);
+          console.log(`  🎉【开播通知】《${m.title}》已正式开播/公映！已自动放进网盘搜源优先序列！`);
+          premieredCount++;
+        }
+      }
+      console.log(`  ✓ 待播巡检完毕，本批次新识别已开播: ${premieredCount} 部`);
+    } else {
+      console.log('  ✓ 当前暂无待播条目需要巡检');
+    }
+  } catch (auditErr) {
+    console.warn('  ⚠️ 开播探活巡检异常:', auditErr.message);
+  }
+
+  // 6. 电视剧/动漫/综艺完结状态检查
+  console.log('\n[步骤 1.6/3] 正在巡检连载剧集的完结状态...');
+  let finishedCount = 0;
+  try {
+    const ongoingRes = await pool.query(`
+      SELECT id, title, category, year, total_episodes, current_episode, is_finished
+      FROM resources
+      WHERE (category = '电视剧' OR category = '综艺' OR category = '动漫')
+        AND is_finished = FALSE
+      ORDER BY year DESC
+      LIMIT 25
+    `);
+    if (ongoingRes.rows.length > 0) {
+      for (const s of ongoingRes.rows) {
+        // 如果已更新集数达到或超过总集数，自动标记为已完结
+        if (s.total_episodes && s.current_episode && s.current_episode >= s.total_episodes) {
+          await pool.query('UPDATE resources SET is_finished = TRUE WHERE id = $1', [s.id]);
+          console.log(`  ✅【剧集完结】《${s.title}》已更新完毕 (${s.current_episode}/${s.total_episodes} 集)，已标记为已完结！`);
+          finishedCount++;
+        }
+      }
+      console.log(`  ✓ 剧集完结巡检完毕，本批次新完结: ${finishedCount} 部`);
+    } else {
+      console.log('  ✓ 当前暂无连载中剧集需完结处理');
+    }
+  } catch (finErr) {
+    console.warn('  ⚠️ 剧集完结巡检异常:', finErr.message);
+  }
+
+  // 7. 更新连续零新增状态与下探游标
   if (insertedCount > 0) {
     console.log(`✨ 本批次成功捕获 ${insertedCount} 部新影视种子，已将连续零新增计数归零`);
     state.consecutive_zero_yield = 0;

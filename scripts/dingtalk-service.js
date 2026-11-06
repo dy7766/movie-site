@@ -39,7 +39,8 @@ export async function sendDingTalkTaskSummary({
   backfilledCount = 0,
   totalMovies = 255,
   categoryStatsText = '',
-  items = []
+  items = [],
+  listTitle = ''
 }) {
   const finalUrl = getSignedUrl();
   const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
@@ -51,6 +52,8 @@ export async function sendDingTalkTaskSummary({
   const categoryLine = categoryStatsText 
     ? `- 📊 片库品类分布: ${categoryStatsText}` 
     : '- ⚖️ 电影电视配比: 优质大片与热播剧集全量覆盖';
+
+  const headingTitle = listTitle || (items.length > 0 ? '本次处理与转存入库清单' : '片库巡检状态');
 
   const text = `
 ## <font color="#008000">✅【影视站自动化流水线·任务执行完成】</font>
@@ -66,7 +69,7 @@ export async function sendDingTalkTaskSummary({
 ${categoryLine}
 
 ---
-### 🎬 **${items.length > 0 ? '本次巡检与入库清单' : '片库巡检状态'}:**
+### 🎬 **${headingTitle}:**
 ${itemListHtml}
 
 ---

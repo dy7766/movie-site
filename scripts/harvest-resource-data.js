@@ -18,6 +18,7 @@ export async function harvestResourceData(batchSize = 15) {
     SELECT id, title, category, year, score, share_link, share_link_uc, online_play_url
     FROM resources
     WHERE has_metadata = TRUE
+      AND (is_released IS NULL OR is_released = TRUE)
       AND (share_link_uc IS NULL OR online_play_url IS NULL)
     ORDER BY
       last_harvest_at ASC NULLS FIRST,

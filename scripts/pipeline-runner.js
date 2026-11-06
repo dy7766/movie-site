@@ -179,17 +179,24 @@ export async function runAutomationPipeline() {
       console.warn('⚠️ 查询分类统计异常:', catErr.message);
     }
 
+    const hasNewHarvest = (harvestStats.updatedItems && harvestStats.updatedItems.length > 0);
     // 优先展示本次流水线实际转存/挂载切片的资源清单
     let reportItems = harvestStats.updatedItems || [];
 
-    // 若本次无新增转存（如均已就绪或未匹配到），从数据库拉取最近更新/巡检的真实影视资产动态展示
+    // 若本次无新增转存（如均已就绪或未匹配到），从数据库拉取已验证有真实资源的已上映影视资产动态轮播展示
     if (reportItems.length === 0) {
       try {
         const recentRes = await pool.query(`
           SELECT title, year, category, share_link_uc, share_link, online_play_url
           FROM resources
           WHERE has_metadata = TRUE
-          ORDER BY last_harvest_at DESC NULLS LAST, created_at DESC
+            AND (is_released IS NULL OR is_released = TRUE)
+            AND (
+              (share_link_uc IS NOT NULL AND LENGTH(TRIM(share_link_uc)) > 10) OR 
+              (share_link IS NOT NULL AND LENGTH(TRIM(share_link)) > 10) OR 
+              (online_play_url IS NOT NULL AND LENGTH(TRIM(online_play_url)) > 10)
+            )
+          ORDER BY RANDOM()
           LIMIT 3
         `);
         reportItems = recentRes.rows.map(r => {
@@ -202,7 +209,7 @@ export async function runAutomationPipeline() {
           return {
             title: r.title,
             year: r.year,
-            quality: r.category || '4K 原盘',
+            quality: `${r.category || '电影'} · 健康在库`,
             desc
           };
         });
@@ -213,6 +220,15 @@ export async function runAutomationPipeline() {
 
     await sendDingTalkTaskSummary({
       addedCount: (doubanStats.insertedCount || 0) + (enrichStats.enrichedCount || 0),
+      matchedCount: harvestStats.ucSuccess + harvestStats.streamSuccess,
+      deployedCount: totalMovies,
+      healedCount: streamStats.healed,
+      backfilledCount: streamStats.backfilled,
+      totalMovies: totalMovies,
+      categoryStatsText: categoryStatsText,
+      items: reportItems,
+      listTitle: hasNewHarvest ? '本次新增转存入库清单' : '片库资产健康抽检'
+    });
       matchedCount: harvestStats.ucSuccess + harvestStats.streamSuccess,
       deployedCount: totalMovies,
       healedCount: streamStats.healed,

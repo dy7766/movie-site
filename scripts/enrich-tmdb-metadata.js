@@ -132,6 +132,25 @@ export async function enrichTmdbMetadata({ batchLimit = 30 } = {}) {
       const originalTitle = details.original_name || details.original_title || item.title;
       const country = (details.origin_country || details.production_countries?.map(c => c.name) || ['华语'])[0];
 
+      // 智能识别开播与上映状态
+      const today = new Date().toISOString().slice(0, 10);
+      let isReleased = true;
+      if (releaseStr && releaseStr > today) {
+        isReleased = false;
+      } else if (['Planned', 'In Production', 'Post Production'].includes(details.status) && !item.online_play_url && !item.share_link_uc) {
+        isReleased = false;
+      }
+
+      // 智能识别电视剧完结状态
+      let isFinished = true;
+      if (isTv) {
+        if (details.status === 'Returning Series' || details.in_production === true) {
+          isFinished = false;
+        } else if (details.status === 'Ended' || details.status === 'Canceled') {
+          isFinished = true;
+        }
+      }
+
       if (posterUrl) {
         await pool.query(`
           UPDATE resources
@@ -144,9 +163,12 @@ export async function enrichTmdbMetadata({ batchLimit = 30 } = {}) {
               total_episodes = COALESCE($7, total_episodes),
               original_title = COALESCE($8, original_title),
               country = COALESCE($9, country, '华语'),
+              is_released = $10,
+              release_date = $11,
+              is_finished = $12,
               has_metadata = TRUE,
               status = 'metadata_ready'
-          WHERE id = $10
+          WHERE id = $13
         `, [
           posterUrl,
           JSON.stringify(stills),
@@ -157,10 +179,15 @@ export async function enrichTmdbMetadata({ batchLimit = 30 } = {}) {
           totalEpisodes,
           originalTitle,
           country,
+          isReleased,
+          releaseStr,
+          isFinished,
           item.id
         ]);
 
-        console.log(`  ✓ 成功补齐元数据并赋能发布: 《${item.title}》 (${parsedYear} · 演职员: ${actors.slice(0, 30)}...)`);
+        const releaseLabel = isReleased ? '已开播/上映' : '⏳ 待播/待映';
+        const finishLabel = isTv ? (isFinished ? '【全集已完结】' : '【连载追更中】') : '';
+        console.log(`  ✓ 成功补齐元数据: 《${item.title}》 (${parsedYear} · ${releaseLabel} ${finishLabel})`);
         enrichedCount++;
       } else {
         console.warn(`  ⚠️ 未能提取到《${item.title}》的有效海报，保留待补状态，暂不生成前台页面`);
