@@ -13,16 +13,17 @@ export async function harvestResourceData(batchSize = 15) {
 
   const pool = getDbPool();
 
-  // 1. 优先为最新热播电视剧与新片补齐资源 (电视剧优先 + 年份倒序 + 巡检时间轮换，彻底杜绝队头阻塞)
+  // 1. 全库公平轮转优先：优先从未巡检的条目开始，同时倾斜缺失网盘与高分热片
   const query = `
     SELECT id, title, category, year, score, share_link, share_link_uc, online_play_url
     FROM resources
     WHERE has_metadata = TRUE
       AND (share_link_uc IS NULL OR online_play_url IS NULL)
     ORDER BY
-      CASE WHEN category = '电视剧' THEN 1 ELSE 2 END ASC,
-      year DESC NULLS LAST,
       last_harvest_at ASC NULLS FIRST,
+      CASE WHEN share_link_uc IS NULL THEN 1 ELSE 2 END ASC,
+      year DESC NULLS LAST,
+      score DESC NULLS LAST,
       created_at DESC
     LIMIT $1
   `;

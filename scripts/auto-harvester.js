@@ -62,19 +62,48 @@ export async function searchPublicShares(title) {
     variants.push(cleanParen);
   }
 
-  // 变体2: 去除季数与特殊冒号标点，如《极限挑战 第一季》 -> 《极限挑战》
+  // 变体2: 阿拉伯数字续集转换，如《庆余年2》 -> 《庆余年 第二季》/《庆余年第二季》/《庆余年》
+  const numMatch = cleanParen.match(/^(.*?)([\d]+)$/);
+  if (numMatch) {
+    const base = numMatch[1].trim();
+    const num = parseInt(numMatch[2]);
+    const cnNums = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+    const cnNum = cnNums[num] || num;
+    const v1 = `${base} 第${cnNum}季`;
+    const v2 = `${base}第${cnNum}季`;
+    const v3 = `${base} 第${cnNum}部`;
+    const v4 = `${base} ${num}`;
+    const v5 = base; // 纯主标题保底
+    [v1, v2, v3, v4, v5].forEach(v => {
+      if (v && !variants.includes(v)) variants.push(v);
+    });
+  }
+
+  // 变体3: 中文“第X季”转换与剥离，如《老友记 第十季》 -> 《老友记》
   const cleanSeason = cleanParen.replace(/[:：]/g, ' ').replace(/\s*第[一二三四五六七八九十\d]+[季期部]/g, '').trim();
   if (cleanSeason && !variants.includes(cleanSeason)) {
     variants.push(cleanSeason);
   }
 
+  // 变体4: 去除副标题破折号或冒号，如《死神 千年血战篇 -祸进谭-》 -> 《死神 千年血战篇》
+  const cleanDash = cleanParen.split(/[-——:：]/)[0].trim();
+  if (cleanDash && cleanDash.length >= 2 && !variants.includes(cleanDash)) {
+    variants.push(cleanDash);
+  }
+
   for (const q of variants) {
     const list = await querySingleShareTitle(q);
     if (list.length > 0) {
+      // 优先过滤短剧/纯文本/小说垃圾链接
+      const filtered = list.filter(item => {
+        const t = item.title || '';
+        return !/(短剧|小说|电子书|网文|有声书|广播剧|合辑|总链)/i.test(t);
+      });
+      const resList = filtered.length > 0 ? filtered : list;
       if (q !== rawTitle) {
-        console.log(`  💡 采用优化关键词《${q}》匹配到 ${list.length} 个公开分享`);
+        console.log(`  💡 采用优化关键词《${q}》匹配到 ${resList.length} 个公开分享`);
       }
-      return list;
+      return resList;
     }
   }
   return [];
@@ -142,15 +171,15 @@ export async function inspectAndFilterUcShare(pwd_id) {
     const list = dData.data?.list || [];
     if (list.length === 0) return { pass: false, reason: '分享列表为空' };
 
-    // 拦截压缩包与可执行文件
-    const hasZip = list.some(f => /\.(zip|rar|7z|tar|gz|exe|apk)$/i.test(f.file_name));
-    if (hasZip) return { pass: false, reason: '包含压缩包/程序包' };
-
     // 必须包含有效视频文件或目录 (过滤纯文本/小说)
     const isDir = f => (f.dir === true || f.file_type === 0 || f.file_type === 'dir') && !/(txt|小说|电子书|网文)/i.test(f.file_name);
     const isVideoFile = f => /\.(mp4|mkv|ts|mov|avi|flv|wmv|m3u8|iso)$/i.test(f.file_name);
     const hasVideoOrDir = list.some(f => isDir(f) || isVideoFile(f));
-    if (!hasVideoOrDir) return { pass: false, reason: '无有效视频或目录(过滤纯文本)' };
+    if (!hasVideoOrDir) return { pass: false, reason: '无有效视频或目录(过滤纯文本/空目录)' };
+
+    // 若全部文件均为压缩包或可执行文件（且无任何视频或有效目录），才予以拦截
+    const allZipOrExe = list.every(f => /\.(zip|rar|7z|tar|gz|exe|apk|txt|doc|pdf)$/i.test(f.file_name));
+    if (allZipOrExe) return { pass: false, reason: '纯压缩包或程序安装包' };
 
     // 单次转存文件数上限防护
     if (list.length > 50) return { pass: false, reason: `项目数量过多(${list.length})，规避会员等级限制` };
