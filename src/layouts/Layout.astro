@@ -50,17 +50,64 @@ const {
         </a>
 
         <!-- 导航菜单 -->
-        <nav class="hidden md:flex items-center gap-6 text-sm font-medium text-slate-300">
-          <a href="/" class="hover:text-orange-400 transition-colors">全部精选</a>
-          <a href="/explore" class="text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-1.5 font-semibold">
+        <nav class="flex items-center gap-3 sm:gap-5 text-sm font-medium text-slate-300">
+          <a href="/" class="hover:text-orange-400 transition-colors whitespace-nowrap">全部精选</a>
+          <a href="/explore" class="text-orange-400 hover:text-orange-300 transition-colors flex items-center gap-1.5 font-semibold whitespace-nowrap">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
             </svg>
             <span>片库检索</span>
           </a>
+
+          <!-- 交互式搜索组件：紧随片库检索后面 -->
+          <div class="relative flex items-center" id="navSearchContainer">
+            <!-- 未展开时的交互触发按钮 -->
+            <button 
+              id="navSearchTrigger" 
+              type="button"
+              class="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-xs font-medium text-slate-300 hover:text-white transition-all flex items-center gap-1.5 cursor-pointer shadow-sm hover:border-orange-500/40"
+              title="点击展开搜索输入框"
+            >
+              <svg class="w-3.5 h-3.5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <span class="whitespace-nowrap">搜索片源</span>
+            </button>
+
+            <!-- 展开后的交互式搜索框与确定按钮 -->
+            <div 
+              id="navSearchBox" 
+              class="hidden items-center gap-1.5 bg-slate-900 border border-orange-500/80 rounded-xl px-2 py-1 shadow-lg shadow-orange-500/10 transition-all"
+            >
+              <svg class="w-3.5 h-3.5 text-orange-400 shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input 
+                type="text" 
+                id="navSearchInput" 
+                placeholder="输入片名/演员/导演..." 
+                class="bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none w-28 sm:w-48"
+              />
+              <button 
+                id="navSearchConfirm" 
+                type="button" 
+                class="px-2.5 py-1 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold transition-all cursor-pointer shadow-sm shrink-0"
+              >
+                确定
+              </button>
+              <button 
+                id="navSearchClose" 
+                type="button" 
+                class="text-slate-400 hover:text-white text-xs px-1 cursor-pointer shrink-0"
+                title="收起"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
         </nav>
 
-        <!-- 检索与搜索入口 -->
+        <!-- 检索与社区入口 -->
         <div class="flex items-center gap-2.5">
           <a href="https://t.me/xkykMovie" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 border border-sky-500/30 text-xs font-semibold text-sky-400 hover:text-sky-300 transition-all flex items-center gap-1.5 shadow-sm">
             <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
@@ -73,12 +120,6 @@ const {
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
             </svg>
             <span>高级筛选</span>
-          </a>
-          <a href="/#search-section" class="px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-xs font-medium text-slate-300 transition-all flex items-center gap-1.5">
-            <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            <span class="hidden sm:inline">搜索片源</span>
           </a>
         </div>
       </div>
@@ -124,5 +165,70 @@ const {
         <p class="text-slate-600">© 2026 Starlight Media (xkykmovie.com). All rights reserved.</p>
       </div>
     </footer>
+
+    <!-- 顶部全局交互式搜索控制逻辑 -->
+    <script is:inline>
+      const navTrigger = document.getElementById('navSearchTrigger');
+      const navBox = document.getElementById('navSearchBox');
+      const navInput = document.getElementById('navSearchInput');
+      const navConfirm = document.getElementById('navSearchConfirm');
+      const navClose = document.getElementById('navSearchClose');
+
+      function openNavSearch() {
+        if (!navTrigger || !navBox || !navInput) return;
+        navTrigger.classList.add('hidden');
+        navBox.classList.remove('hidden');
+        navBox.classList.add('flex');
+        navInput.focus();
+      }
+
+      function closeNavSearch() {
+        if (!navTrigger || !navBox || !navInput) return;
+        navBox.classList.add('hidden');
+        navBox.classList.remove('flex');
+        navTrigger.classList.remove('hidden');
+        if (!navInput.value.trim()) {
+          executeSearch('');
+        }
+      }
+
+      function executeSearch(val) {
+        const q = (val !== undefined ? val : (navInput ? navInput.value : '')).trim();
+        const isHomePage = window.location.pathname === '/' || window.location.pathname === '';
+        if (isHomePage) {
+          window.dispatchEvent(new CustomEvent('site:search', { detail: { keyword: q } }));
+          // 平滑滚动至资源列表
+          const target = document.getElementById('resources-section');
+          if (target) {
+            const top = target.getBoundingClientRect().top + window.pageYOffset - 70;
+            window.scrollTo({ top, behavior: 'smooth' });
+          }
+        } else {
+          window.location.href = `/?q=${encodeURIComponent(q)}#resources-section`;
+        }
+      }
+
+      navTrigger?.addEventListener('click', openNavSearch);
+      navClose?.addEventListener('click', closeNavSearch);
+      navConfirm?.addEventListener('click', () => executeSearch());
+      navInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          executeSearch();
+        } else if (e.key === 'Escape') {
+          closeNavSearch();
+        }
+      });
+
+      // 自动同步 URL 中的搜索关键字 ?q=...
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const qParam = urlParams.get('q');
+        if (qParam && navInput) {
+          navInput.value = qParam;
+          openNavSearch();
+        }
+      } catch (_) {}
+    </script>
   </body>
 </html>
