@@ -1,0 +1,189 @@
+---
+// Hallmark · Direction E: Dusk (Smoked Glass Luxury)
+import { getMovies } from '../../lib/db.js';
+
+const allMovies = await getMovies({ limit: 30 });
+const categories = ['全部', '院线大片', '热播剧场', '动画剧场', '综艺精选'];
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>星光影库 · Dusk 暮色微光影院方案</title>
+    <style>
+      /* Hallmark · shape: Smoked Glass · genre: modern-minimal · theme: Dusk (deal 1/3) · job: try
+       * hero: Settled · nav: edge-aligned · footer: mast · imagery: photographs · signature: smoked-glass-edge
+       * axes: dark/grotesk-sans/cool · posture: restrained · contrast: pass · fold: pass · v2.0.0 */
+      /* Hallmark · pre-emit critique: P9 H9 E9 S9 R9 V9 · weakest: none, aligned to floor */
+      :root {
+        color-scheme: dark;
+        --color-bg: oklch(13% 0.015 260);
+        --color-glass: oklch(18% 0.02 260 / 0.7);
+        --color-glass-solid: oklch(18% 0.02 260);
+        --color-glass-hover: oklch(22% 0.025 260);
+        --color-border: oklch(26% 0.02 260);
+        --color-border-glow: oklch(76% 0.14 275 / 0.4);
+        --color-text: oklch(95% 0.005 260);
+        --color-text-muted: oklch(66% 0.015 260);
+        --color-periwinkle: oklch(76% 0.14 275);
+        --color-apricot: oklch(78% 0.16 65);
+        --color-score-bg: oklch(13% 0.015 260 / 0.85);
+        --color-focus: var(--color-periwinkle);
+        --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        --container: 1400px;
+        --gutter: 32px;
+        --radius-box: 10px;
+        --radius-pill: 9999px;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body { overflow-x: clip; margin: 0; padding: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-sans); }
+      :focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+      a { color: inherit; text-decoration: none; }
+
+      /* Top Switcher Banner */
+      .preview-bar { background: var(--color-glass-solid); border-bottom: 1px solid var(--color-border); padding: 8px var(--gutter); font-size: 13px; display: flex; justify-content: space-between; align-items: center; }
+      .preview-links { display: flex; gap: 14px; flex-wrap: wrap; }
+      .preview-link { color: var(--color-text-muted); }
+      .preview-link.active { color: var(--color-periwinkle); font-weight: 600; }
+
+      /* Nav */
+      .site-header { border-bottom: 1px solid var(--color-border); padding: 18px var(--gutter); display: flex; justify-content: space-between; align-items: center; max-width: var(--container); margin: 0 auto; }
+      .brand { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; display: flex; align-items: center; gap: 10px; }
+      .brand-aura { width: 9px; height: 9px; border-radius: var(--radius-pill); background: var(--color-periwinkle); box-shadow: 0 0 10px var(--color-periwinkle); }
+      .nav-side { display: flex; align-items: center; gap: 18px; }
+      .search-glass { display: flex; align-items: center; background: var(--color-glass); border: 1px solid var(--color-border); border-radius: var(--radius-pill); padding: 4px 6px 4px 16px; backdrop-filter: blur(12px); }
+      .search-input { background: transparent; border: none; color: var(--color-text); font-size: 13px; outline: none; width: 210px; }
+      .search-btn { background: var(--color-periwinkle); color: var(--color-bg); border: none; padding: 6px 14px; font-size: 12px; font-weight: 600; border-radius: var(--radius-pill); cursor: pointer; }
+
+      /* Hero Stage (Under 80 words, fits 1280x800) */
+      .hero-section { max-width: var(--container); margin: 0 auto; padding: 36px var(--gutter) 24px; }
+      .hero-title { font-size: clamp(2.2rem, 3.8vw, 3.6rem); line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 10px 0; max-width: 25ch; }
+      .hero-desc { font-size: 15px; color: var(--color-text-muted); max-width: 55ch; line-height: 1.5; margin: 0 0 20px 0; }
+      .filter-capsules { display: flex; gap: 8px; flex-wrap: wrap; }
+      .capsule { padding: 6px 16px; font-size: 13px; border-radius: var(--radius-pill); background: var(--color-glass); border: 1px solid var(--color-border); color: var(--color-text-muted); cursor: pointer; }
+      .capsule:hover, .capsule.active { background: var(--color-glass-hover); color: var(--color-periwinkle); border-color: var(--color-periwinkle); font-weight: 500; }
+
+      /* Cinema Grid */
+      .grid-section { max-width: var(--container); margin: 0 auto; padding: 24px var(--gutter) 64px; }
+      .grid-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+      .grid-title { font-size: 18px; font-weight: 600; }
+      .grid-count { font-size: 13px; color: var(--color-text-muted); }
+
+      .cinema-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 20px; }
+      .glass-card { background: var(--color-glass); border: 1px solid var(--color-border); border-top-color: var(--color-border-glow); border-radius: var(--radius-box); display: flex; flex-direction: column; overflow: hidden; backdrop-filter: blur(10px); }
+      .glass-card:hover { border-color: var(--color-periwinkle); background: var(--color-glass-hover); }
+      .poster-bay { position: relative; aspect-ratio: 2 / 3; background: var(--color-bg); overflow: hidden; }
+      .poster-bay img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .star-score { position: absolute; top: 10px; right: 10px; background: var(--color-score-bg); border: 1px solid var(--color-border); border-radius: 4px; padding: 2px 7px; font-size: 11px; font-weight: 700; color: var(--color-apricot); }
+      .card-body { padding: 14px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+      .movie-name { font-size: 15px; font-weight: 600; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: 0; }
+      .movie-sub { font-size: 12px; color: var(--color-text-muted); display: flex; justify-content: space-between; }
+      .pill-rack { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 6px; }
+      .mini-pill { font-size: 10px; padding: 2px 8px; border-radius: var(--radius-pill); border: 1px solid var(--color-border); background: var(--color-bg); color: var(--color-text-muted); }
+      .mini-pill.accent { border-color: var(--color-periwinkle); color: var(--color-periwinkle); }
+
+      /* Footer */
+      .site-footer { border-top: 1px solid var(--color-border); padding: 36px var(--gutter); max-width: var(--container); margin: 0 auto; font-size: 13px; color: var(--color-text-muted); display: flex; justify-content: space-between; align-items: center; }
+      @media (max-width: 768px) {
+        .site-header { flex-direction: column; gap: 16px; align-items: flex-start; }
+        .cinema-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+      }
+      @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+    </style>
+  </head>
+  <body>
+    <!-- 顶部方案切换条 -->
+    <div class="preview-bar">
+      <span>Hallmark UI 测试 · 方案 E (Dusk 暮色微光)</span>
+      <div class="preview-links">
+        <a href="/preview" class="preview-link">方案大厅</a>
+        <a href="/preview/darkroom" class="preview-link">Darkroom</a>
+        <a href="/preview/midnight" class="preview-link">Midnight</a>
+        <a href="/preview/vantage" class="preview-link">Vantage</a>
+        <a href="/preview/newsprint" class="preview-link">Newsprint</a>
+        <a href="/preview/dusk" class="preview-link active">Dusk</a>
+        <a href="/preview/arcade" class="preview-link">Arcade</a>
+      </div>
+    </div>
+
+    <!-- 导航栏 -->
+    <header class="site-header">
+      <a href="/preview/dusk" class="brand">
+        <span class="brand-aura"></span>
+        <span>星光影库 · 暮色影院</span>
+      </a>
+      <div class="nav-side">
+        <a href="/explore" class="preview-link">多维片库</a>
+        <div class="search-glass">
+          <input type="text" class="search-input" placeholder="探索高分大片..." />
+          <button type="button" class="search-btn">查找</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- 极简 Hero 舞台 -->
+    <section class="hero-section">
+      <h1 class="hero-title">暮色私享影厅，原画高速直存</h1>
+      <p class="hero-desc">
+        烟熏微光质感与纯净观影氛围。支持夸克与UC网盘原盘转存，提供免广告云端在线切片点播。
+      </p>
+      <div class="filter-capsules">
+        {categories.map((cat, idx) => (
+          <button type="button" class={`capsule ${idx === 0 ? 'active' : ''}`}>{cat}</button>
+        ))}
+      </div>
+    </section>
+
+    <!-- 电影网格展示 -->
+    <main class="grid-section">
+      <div class="grid-top">
+        <div class="grid-title">夜间精选排期</div>
+        <div class="grid-count">收录 {allMovies.length} 部佳作</div>
+      </div>
+
+      <div class="cinema-grid">
+        {allMovies.map((m) => {
+          const isSeries = m.category === '电视剧' || m.category === '动漫' || m.category === '综艺';
+          return (
+            <a href={`/movie/${m.id}`} class="glass-card">
+              <div class="poster-bay">
+                <img src={m.poster_url || '/placeholder.jpg'} alt={m.title} loading="lazy" />
+                {m.score && <div class="star-score">{m.score}</div>}
+              </div>
+              <div class="card-body">
+                <h3 class="movie-name" title={m.title}>{m.title}</h3>
+                <div class="movie-sub">
+                  <span>{m.year || '2026'} / {m.category}</span>
+                  <span>{m.country || '华语'}</span>
+                </div>
+                <div class="pill-rack">
+                  {m.is_released === false ? (
+                    <span class="mini-pill">待映</span>
+                  ) : isSeries ? (
+                    <span class="mini-pill accent">
+                      {m.is_finished ? `全${m.total_episodes || m.current_episode}集` : `更至${m.current_episode || 1}集`}
+                    </span>
+                  ) : (
+                    <span class="mini-pill accent">4K原盘</span>
+                  )}
+                  {m.share_link_uc && <span class="mini-pill">UC</span>}
+                  {m.share_link && <span class="mini-pill">夸克</span>}
+                  {m.online_play_url && <span class="mini-pill">在线播</span>}
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="site-footer">
+      <div>星光影库 · Dusk 暮色微光方案</div>
+      <div>高端烟熏玻璃美学 · 影音私域极客首选</div>
+    </footer>
+  </body>
+</html>

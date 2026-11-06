@@ -10,7 +10,7 @@ const sampleMovies = await getMovies({ limit: 4 });
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>星光影库 · Hallmark UI 重构设计方案对比</title>
+    <title>星光影库 · Hallmark UI 视觉重构 6 大设计方案对比中心</title>
     <style>
       /* Hallmark · shape: Index · genre: modern-minimal · theme: Console · job: try · v2.0.0 */
       :root {
@@ -40,26 +40,46 @@ const sampleMovies = await getMovies({ limit: 4 });
         --color-vantage-accent: oklch(82% 0.22 130);
         --color-vantage-ink: oklch(94% 0.01 230);
 
+        --color-newsprint-bg: oklch(97% 0.008 85);
+        --color-newsprint-panel: oklch(94% 0.01 85);
+        --color-newsprint-accent: oklch(55% 0.18 30);
+        --color-newsprint-ink: oklch(20% 0.01 60);
+
+        --color-dusk-bg: oklch(13% 0.015 260);
+        --color-dusk-panel: oklch(18% 0.02 260);
+        --color-dusk-accent: oklch(76% 0.14 275);
+        --color-dusk-ink: oklch(95% 0.005 260);
+
+        --color-arcade-bg: oklch(14% 0.025 310);
+        --color-arcade-panel: oklch(18% 0.03 310);
+        --color-arcade-accent: oklch(70% 0.22 25);
+        --color-arcade-ink: oklch(95% 0.015 310);
+
         --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
       }
       *, *::before, *::after { box-sizing: border-box; }
       html, body { overflow-x: clip; margin: 0; padding: 0; background: var(--color-bg); color: var(--color-text); font-family: var(--font-sans); }
       :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-      .wrap { max-width: 1200px; margin: 0 auto; padding: 48px 24px 80px; }
+      .wrap { max-width: 1300px; margin: 0 auto; padding: 48px 24px 80px; }
       h1, h2, h3 { margin: 0; font-weight: 600; line-height: 1.15; overflow-wrap: break-word; min-width: 0; }
-      .deck { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-top: 36px; }
+      .deck { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 24px; margin-top: 36px; }
       .card { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 8px; padding: 28px; display: flex; flex-direction: column; justify-content: space-between; text-decoration: none; color: inherit; }
       .card:hover { border-color: var(--color-accent); background: var(--color-surface-hover); }
-      .card-title { font-size: 22px; margin-bottom: 12px; }
-      .card-desc { font-size: 14px; line-height: 1.6; color: var(--color-text-muted); margin-bottom: 24px; }
-      .card-features { list-style: none; padding: 0; margin: 0 0 24px 0; font-size: 13px; color: var(--color-text-muted); display: flex; flex-direction: column; gap: 8px; }
+      .card-title { font-size: 20px; margin-bottom: 12px; }
+      .card-desc { font-size: 14px; line-height: 1.6; color: var(--color-text-muted); margin-bottom: 20px; }
+      .card-features { list-style: none; padding: 0; margin: 0 0 20px 0; font-size: 13px; color: var(--color-text-muted); display: flex; flex-direction: column; gap: 8px; }
       .card-features li::before { content: "— "; color: var(--color-accent); }
       .btn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 18px; font-size: 14px; font-weight: 500; border-radius: 6px; text-decoration: none; background: var(--color-accent); color: var(--color-btn-ink); }
       .btn-midnight { background: var(--color-midnight-accent); color: var(--color-midnight-bg); }
       .btn-vantage { background: var(--color-vantage-accent); color: var(--color-vantage-bg); }
+      .btn-newsprint { background: var(--color-newsprint-accent); color: var(--color-newsprint-bg); }
+      .btn-dusk { background: var(--color-dusk-accent); color: var(--color-dusk-bg); }
+      .btn-arcade { background: var(--color-arcade-accent); color: var(--color-arcade-bg); }
+
       .palette-row { display: flex; gap: 8px; margin-top: 16px; }
       .swatch { width: 24px; height: 24px; border-radius: 4px; border: 1px solid var(--color-swatch-border); }
+
       .swatch-darkroom-1 { background: var(--color-darkroom-bg); }
       .swatch-darkroom-2 { background: var(--color-darkroom-panel); }
       .swatch-darkroom-3 { background: var(--color-darkroom-accent); }
@@ -75,15 +95,30 @@ const sampleMovies = await getMovies({ limit: 4 });
       .swatch-vantage-3 { background: var(--color-vantage-accent); }
       .swatch-vantage-4 { background: var(--color-vantage-ink); }
 
+      .swatch-newsprint-1 { background: var(--color-newsprint-bg); }
+      .swatch-newsprint-2 { background: var(--color-newsprint-panel); }
+      .swatch-newsprint-3 { background: var(--color-newsprint-accent); }
+      .swatch-newsprint-4 { background: var(--color-newsprint-ink); }
+
+      .swatch-dusk-1 { background: var(--color-dusk-bg); }
+      .swatch-dusk-2 { background: var(--color-dusk-panel); }
+      .swatch-dusk-3 { background: var(--color-dusk-accent); }
+      .swatch-dusk-4 { background: var(--color-dusk-ink); }
+
+      .swatch-arcade-1 { background: var(--color-arcade-bg); }
+      .swatch-arcade-2 { background: var(--color-arcade-panel); }
+      .swatch-arcade-3 { background: var(--color-arcade-accent); }
+      .swatch-arcade-4 { background: var(--color-arcade-ink); }
+
       .base-compare { margin-top: 48px; padding: 20px; border: 1px dashed var(--color-border); border-radius: 6px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
       @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <h1 style="font-size: clamp(2rem, 3.5vw, 3.2rem); margin-bottom: 16px;">星光影库 · 全站 UI 视觉重构方案测试中心</h1>
-      <p style="font-size: 16px; color: var(--color-text-muted); max-width: 60ch; line-height: 1.6;">
-        根据 Hallmark 纯正设计工程规范，提炼出三套风格迥异、零同质化、高转化的视觉与交互方向，全部由本地实时读取数据库进行真实渲染。
+      <h1 style="font-size: clamp(2rem, 3.5vw, 3.2rem); margin-bottom: 16px;">星光影库 · 全站 UI 视觉重构 6 大设计方案对比中心</h1>
+      <p style="font-size: 16px; color: var(--color-text-muted); max-width: 65ch; line-height: 1.6;">
+        根据 Hallmark 纯正设计工程规范，提炼出 6 套涵盖深色、浅色、电影档案、高端流媒体、极客网盘与潮酷街机等不同维度的全景方案，全部由本地实时读取数据库进行真实渲染。
       </p>
 
       <div class="deck">
@@ -106,7 +141,7 @@ const sampleMovies = await getMovies({ limit: 4 });
               <div class="swatch swatch-darkroom-4" title="Ivory Ink"></div>
             </div>
           </div>
-          <div style="margin-top: 28px;">
+          <div style="margin-top: 24px;">
             <a href="/preview/darkroom" class="btn">进入 Darkroom 方案预览</a>
           </div>
         </div>
@@ -130,7 +165,7 @@ const sampleMovies = await getMovies({ limit: 4 });
               <div class="swatch swatch-midnight-4" title="Ice White"></div>
             </div>
           </div>
-          <div style="margin-top: 28px;">
+          <div style="margin-top: 24px;">
             <a href="/preview/midnight" class="btn btn-midnight">进入 Midnight 方案预览</a>
           </div>
         </div>
@@ -154,8 +189,80 @@ const sampleMovies = await getMovies({ limit: 4 });
               <div class="swatch swatch-vantage-4" title="Signal Ink"></div>
             </div>
           </div>
-          <div style="margin-top: 28px;">
+          <div style="margin-top: 24px;">
             <a href="/preview/vantage" class="btn btn-vantage">进入 Vantage 方案预览</a>
+          </div>
+        </div>
+
+        <!-- 方案 4: Newsprint -->
+        <div class="card">
+          <div>
+            <h2 class="card-title">方案四 · Newsprint 电影志周刊</h2>
+            <p class="card-desc">
+              高雅米白纸本与独立影评杂志排印美学。衬线体标题、双线分栏与砖红印泥高光，宛若置身伦敦或戛纳电影节特刊发行现场。
+            </p>
+            <ul class="card-features">
+              <li>色调：温润白纸、石墨深灰墨色与砖红强调</li>
+              <li>排版：经典双线分栏与优雅衬线字体</li>
+              <li>特色：唯一高雅浅色方案，权威影评期刊感</li>
+            </ul>
+            <div class="palette-row">
+              <div class="swatch swatch-newsprint-1" title="Warm Paper"></div>
+              <div class="swatch swatch-newsprint-2" title="News Tint"></div>
+              <div class="swatch swatch-newsprint-3" title="Brick Vermilion"></div>
+              <div class="swatch swatch-newsprint-4" title="Carbon Ink"></div>
+            </div>
+          </div>
+          <div style="margin-top: 24px;">
+            <a href="/preview/newsprint" class="btn btn-newsprint">进入 Newsprint 方案预览</a>
+          </div>
+        </div>
+
+        <!-- 方案 5: Dusk -->
+        <div class="card">
+          <div>
+            <h2 class="card-title">方案五 · Dusk 暮色微光</h2>
+            <p class="card-desc">
+              烟熏玻璃质感与暮光紫罗兰调性。磨砂半透微光背板、顶部边缘发光线与杏色评分印章，营造出深夜私人影音室的尊享静谧。
+            </p>
+            <ul class="card-features">
+              <li>色调：烟熏灰蓝、冰曜紫罗兰与柔和杏色</li>
+              <li>排版：边缘发光微弧卡片与悬浮磨砂背板</li>
+              <li>特色：私享高阶体验，夜间护眼沉浸感极强</li>
+            </ul>
+            <div class="palette-row">
+              <div class="swatch swatch-dusk-1" title="Dusk Base"></div>
+              <div class="swatch swatch-dusk-2" title="Smoked Glass"></div>
+              <div class="swatch swatch-dusk-3" title="Periwinkle Glow"></div>
+              <div class="swatch swatch-dusk-4" title="Bone Ink"></div>
+            </div>
+          </div>
+          <div style="margin-top: 24px;">
+            <a href="/preview/dusk" class="btn btn-dusk">进入 Dusk 方案预览</a>
+          </div>
+        </div>
+
+        <!-- 方案 6: Arcade -->
+        <div class="card">
+          <div>
+            <h2 class="card-title">方案六 · Arcade 赛博霓虹</h2>
+            <p class="card-desc">
+              复古电波 CRT 屏幕与街机放映厅。茄紫阴极射线管底色、鲜明亮粉与荧光绿双信号灯，复古电影票根设计，专为动漫、游戏与院线大片而生。
+            </p>
+            <ul class="card-features">
+              <li>色调：暗夜茄紫、霓虹电粉与高亮酸绿</li>
+              <li>排版：复古票根边框与等宽大字符</li>
+              <li>特色：潮流冲击力极强，年轻受众转化高</li>
+            </ul>
+            <div class="palette-row">
+              <div class="swatch swatch-arcade-1" title="CRT Deep"></div>
+              <div class="swatch swatch-arcade-2" title="Phosphor Plate"></div>
+              <div class="swatch swatch-arcade-3" title="Neon Ember"></div>
+              <div class="swatch swatch-arcade-4" title="Lilac White"></div>
+            </div>
+          </div>
+          <div style="margin-top: 24px;">
+            <a href="/preview/arcade" class="btn btn-arcade">进入 Arcade 方案预览</a>
           </div>
         </div>
       </div>
