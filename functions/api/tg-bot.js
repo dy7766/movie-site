@@ -12,10 +12,10 @@ export async function onRequestPost(context) {
   try {
     let update = {};
     try {
-      update = await context.request.json();
-    } catch (_) {
       const text = await context.request.text();
       update = JSON.parse(text || '{}');
+    } catch (_) {
+      update = {};
     }
 
     // 1. 处理回调按钮点击 (Callback Query)

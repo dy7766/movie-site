@@ -8,10 +8,10 @@ export async function onRequestPost(context) {
   try {
     let body = {};
     try {
-      body = await context.request.json();
-    } catch (_) {
       const text = await context.request.text();
       body = JSON.parse(text || '{}');
+    } catch (_) {
+      body = {};
     }
 
     const {
