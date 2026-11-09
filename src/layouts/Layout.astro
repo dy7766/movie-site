@@ -2,11 +2,15 @@
 interface Props {
   title?: string;
   description?: string;
+  movieId?: number | string;
+  movieTitle?: string;
 }
 
 const { 
   title = "热播影视与4K原盘资源导航 - 高清极速转存", 
-  description = "免费提供海量高清4K电影、电视剧、动漫、纪录片无损转存下载与在线播放导航，每日极速更新。" 
+  description = "免费提供海量高清4K电影、电视剧、动漫、纪录片无损转存下载与在线播放导航，每日极速更新。",
+  movieId,
+  movieTitle
 } = Astro.props;
 ---
 
@@ -25,6 +29,10 @@ const {
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
+    {movieId && <meta name="resource-id" content={String(movieId)} />}
+    {movieTitle && <meta name="resource-title" content={movieTitle} />}
+    <!-- 客户端无感全站访问与转存转化率追踪 -->
+    <script src="/tracker.js" defer></script>
   </head>
   <body class="flex flex-col min-h-screen bg-[#0b0f19] text-slate-100 antialiased selection:bg-orange-500 selection:text-white">
     <!-- 顶部导航 -->

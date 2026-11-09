@@ -48,7 +48,10 @@ const reviews: Review[] = Array.isArray(movie.reviews)
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="resource-id" content={String(movie.id || 1)} />
+    <meta name="resource-title" content={movie.title || '影视详情'} />
     <title>{movie.title || '影视详情'} · 全端统一移动详情页测试</title>
+    <script src="/tracker.js" defer></script>
     <style>
       :root {
         color-scheme: dark;
