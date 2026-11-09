@@ -1,6 +1,6 @@
 # 🎬 星光影库 (Starlight Media Site) · 4K高清影视与网盘无损资源分享站
 
-> 🌐 **官方在线公网地址**：[https://movie-site-8r4.pages.dev/](https://movie-site-8r4.pages.dev/)  
+> 🌐 **官方在线公网地址**：[https://xkykmovie.com/](https://xkykmovie.com/)  
 > ✈️ **Telegram 4K 影迷官方交流群**：[https://t.me/xkykMovie](https://t.me/xkykMovie)  
 > 
 > 基于 **Astro + Tailwind CSS + Supabase + Cloudflare Pages** 构建的现代化静态影视聚合站，深度打通 **夸克网盘 + UC 网盘双分佣矩阵**，具备 **GitHub Actions 云端无人值守流水线**、**4K 免存深度质检**、**在线播放源探活自愈与老片补齐** 以及 **Telegram 影迷群每日自动推片机器人**。
