@@ -98,12 +98,44 @@ export async function onRequestPost(context) {
   }
 }
 
-// 诊断与状态入口
-export async function onRequestGet() {
+// 诊断与一键配置 Webhook 入口
+export async function onRequestGet(context) {
+  const token = context.env.TELEGRAM_BOT_TOKEN || DEFAULT_BOT_TOKEN;
+  const url = new URL(context.request.url);
+
+  // 1. 一键激活 Webhook 绑定 (通过 Cloudflare 全球边缘直连 Telegram，免翻墙)
+  if (url.searchParams.get('setup') === '1') {
+    const webhookUrl = 'https://xkykmovie.com/api/tg-bot';
+    const setRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`);
+    const setData = await setRes.json();
+    return new Response(JSON.stringify({
+      action: 'setWebhook',
+      targetUrl: webhookUrl,
+      telegramResponse: setData
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json; charset=utf-8' }
+    });
+  }
+
+  // 2. 查看当前 Webhook 状态
+  if (url.searchParams.get('info') === '1') {
+    const infoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
+    const infoData = await infoRes.json();
+    return new Response(JSON.stringify({
+      action: 'getWebhookInfo',
+      telegramResponse: infoData
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json; charset=utf-8' }
+    });
+  }
+
   return new Response(JSON.stringify({
     status: 'online',
     service: 'Starlight Movie TG Search Bot Webhook',
     bot: '@xkykMovie_bot',
+    webhookEndpoint: 'https://xkykmovie.com/api/tg-bot',
+    quickSetupUrl: 'https://xkykmovie.com/api/tg-bot?setup=1',
+    checkInfoUrl: 'https://xkykmovie.com/api/tg-bot?info=1',
     time: new Date().toISOString()
   }, null, 2), {
     headers: { 'Content-Type': 'application/json; charset=utf-8' }
