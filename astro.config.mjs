@@ -8,7 +8,7 @@ export default defineConfig({
   integrations: [
     tailwind(),
     sitemap({
-      filter: (page) => !page.includes('/admin')
+      filter: (page) => !page.includes('/hub-8f92') && !page.includes('/preview') && !page.includes('/admin')
     })
   ],
   output: 'static'
