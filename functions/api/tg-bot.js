@@ -41,8 +41,9 @@ export async function onRequestPost(context) {
         `🍿 <b>使用方法非常简单：</b>\n` +
         `• 群内发送：<code>搜 抓娃娃</code> 或 <code>找 繁花</code>\n` +
         `• 标准指令：<code>/search 庆余年</code>\n` +
-        `• 艾特机器人：<code>@xkykMovie_bot 沙丘2</code>\n` +
-        (isPrivate ? `• 私聊直接发送片名即可检索！\n\n` : `\n`) +
+        `• 今日热门：<code>/hot</code>（查看近期爆款榜单）\n` +
+        `• 打开官网：<code>/site</code>（或直接点击左下角按钮）\n` +
+        (isPrivate ? `• 私聊直接发送片名即可秒级检索！\n\n` : `\n`) +
         `⚡ 检索成功后将秒级返回 4K 原盘、免播切片与网盘秒存卡片。\n` +
         `🌐 官方片库：<a href="https://xkykmovie.com/">xkykmovie.com</a>`;
 
@@ -51,9 +52,67 @@ export async function onRequestPost(context) {
         reply_to_message_id: messageId,
         text: welcomeText,
         parse_mode: 'HTML',
-        disable_web_page_preview: true
+        disable_web_page_preview: true,
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '🎬 打开星光影库 (小程序)', web_app: { url: 'https://xkykmovie.com/' } },
+              { text: '🔍 探索全部片库', url: 'https://xkykmovie.com/explore' }
+            ]
+          ]
+        }
       });
       return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // B. 处理 /site 官网入口
+    if (text.startsWith('/site')) {
+      const siteText = `🌐 <b>星光影库 (Starlight Movie)</b>\n\n` +
+        `海量 4K 院线大片、热播连续剧、顶级综艺与动漫极速更新。\n` +
+        `零广告、支持免播放切片点播与 UC / 夸克网盘无损原盘秒存！\n\n` +
+        `👉 点击下方按钮即可直接在 Telegram 内以极速小程序浏览：`;
+
+      await callTgApi(token, 'sendMessage', {
+        chat_id: chatId,
+        reply_to_message_id: messageId,
+        text: siteText,
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '🎬 立即在 TG 内打开影库', web_app: { url: 'https://xkykmovie.com/' } }
+            ],
+            [
+              { text: '🌐 在外部浏览器打开', url: 'https://xkykmovie.com/' }
+            ]
+          ]
+        }
+      });
+      return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+    }
+
+    // C. 处理 /hot 热门榜单
+    if (text.startsWith('/hot')) {
+      const hotMovies = await getHotMoviesFromSupabase();
+      if (hotMovies.length > 0) {
+        const keyboard = hotMovies.map(m => [
+          { text: `🔥 《${m.title}》 (${m.year || '热播'}) ★ ${m.score || '8.5'}`, callback_data: `movie:${m.id}` }
+        ]);
+
+        await callTgApi(token, 'sendMessage', {
+          chat_id: chatId,
+          reply_to_message_id: messageId,
+          text: `🔥 <b>【星光影库·今日热门爆款推荐】</b>\n\n点击下方任意片名，机器人将立即发送专属 4K 海报与转存通道：`,
+          parse_mode: 'HTML',
+          reply_markup: {
+            inline_keyboard: [
+              ...keyboard,
+              [{ text: '🎬 打开完整片库 (小程序)', web_app: { url: 'https://xkykmovie.com/explore' } }]
+            ]
+          }
+        });
+        return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+      }
     }
 
     // B. 提取搜片关键词
@@ -98,32 +157,76 @@ export async function onRequestPost(context) {
   }
 }
 
-// 诊断与一键配置 Webhook 入口
+// 诊断与一键配置 Webhook / 快捷操作菜单入口
 export async function onRequestGet(context) {
   const token = context.env.TELEGRAM_BOT_TOKEN || DEFAULT_BOT_TOKEN;
   const url = new URL(context.request.url);
 
-  // 1. 一键激活 Webhook 绑定 (通过 Cloudflare 全球边缘直连 Telegram，免翻墙)
-  if (url.searchParams.get('setup') === '1') {
+  // 1. 一键激活 Webhook 绑定 + 左下角快捷菜单 (Web App) + 指令快捷抽屉 (Commands)
+  if (url.searchParams.get('setup') === '1' || url.searchParams.get('menu') === '1') {
     const webhookUrl = 'https://xkykmovie.com/api/tg-bot';
-    const setRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`);
-    const setData = await setRes.json();
+    
+    // a) 绑定 Webhook 监听
+    const setHookRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`);
+    const setHookData = await setHookRes.json();
+
+    // b) 设置快捷指令抽屉 (Commands Menu)
+    const setCmdsRes = await fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        commands: [
+          { command: 'search', description: '🔍 搜片：输入片名秒查资源' },
+          { command: 'hot', description: '🔥 热门：查看今日热播排行榜' },
+          { command: 'site', description: '🎬 官网：打开星光影库全站' },
+          { command: 'help', description: '❓ 帮助：使用指南与求片说明' }
+        ]
+      })
+    });
+    const setCmdsData = await setCmdsRes.json();
+
+    // c) 设置左下角快捷菜单按钮为 Web App 小程序 (直达星光影库)
+    const setMenuRes = await fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        menu_button: {
+          type: 'web_app',
+          text: '🎬 星光影库',
+          web_app: {
+            url: 'https://xkykmovie.com/'
+          }
+        }
+      })
+    });
+    const setMenuData = await setMenuRes.json();
+
     return new Response(JSON.stringify({
-      action: 'setWebhook',
-      targetUrl: webhookUrl,
-      telegramResponse: setData
+      success: true,
+      message: '🎉 Webhook、左下角 Web App 快捷按钮与指令快捷抽屉已全部配置成功！',
+      results: {
+        webhook: setHookData,
+        commandsMenu: setCmdsData,
+        bottomLeftMenuButton: setMenuData
+      }
     }, null, 2), {
       headers: { 'Content-Type': 'application/json; charset=utf-8' }
     });
   }
 
-  // 2. 查看当前 Webhook 状态
+  // 2. 查看当前 Webhook 与菜单按钮状态
   if (url.searchParams.get('info') === '1') {
-    const infoRes = await fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`);
-    const infoData = await infoRes.json();
+    const [infoRes, menuRes, cmdsRes] = await Promise.all([
+      fetch(`https://api.telegram.org/bot${token}/getWebhookInfo`).then(r => r.json()).catch(() => null),
+      fetch(`https://api.telegram.org/bot${token}/getChatMenuButton`).then(r => r.json()).catch(() => null),
+      fetch(`https://api.telegram.org/bot${token}/getMyCommands`).then(r => r.json()).catch(() => null)
+    ]);
+
     return new Response(JSON.stringify({
-      action: 'getWebhookInfo',
-      telegramResponse: infoData
+      action: 'getBotSettingsInfo',
+      webhook: infoRes,
+      menuButton: menuRes,
+      commands: cmdsRes
     }, null, 2), {
       headers: { 'Content-Type': 'application/json; charset=utf-8' }
     });
@@ -140,6 +243,24 @@ export async function onRequestGet(context) {
   }, null, 2), {
     headers: { 'Content-Type': 'application/json; charset=utf-8' }
   });
+}
+
+/**
+ * 获取今日热门推荐列表
+ */
+async function getHotMoviesFromSupabase() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/resources?has_metadata=eq.true&is_released=eq.true&order=year.desc,score.desc&limit=5`, {
+      headers: {
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${SUPABASE_KEY}`
+      }
+    });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch (_) {
+    return [];
+  }
 }
 
 /**
