@@ -93,26 +93,35 @@ export async function onRequestPost(context) {
 
     // C. 处理 /hot 热门榜单
     if (text.startsWith('/hot')) {
-      const hotMovies = await getHotMoviesFromSupabase();
-      if (hotMovies.length > 0) {
-        const keyboard = hotMovies.map(m => [
-          { text: `🔥 《${m.title}》 (${m.year || '热播'}) ★ ${m.score || '8.5'}`, callback_data: `movie:${m.id}` }
-        ]);
+      await sendHotMoviesMessage(token, chatId, messageId);
+      return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+    }
 
-        await callTgApi(token, 'sendMessage', {
-          chat_id: chatId,
-          reply_to_message_id: messageId,
-          text: `🔥 <b>【星光影库·今日热门爆款推荐】</b>\n\n点击下方任意片名，机器人将立即发送专属 4K 海报与转存通道：`,
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [
-              ...keyboard,
-              [{ text: '🎬 打开完整片库 (小程序)', web_app: { url: 'https://xkykmovie.com/explore' } }]
+    // D. 处理未带片名的单纯 /search 或 /find
+    if (text.match(/^\/(?:search|find|s)(?:@[a-zA-Z0-9_]+)?$/i)) {
+      const guideText = `🔍 <b>请在指令后带上您想看的片名哦！</b>\n\n` +
+        `💡 <b>群内搜片推荐姿势：</b>\n` +
+        `• <b>方式 1（最简单）</b>：直接发送 <code>搜 抓娃娃</code> 或 <code>找 繁花</code>\n` +
+        `• <b>方式 2（带片名指令）</b>：发送 <code>/search 抓娃娃</code>\n` +
+        `• <b>方式 3（全库浏览）</b>：点击下方按钮直接在 TG 里打开影库选片 👇`;
+
+      await callTgApi(token, 'sendMessage', {
+        chat_id: chatId,
+        reply_to_message_id: messageId,
+        text: guideText,
+        parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '🎬 打开星光影库 (小程序选片)', web_app: { url: 'https://xkykmovie.com/explore' } }
+            ],
+            [
+              { text: '🔥 查看今日热门榜单', callback_data: 'cmd:hot' }
             ]
-          }
-        });
-        return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
-      }
+          ]
+        }
+      });
+      return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
     }
 
     // B. 提取搜片关键词
@@ -176,10 +185,10 @@ export async function onRequestGet(context) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         commands: [
-          { command: 'search', description: '🔍 搜片：输入片名秒查资源' },
-          { command: 'hot', description: '🔥 热门：查看今日热播排行榜' },
-          { command: 'site', description: '🎬 官网：打开星光影库全站' },
-          { command: 'help', description: '❓ 帮助：使用指南与求片说明' }
+          { command: 'hot', description: '🔥 今日热门：一键查看爆款大片排行榜' },
+          { command: 'site', description: '🎬 官网小程序：直接在 TG 浏览影库' },
+          { command: 'search', description: '🔍 搜片指引：输入 /search 片名 或 搜 片名' },
+          { command: 'help', description: '❓ 使用帮助：群内搜片与求片指南' }
         ]
       })
     });
@@ -437,12 +446,18 @@ async function sendMultiMovieChoice(token, chatId, replyToId, query, movies) {
 }
 
 /**
- * 处理用户点击候选影片回调
+ * 处理用户点击候选影片回调或快捷指令
  */
 async function handleCallbackQuery(token, query) {
   const queryId = query.id;
   const data = query.data || '';
   const chatId = query.message?.chat?.id;
+
+  if (data === 'cmd:hot' && chatId) {
+    await callTgApi(token, 'answerCallbackQuery', { callback_query_id: queryId, text: '正在加载热门爆款榜单...' });
+    await sendHotMoviesMessage(token, chatId, null);
+    return;
+  }
 
   if (data.startsWith('movie:')) {
     const movieId = data.replace('movie:', '');
@@ -455,6 +470,38 @@ async function handleCallbackQuery(token, query) {
   }
 
   await callTgApi(token, 'answerCallbackQuery', { callback_query_id: queryId, text: '已收到指令' });
+}
+
+/**
+ * 发送今日热门爆款榜单
+ */
+async function sendHotMoviesMessage(token, chatId, replyToId = null) {
+  const hotMovies = await getHotMoviesFromSupabase();
+  if (hotMovies.length === 0) {
+    await callTgApi(token, 'sendMessage', {
+      chat_id: chatId,
+      reply_to_message_id: replyToId,
+      text: '暂无热门榜单数据，请直接在群内发送【搜 片名】检索！'
+    });
+    return;
+  }
+
+  const keyboard = hotMovies.map(m => [
+    { text: `🔥 《${m.title}》 (${m.year || '热播'}) ★ ${m.score || '8.5'}`, callback_data: `movie:${m.id}` }
+  ]);
+
+  await callTgApi(token, 'sendMessage', {
+    chat_id: chatId,
+    reply_to_message_id: replyToId,
+    text: `🔥 <b>【星光影库·今日热门爆款推荐】</b>\n\n点击下方任意片名，机器人将立即发送专属 4K 海报与转存通道：`,
+    parse_mode: 'HTML',
+    reply_markup: {
+      inline_keyboard: [
+        ...keyboard,
+        [{ text: '🎬 打开完整片库 (小程序)', web_app: { url: 'https://xkykmovie.com/explore' } }]
+      ]
+    }
+  });
 }
 
 /**
