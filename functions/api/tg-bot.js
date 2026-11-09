@@ -35,14 +35,30 @@ export async function onRequestPost(context) {
     const text = msg.text.trim();
     const messageId = msg.message_id;
 
-    // A. 处理 /start 或 /help 问候
-    if (text.startsWith('/start') || text.startsWith('/help')) {
+    // 定义群内常驻底部大按钮键盘 (Persistent Keyboard)
+    const persistentKeyboard = {
+      keyboard: [
+        [
+          { text: '🔥 今日热门榜单' },
+          { text: '🎬 打开星光影库', web_app: { url: 'https://xkykmovie.com/' } }
+        ],
+        [
+          { text: '🔍 搜片指引' },
+          { text: '❓ 使用帮助' }
+        ]
+      ],
+      resize_keyboard: true,
+      is_persistent: true
+    };
+
+    // A. 处理 /start, /help, /menu, "❓ 使用帮助"
+    if (text.startsWith('/start') || text.startsWith('/help') || text.startsWith('/menu') || text.includes('使用帮助') || text.includes('帮助中心')) {
       const welcomeText = `👋 <b>欢迎来到星光影库搜片助手！</b>\n\n` +
         `🍿 <b>使用方法非常简单：</b>\n` +
-        `• 群内发送：<code>搜 抓娃娃</code> 或 <code>找 繁花</code>\n` +
-        `• 标准指令：<code>/search 庆余年</code>\n` +
-        `• 今日热门：<code>/hot</code>（查看近期爆款榜单）\n` +
-        `• 打开官网：<code>/site</code>（或直接点击左下角按钮）\n` +
+        `• <b>自然搜片</b>：群内直接发 <code>搜 抓娃娃</code> 或 <code>找 繁花</code>\n` +
+        `• <b>标准指令</b>：<code>/search 庆余年</code>\n` +
+        `• <b>今日热门</b>：<code>/hot</code>（查看近期爆款榜单）\n` +
+        `• <b>快捷菜单</b>：输入 <code>/menu</code> 或点击下方常驻快捷按钮\n` +
         (isPrivate ? `• 私聊直接发送片名即可秒级检索！\n\n` : `\n`) +
         `⚡ 检索成功后将秒级返回 4K 原盘、免播切片与网盘秒存卡片。\n` +
         `🌐 官方片库：<a href="https://xkykmovie.com/">xkykmovie.com</a>`;
@@ -53,20 +69,13 @@ export async function onRequestPost(context) {
         text: welcomeText,
         parse_mode: 'HTML',
         disable_web_page_preview: true,
-        reply_markup: {
-          inline_keyboard: [
-            [
-              { text: '🎬 打开星光影库 (小程序)', web_app: { url: 'https://xkykmovie.com/' } },
-              { text: '🔍 探索全部片库', url: 'https://xkykmovie.com/explore' }
-            ]
-          ]
-        }
+        reply_markup: persistentKeyboard
       });
       return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
     }
 
-    // B. 处理 /site 官网入口
-    if (text.startsWith('/site')) {
+    // B. 处理 /site 或 "🎬 打开星光影库"
+    if (text.startsWith('/site') || text.includes('星光影库')) {
       const siteText = `🌐 <b>星光影库 (Starlight Movie)</b>\n\n` +
         `海量 4K 院线大片、热播连续剧、顶级综艺与动漫极速更新。\n` +
         `零广告、支持免播放切片点播与 UC / 夸克网盘无损原盘秒存！\n\n` +
@@ -91,14 +100,14 @@ export async function onRequestPost(context) {
       return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
     }
 
-    // C. 处理 /hot 热门榜单
-    if (text.startsWith('/hot')) {
+    // C. 处理 /hot 或 "🔥 今日热门"
+    if (text.startsWith('/hot') || text.includes('热门榜单') || text.includes('今日热门')) {
       await sendHotMoviesMessage(token, chatId, messageId);
       return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
     }
 
-    // D. 处理未带片名的单纯 /search 或 /find
-    if (text.match(/^\/(?:search|find|s)(?:@[a-zA-Z0-9_]+)?$/i)) {
+    // D. 处理未带片名的单纯 /search 或 /find 或 "🔍 搜片指引"
+    if (text.match(/^\/(?:search|find|s)(?:@[a-zA-Z0-9_]+)?$/i) || text.includes('搜片指引')) {
       const guideText = `🔍 <b>请在指令后带上您想看的片名哦！</b>\n\n` +
         `💡 <b>群内搜片推荐姿势：</b>\n` +
         `• <b>方式 1（最简单）</b>：直接发送 <code>搜 抓娃娃</code> 或 <code>找 繁花</code>\n` +
@@ -113,6 +122,16 @@ export async function onRequestPost(context) {
         reply_markup: {
           inline_keyboard: [
             [
+              { text: '🎬 打开星光影库 (小程序选片)', web_app: { url: 'https://xkykmovie.com/explore' } }
+            ],
+            [
+              { text: '🔥 查看今日热门榜单', callback_data: 'cmd:hot' }
+            ]
+          ]
+        }
+      });
+      return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
+    }
               { text: '🎬 打开星光影库 (小程序选片)', web_app: { url: 'https://xkykmovie.com/explore' } }
             ],
             [
@@ -179,20 +198,40 @@ export async function onRequestGet(context) {
     const setHookRes = await fetch(`https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`);
     const setHookData = await setHookRes.json();
 
-    // b) 设置快捷指令抽屉 (Commands Menu)
-    const setCmdsRes = await fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        commands: [
-          { command: 'hot', description: '🔥 今日热门：一键查看爆款大片排行榜' },
-          { command: 'site', description: '🎬 官网小程序：直接在 TG 浏览影库' },
-          { command: 'search', description: '🔍 搜片指引：输入 /search 片名 或 搜 片名' },
-          { command: 'help', description: '❓ 使用帮助：群内搜片与求片指南' }
-        ]
-      })
-    });
-    const setCmdsData = await setCmdsRes.json();
+    // b) 设置快捷指令抽屉 (全作用域覆盖：默认、全群聊、全私聊)
+    const commandsList = [
+      { command: 'hot', description: '🔥 今日热门：一键查看爆款大片排行榜' },
+      { command: 'menu', description: '📱 快捷菜单：唤出群内常驻操作键盘' },
+      { command: 'site', description: '🎬 官网小程序：直接在 TG 浏览影库' },
+      { command: 'search', description: '🔍 搜片指引：输入 /search 片名 或 搜 片名' },
+      { command: 'help', description: '❓ 使用帮助：群内搜片与求片指南' }
+    ];
+
+    const [setCmdsDefault, setCmdsGroup, setCmdsPrivate] = await Promise.all([
+      fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commands: commandsList })
+      }).then(r => r.json()).catch(e => ({ error: e.message })),
+
+      fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commands: commandsList,
+          scope: { type: 'all_group_chats' }
+        })
+      }).then(r => r.json()).catch(e => ({ error: e.message })),
+
+      fetch(`https://api.telegram.org/bot${token}/setMyCommands`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commands: commandsList,
+          scope: { type: 'all_private_chats' }
+        })
+      }).then(r => r.json()).catch(e => ({ error: e.message }))
+    ]);
 
     // c) 设置左下角快捷菜单按钮为 Web App 小程序 (直达星光影库)
     const setMenuRes = await fetch(`https://api.telegram.org/bot${token}/setChatMenuButton`, {
@@ -212,10 +251,12 @@ export async function onRequestGet(context) {
 
     return new Response(JSON.stringify({
       success: true,
-      message: '🎉 Webhook、左下角 Web App 快捷按钮与指令快捷抽屉已全部配置成功！',
+      message: '🎉 Webhook、群聊与私聊指令快捷抽屉、左下角 Web App 快捷按钮已全部配置成功！',
       results: {
         webhook: setHookData,
-        commandsMenu: setCmdsData,
+        commandsDefault: setCmdsDefault,
+        commandsGroup: setCmdsGroup,
+        commandsPrivate: setCmdsPrivate,
         bottomLeftMenuButton: setMenuData
       }
     }, null, 2), {
