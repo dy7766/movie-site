@@ -1,10 +1,22 @@
 ---
-// Mobile-First Responsive Design Preview (方案 A：手机端专属体验样式测试页)
+// 方案 A：移动端与网页版 UI 绝对统一版 (Unified Mobile & Web Responsive Design)
 import { getMovies } from '../../lib/db.js';
 
-const movies = await getMovies({ limit: 40 });
+let movies = [];
+try {
+  movies = await getMovies({ limit: 48 });
+} catch (e) {
+  console.error('Failed to fetch movies:', e);
+}
+
 const featuredMovie = movies.find(m => m.poster_url && m.score >= 8.5) || movies[0] || {};
-const categories = ['全部精选', '院线大片', '热播剧集', '爆款综艺', '高分动漫'];
+const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录片'];
+const availFilters = [
+  { id: 'all', label: '全部资源' },
+  { id: 'playable', label: '可在线播放' },
+  { id: 'savable', label: '可网盘秒存' },
+  { id: 'both', label: '可播可存' }
+];
 ---
 
 <!doctype html>
@@ -12,64 +24,65 @@ const categories = ['全部精选', '院线大片', '热播剧集', '爆款综�
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>星光影库 · 手机专属 App 体验测试页</title>
+    <title>星光影库 · 网页与移动端全量统一体验预览</title>
     <style>
-      /* Mobile Design System Tokens */
+      /* 全站视觉统一定义 (与现行网页版基准调性 100% 保持一致: #0b0f19 深曜黑 + 琥珀星光橙 #f97316) */
       :root {
         color-scheme: dark;
-        --bg-main: oklch(13% 0.02 260);
-        --bg-surface: oklch(17% 0.025 260);
-        --bg-surface-glass: oklch(17% 0.025 260 / 0.85);
-        --bg-surface-elevated: oklch(21% 0.03 260);
-        --bg-poster: oklch(10% 0.015 260);
-        --bg-tabbar: oklch(15% 0.02 260 / 0.92);
+        --bg-main: oklch(14% 0.015 255); /* #0b0f19 */
+        --bg-surface: oklch(18% 0.02 255 / 0.7); /* slate-900/70 */
+        --bg-surface-elevated: oklch(21% 0.025 255); /* slate-800/90 */
+        --bg-surface-card: oklch(17% 0.02 255 / 0.85);
+        --bg-tabbar: oklch(14% 0.015 255 / 0.92);
+        --bg-poster: oklch(12% 0.015 255);
 
-        --border-subtle: oklch(100% 0 0 / 0.08);
-        --border-hover: oklch(62% 0.22 15 / 0.45);
-        --border-active: oklch(62% 0.22 15);
+        --border-subtle: oklch(25% 0.02 255); /* slate-800 */
+        --border-hover: oklch(70% 0.20 45 / 0.5); /* orange border */
+        --border-active: oklch(70% 0.20 45);
 
-        --text-primary: oklch(98% 0.005 260);
-        --text-secondary: oklch(78% 0.02 260);
-        --text-muted: oklch(58% 0.02 260);
-        --text-accent: oklch(98% 0.01 15);
+        --text-primary: oklch(98% 0.005 255);
+        --text-secondary: oklch(80% 0.015 255);
+        --text-muted: oklch(62% 0.02 255);
+        --text-accent: oklch(98% 0.01 45);
 
-        --color-rose: oklch(60% 0.23 15);
-        --color-rose-deep: oklch(50% 0.24 15);
-        --color-rose-tint: oklch(68% 0.18 15);
-        --color-rose-glow: oklch(60% 0.23 15 / 0.25);
-        --color-rose-bg: oklch(60% 0.23 15 / 0.12);
-        --color-rose-border: oklch(60% 0.23 15 / 0.35);
+        --color-orange: oklch(70% 0.20 45); /* #f97316 */
+        --color-orange-glow: oklch(70% 0.20 45 / 0.25);
+        --color-orange-deep: oklch(62% 0.21 45); /* #ea580c */
+        --color-orange-tint: oklch(76% 0.17 50); /* #fb923c */
+        --color-orange-bg: oklch(70% 0.20 45 / 0.12);
+        --color-orange-border: oklch(70% 0.20 45 / 0.35);
 
         --color-gold: oklch(78% 0.18 80);
-        --color-gold-border: oklch(78% 0.18 80 / 0.35);
         --color-gold-bg: oklch(78% 0.18 80 / 0.12);
+        --color-gold-border: oklch(78% 0.18 80 / 0.35);
 
         --color-sky: oklch(75% 0.14 230);
-        --color-sky-border: oklch(75% 0.14 230 / 0.35);
         --color-sky-bg: oklch(75% 0.14 230 / 0.12);
+        --color-sky-border: oklch(75% 0.14 230 / 0.35);
 
         --color-emerald: oklch(75% 0.16 160);
-        --color-emerald-border: oklch(75% 0.16 160 / 0.35);
         --color-emerald-bg: oklch(75% 0.16 160 / 0.12);
+        --color-emerald-border: oklch(75% 0.16 160 / 0.35);
 
         --color-cyan: oklch(76% 0.13 200);
-        --color-cyan-border: oklch(76% 0.13 200 / 0.35);
         --color-cyan-bg: oklch(76% 0.13 200 / 0.12);
+        --color-cyan-border: oklch(76% 0.13 200 / 0.35);
 
-        --overlay-mid: oklch(13% 0.02 260 / 0.6);
-        --bg-badge-opaque: oklch(13% 0.02 260 / 0.88);
+        --overlay-billboard-1: oklch(14% 0.015 255);
+        --overlay-billboard-2: oklch(14% 0.015 255 / 0.7);
+        --bg-corner-badge: oklch(14% 0.015 255 / 0.85);
 
-        --shadow-tabbar: 0 -4px 20px oklch(0% 0 0 / 0.35);
-        --shadow-card: 0 4px 14px oklch(0% 0 0 / 0.25);
-        --shadow-sheet: 0 -8px 30px oklch(0% 0 0 / 0.6);
+        --shadow-tabbar: 0 -4px 24px oklch(0% 0 0 / 0.4);
+        --shadow-card: 0 4px 16px oklch(0% 0 0 / 0.3);
 
         --radius-sm: 6px;
-        --radius-md: 10px;
+        --radius-md: 12px;
         --radius-lg: 16px;
         --radius-pill: 9999px;
 
-        --font-sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
-        --mobile-max-width: 480px;
+        --container: 1280px;
+        --gutter: 20px;
+        --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
       }
 
       *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -84,11 +97,11 @@ const categories = ['全部精选', '院线大片', '热播剧集', '爆款综�
       :focus-visible { outline: 2px solid var(--border-active); outline-offset: 2px; }
       a { color: inherit; text-decoration: none; }
 
-      /* 顶部方案说明条 (在电脑测试时提供手机框模拟或全屏自适应说明) */
-      .desktop-banner {
+      /* 顶部预览提示栏 */
+      .preview-bar {
         background: var(--bg-surface-elevated);
         border-bottom: 1px solid var(--border-subtle);
-        padding: 8px 16px;
+        padding: 8px var(--gutter);
         font-size: 13px;
         display: flex;
         justify-content: space-between;
@@ -97,205 +110,309 @@ const categories = ['全部精选', '院线大片', '热播剧集', '爆款综�
         top: 0;
         z-index: 200;
       }
-      .desktop-banner a { color: var(--color-rose-tint); font-weight: 500; }
+      .preview-bar a { color: var(--color-orange-tint); font-weight: 500; }
 
-      /* 页面容器：在电脑上呈现居中手机拟态或自适应宽幅 */
-      .app-wrapper {
-        max-width: var(--mobile-max-width);
-        margin: 0 auto;
-        min-height: 100vh;
+      /* 统一版通顶导航栏 (在手机上自动转为轻量紧凑布局，在电脑上展示完整功能) */
+      .navbar {
         background: var(--bg-main);
-        border-inline: 1px solid var(--border-subtle);
-        padding-bottom: calc(72px + env(safe-area-inset-bottom, 20px));
-        position: relative;
-      }
-
-      /* 手机专属沉浸顶部导航 */
-      .mobile-header {
+        border-bottom: 1px solid var(--border-subtle);
         position: sticky;
         top: 37px;
         z-index: 100;
-        background: var(--bg-surface-glass);
         backdrop-filter: blur(16px);
         -webkit-backdrop-filter: blur(16px);
-        border-bottom: 1px solid var(--border-subtle);
-        padding: 10px 16px;
+      }
+      .nav-inner {
+        max-width: var(--container);
+        margin: 0 auto;
+        padding: 12px var(--gutter);
         display: flex;
         justify-content: space-between;
         align-items: center;
       }
-      .brand-box { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; }
-      .brand-dot { width: 10px; height: 10px; border-radius: var(--radius-pill); background: var(--color-rose); box-shadow: 0 0 10px var(--color-rose-glow); }
-      .header-actions { display: flex; gap: 8px; align-items: center; }
-      .header-btn {
-        width: 34px;
-        height: 34px;
-        border-radius: var(--radius-pill);
-        background: var(--bg-surface-elevated);
-        border: 1px solid var(--border-subtle);
+      .brand {
         display: flex;
         align-items: center;
-        justify-content: center;
+        gap: 10px;
+        font-size: 19px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+      }
+      .brand-star {
+        width: 28px;
+        height: 28px;
+        flex-shrink: 0;
+      }
+      .nav-links {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      .nav-link {
+        font-size: 14px;
         color: var(--text-secondary);
-        cursor: pointer;
+        font-weight: 500;
+        transition: color 0.15s ease;
       }
-      .header-btn:active { transform: scale(0.92); }
+      .nav-link:hover, .nav-link.active {
+        color: var(--color-orange-tint);
+      }
 
-      /* 手机快捷搜索展开栏 */
-      .search-drawer {
-        display: none;
-        padding: 10px 16px;
-        background: var(--bg-surface-elevated);
-        border-bottom: 1px solid var(--border-subtle);
-      }
-      .search-drawer.open { display: block; }
-      .search-input-box {
+      /* 交互式搜索组件：完全继承网页版的触发与展开效果 */
+      .search-widget {
         display: flex;
         align-items: center;
-        gap: 8px;
-        background: var(--bg-main);
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius-pill);
-        padding: 6px 14px;
+        position: relative;
       }
-      .search-input-box input {
+      .search-trigger-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: var(--radius-pill);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-secondary);
+        font-size: 13px;
+        cursor: pointer;
+        transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+      }
+      .search-trigger-btn:hover {
+        color: var(--text-primary);
+        border-color: var(--border-hover);
+      }
+      .search-popup {
+        display: none;
+        position: absolute;
+        right: 0;
+        top: -3px;
+        z-index: 120;
+        background: var(--bg-surface-elevated);
+        border: 1px solid var(--border-active);
+        border-radius: var(--radius-pill);
+        padding: 3px 6px 3px 12px;
+        box-shadow: var(--shadow-card);
+        width: 280px;
+        align-items: center;
+        gap: 6px;
+      }
+      .search-popup.open { display: flex; }
+      .search-popup input {
         background: transparent;
         border: none;
         color: var(--text-primary);
         font-size: 13px;
-        width: 100%;
         outline: none;
+        width: 100%;
       }
-      .search-btn-go {
-        background: var(--color-rose);
+      .search-popup-btn {
+        background: var(--color-orange);
         color: var(--text-accent);
         border: none;
         border-radius: var(--radius-pill);
-        padding: 4px 12px;
+        padding: 5px 12px;
         font-size: 12px;
         font-weight: 600;
         cursor: pointer;
+        white-space: nowrap;
       }
 
-      /* 精选焦点剧目（手机紧凑轮播位） */
-      .spotlight-section { padding: 12px 16px 6px; }
-      .spotlight-card {
+      .btn-tg {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 14px;
+        border-radius: var(--radius-pill);
+        background: var(--color-sky-bg);
+        border: 1px solid var(--color-sky-border);
+        color: var(--color-sky);
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      /* 统一版紧凑 Hero 聚光灯 (电脑端与手机端统一比例，消除空白，直达资源) */
+      .hero-wrap {
+        max-width: var(--container);
+        margin: 16px auto 0;
+        padding: 0 var(--gutter);
+      }
+      .hero-card {
         position: relative;
         border-radius: var(--radius-lg);
         overflow: hidden;
+        background: var(--bg-poster);
         border: 1px solid var(--border-subtle);
-        height: 180px;
-        background: var(--bg-surface);
+        min-height: 240px;
         display: flex;
         align-items: flex-end;
       }
-      .spotlight-bg {
+      .hero-bg {
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
         object-fit: cover;
-        opacity: 0.45;
+        opacity: 0.38;
         filter: contrast(1.1);
       }
-      .spotlight-overlay {
+      .hero-mask {
         position: absolute;
         inset: 0;
-        background: linear-gradient(0deg, var(--bg-main) 10%, var(--overlay-mid) 60%, transparent 100%);
+        background: linear-gradient(0deg, var(--overlay-billboard-1) 12%, var(--overlay-billboard-2) 65%, transparent 100%);
       }
-      .spotlight-info {
+      .hero-content {
         position: relative;
         z-index: 2;
-        padding: 14px;
-        width: 100%;
+        padding: 24px 28px;
+        max-width: 680px;
       }
-      .spotlight-tag {
+      .hero-pill {
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-        padding: 2px 7px;
-        border-radius: var(--radius-sm);
-        background: var(--color-rose);
-        color: var(--text-accent);
-        font-size: 10px;
+        gap: 6px;
+        padding: 3px 10px;
+        border-radius: var(--radius-pill);
+        background: var(--color-orange-bg);
+        border: 1px solid var(--color-orange-border);
+        color: var(--color-orange-tint);
+        font-size: 11px;
         font-weight: 600;
-        margin-bottom: 4px;
+        margin-bottom: 8px;
       }
-      .spotlight-title {
-        font-size: 17px;
-        font-weight: 700;
-        margin: 0 0 6px 0;
-        line-height: 1.25;
+      .hero-title {
+        font-size: clamp(1.4rem, 2.5vw, 2.2rem);
+        font-weight: 800;
+        line-height: 1.2;
+        margin: 0 0 8px 0;
+        letter-spacing: -0.02em;
         overflow-wrap: break-word;
         min-width: 0;
       }
-      .spotlight-actions { display: flex; gap: 8px; }
-      .btn-spotlight-save {
-        padding: 5px 12px;
-        border-radius: var(--radius-pill);
-        background: linear-gradient(135deg, var(--color-rose), var(--color-rose-deep));
-        color: var(--text-accent);
-        font-size: 12px;
-        font-weight: 600;
+      .hero-desc {
+        font-size: 13px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+        margin: 0 0 16px 0;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .hero-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+      .btn-hero-primary {
         display: inline-flex;
         align-items: center;
-        gap: 4px;
-      }
-      .btn-spotlight-more {
-        padding: 5px 10px;
+        gap: 6px;
+        padding: 8px 18px;
         border-radius: var(--radius-pill);
-        background: var(--bg-surface-glass);
+        background: linear-gradient(135deg, var(--color-orange), var(--color-orange-deep));
+        color: var(--text-accent);
+        font-size: 13px;
+        font-weight: 600;
+        box-shadow: 0 4px 14px var(--color-orange-glow);
+      }
+      .btn-hero-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        border-radius: var(--radius-pill);
+        background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
-        color: var(--text-secondary);
-        font-size: 12px;
+        color: var(--text-primary);
+        font-size: 13px;
       }
 
-      /* 手机横向滑动分类胶囊 */
-      .category-scroll {
+      /* 统一版分类筛选与可用性过滤器 */
+      .filters-section {
+        max-width: var(--container);
+        margin: 20px auto 0;
+        padding: 0 var(--gutter);
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .cat-tabs-row {
         display: flex;
         gap: 8px;
         overflow-x: auto;
-        padding: 12px 16px;
         scrollbar-width: none;
-        -ms-overflow-style: none;
+        padding-bottom: 2px;
       }
-      .category-scroll::-webkit-scrollbar { display: none; }
-      .cat-chip {
+      .cat-tabs-row::-webkit-scrollbar { display: none; }
+      .cat-btn {
         flex-shrink: 0;
-        padding: 6px 14px;
-        border-radius: var(--radius-pill);
+        padding: 6px 16px;
+        border-radius: var(--radius-md);
         background: var(--bg-surface);
         border: 1px solid var(--border-subtle);
-        font-size: 12px;
         color: var(--text-secondary);
+        font-size: 13px;
+        font-weight: 500;
         cursor: pointer;
         transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
       }
-      .cat-chip.active {
-        background: var(--color-rose);
+      .cat-btn.active {
+        background: var(--color-orange);
         color: var(--text-accent);
-        border-color: var(--color-rose);
+        border-color: var(--color-orange);
+        font-weight: 600;
+        box-shadow: 0 2px 8px var(--color-orange-glow);
+      }
+      .avail-tabs-row {
+        display: flex;
+        gap: 8px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        border-top: 1px solid var(--border-subtle);
+        padding-top: 10px;
+        font-size: 12px;
+      }
+      .avail-btn {
+        flex-shrink: 0;
+        padding: 4px 12px;
+        border-radius: var(--radius-sm);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .avail-btn.active {
+        background: var(--bg-surface-elevated);
+        color: var(--color-orange-tint);
+        border-color: var(--color-orange-border);
         font-weight: 600;
       }
 
-      /* 手机双列电影海报瀑布流 (2-Column Grid) */
-      .mobile-catalog { padding: 4px 12px 20px; }
-      .mobile-grid {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
+      /* 响应式影视陈列网格：电脑端 5 列，手机端智能重排为高密度 2 列！ */
+      .catalog-wrap {
+        max-width: var(--container);
+        margin: 18px auto 80px;
+        padding: 0 var(--gutter);
       }
-      .mobile-card {
-        background: var(--bg-surface);
+      .catalog-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 20px;
+      }
+      .movie-card {
+        background: var(--bg-surface-card);
         border: 1px solid var(--border-subtle);
         border-radius: var(--radius-md);
         overflow: hidden;
         display: flex;
         flex-direction: column;
-        box-shadow: var(--shadow-card);
-        cursor: pointer;
+        transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
       }
-      .mobile-card:active { transform: scale(0.98); }
+      .movie-card:hover {
+        transform: translateY(-4px);
+        border-color: var(--border-hover);
+        box-shadow: var(--shadow-card);
+      }
+      .movie-card:active {
+        transform: scale(0.98);
+      }
 
       .card-cover-box {
         position: relative;
@@ -303,7 +420,7 @@ const categories = ['全部精选', '院线大片', '热播剧集', '爆款综�
         background: var(--bg-poster);
         overflow: hidden;
       }
-      .card-cover {
+      .card-cover-img {
         width: 100%;
         height: 100%;
         object-fit: cover;
@@ -313,44 +430,45 @@ const categories = ['全部精选', '院线大片', '热播剧集', '爆款综�
         position: absolute;
         top: 6px;
         right: 6px;
-        background: var(--bg-badge-opaque);
+        background: var(--bg-corner-badge);
         border: 1px solid var(--color-gold-border);
         border-radius: 4px;
-        padding: 1px 5px;
+        padding: 1px 6px;
         font-size: 11px;
         font-weight: 700;
         color: var(--color-gold);
-        backdrop-filter: blur(4px);
+        backdrop-filter: blur(6px);
       }
       .card-corner-cat {
         position: absolute;
         top: 6px;
         left: 6px;
-        background: var(--bg-badge-opaque);
+        background: var(--bg-corner-badge);
         border: 1px solid var(--border-subtle);
         border-radius: 4px;
-        padding: 1px 5px;
+        padding: 1px 6px;
         font-size: 10px;
         color: var(--text-secondary);
+        backdrop-filter: blur(6px);
       }
 
-      .card-details {
-        padding: 8px 10px 10px;
+      .card-info {
+        padding: 10px 12px 12px;
         display: flex;
         flex-direction: column;
         gap: 4px;
+        flex: 1;
       }
       .card-title {
-        font-size: 13px;
+        font-size: 14px;
         font-weight: 600;
-        line-height: 1.35;
+        margin: 0;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        margin: 0;
       }
       .card-meta {
-        font-size: 11px;
+        font-size: 12px;
         color: var(--text-muted);
         display: flex;
         justify-content: space-between;
@@ -359,277 +477,358 @@ const categories = ['全部精选', '院线大片', '热播剧集', '爆款综�
         display: flex;
         gap: 4px;
         flex-wrap: wrap;
-        margin-top: 2px;
+        margin-top: 4px;
       }
-      .pill-badge {
+      .pill {
         font-size: 10px;
-        padding: 1px 5px;
+        padding: 1px 6px;
         border-radius: 3px;
         border: 1px solid var(--border-subtle);
         background: var(--bg-surface-elevated);
         color: var(--text-muted);
       }
-      .pill-ongoing { border-color: var(--color-rose-border); color: var(--color-rose-tint); background: var(--color-rose-bg); }
+      .pill-ongoing { border-color: var(--color-orange-border); color: var(--color-orange-tint); background: var(--color-orange-bg); }
       .pill-finished { border-color: var(--color-sky-border); color: var(--color-sky); background: var(--color-sky-bg); }
       .pill-uc { border-color: var(--color-cyan-border); color: var(--color-cyan); background: var(--color-cyan-bg); }
       .pill-stream { border-color: var(--color-emerald-border); color: var(--color-emerald); background: var(--color-emerald-bg); }
 
-      /* 手机专属底部常驻 TabBar (原生 App 级手感) */
-      .mobile-tabbar {
-        position: fixed;
-        bottom: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        width: 100%;
-        max-width: var(--mobile-max-width);
-        height: calc(56px + env(safe-area-inset-bottom, 16px));
-        background: var(--bg-tabbar);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
+      /* 统一版页脚 */
+      .site-footer {
         border-top: 1px solid var(--border-subtle);
-        box-shadow: var(--shadow-tabbar);
+        padding: 32px var(--gutter) 90px;
+        max-width: var(--container);
+        margin: 0 auto;
         display: flex;
-        justify-content: space-around;
-        align-items: flex-start;
-        padding-top: 6px;
-        z-index: 150;
-      }
-      .tabbar-item {
-        display: flex;
-        flex-direction: column;
+        justify-content: space-between;
         align-items: center;
-        gap: 3px;
+        font-size: 12px;
         color: var(--text-muted);
-        font-size: 10px;
-        cursor: pointer;
-        padding: 2px 10px;
-      }
-      .tabbar-item.active {
-        color: var(--color-rose);
-        font-weight: 600;
       }
 
-      /* 详情页专属：手机悬浮吸底大操作栏预览 (Sticky Save Action Bar) */
-      .detail-preview-banner {
-        margin: 16px 12px 24px;
-        border-radius: var(--radius-md);
-        background: var(--bg-surface-elevated);
-        border: 1px dashed var(--color-rose-border);
-        padding: 12px;
+      /* 手机专属底部常驻 TabBar：仅在移动端屏幕宽度生效 */
+      .mobile-tabbar {
+        display: none;
       }
-      .detail-preview-title { font-size: 12px; color: var(--color-rose-tint); font-weight: 600; margin-bottom: 6px; }
-      .detail-preview-desc { font-size: 11px; color: var(--text-secondary); line-height: 1.5; margin-bottom: 10px; }
-      .mock-sticky-bar {
-        background: var(--bg-main);
-        border: 1px solid var(--border-subtle);
-        border-radius: var(--radius-pill);
-        padding: 6px 8px;
-        display: flex;
-        gap: 6px;
-        align-items: center;
+
+      /* 详情页专属吸底转存操作栏 (演示展示) */
+      .mobile-sticky-demo {
+        display: none;
       }
-      .btn-mock-stream {
-        flex: 1;
-        padding: 7px 0;
-        border-radius: var(--radius-pill);
-        background: var(--bg-surface-elevated);
-        border: 1px solid var(--border-subtle);
-        color: var(--text-primary);
-        font-size: 11px;
-        font-weight: 500;
-        text-align: center;
+
+      /* 响应式断点：手机端专属适配逻辑 */
+      @media (max-width: 768px) {
+        .navbar .nav-links { display: none; }
+        .hero-content { padding: 16px; }
+        .catalog-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+        .card-info { padding: 8px 10px 10px; }
+        .card-title { font-size: 13px; }
+
+        /* 手机端激活常驻原生 TabBar */
+        .mobile-tabbar {
+          display: flex;
+          position: fixed;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          height: calc(56px + env(safe-area-inset-bottom, 16px));
+          background: var(--bg-tabbar);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border-top: 1px solid var(--border-subtle);
+          box-shadow: var(--shadow-tabbar);
+          justify-content: space-around;
+          align-items: flex-start;
+          padding-top: 6px;
+          z-index: 150;
+        }
+        .tab-item {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 3px;
+          color: var(--text-muted);
+          font-size: 10px;
+          padding: 2px 12px;
+        }
+        .tab-item.active {
+          color: var(--color-orange);
+          font-weight: 600;
+        }
+
+        /* 手机端展示详情页悬浮吸底效果演示 */
+        .mobile-sticky-demo {
+          display: block;
+          margin: 16px 0 20px;
+          border-radius: var(--radius-md);
+          background: var(--bg-surface-elevated);
+          border: 1px dashed var(--color-orange-border);
+          padding: 12px;
+        }
+        .sticky-demo-header {
+          font-size: 12px;
+          color: var(--color-orange-tint);
+          font-weight: 600;
+          margin-bottom: 4px;
+        }
+        .sticky-demo-desc {
+          font-size: 11px;
+          color: var(--text-muted);
+          line-height: 1.4;
+          margin-bottom: 8px;
+        }
+        .sticky-bar-mock {
+          background: var(--bg-main);
+          border: 1px solid var(--border-subtle);
+          border-radius: var(--radius-pill);
+          padding: 5px 8px;
+          display: flex;
+          gap: 6px;
+        }
+        .btn-mock-stream {
+          flex: 1;
+          padding: 6px 0;
+          border-radius: var(--radius-pill);
+          background: var(--bg-surface);
+          border: 1px solid var(--border-subtle);
+          color: var(--text-primary);
+          font-size: 11px;
+          text-align: center;
+        }
+        .btn-mock-quark {
+          flex: 1.2;
+          padding: 6px 0;
+          border-radius: var(--radius-pill);
+          background: linear-gradient(135deg, var(--color-orange), var(--color-orange-deep));
+          color: var(--text-accent);
+          font-size: 11px;
+          font-weight: 600;
+          text-align: center;
+        }
+        .btn-mock-uc {
+          flex: 1.2;
+          padding: 6px 0;
+          border-radius: var(--radius-pill);
+          background: var(--color-cyan-bg);
+          border: 1px solid var(--color-cyan-border);
+          color: var(--color-cyan);
+          font-size: 11px;
+          font-weight: 600;
+          text-align: center;
+        }
       }
-      .btn-mock-quark {
-        flex: 1.2;
-        padding: 7px 0;
-        border-radius: var(--radius-pill);
-        background: linear-gradient(135deg, var(--color-rose), var(--color-rose-deep));
-        color: var(--text-accent);
-        font-size: 11px;
-        font-weight: 600;
-        text-align: center;
-      }
-      .btn-mock-uc {
-        flex: 1.2;
-        padding: 7px 0;
-        border-radius: var(--radius-pill);
-        background: var(--color-cyan-bg);
-        border: 1px solid var(--color-cyan-border);
-        color: var(--color-cyan);
-        font-size: 11px;
-        font-weight: 600;
-        text-align: center;
-      }
+      @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
     </style>
   </head>
   <body>
-    <!-- 顶部方案切换导航 -->
-    <aside class="desktop-banner">
-      <span>手机专享方案 A · 原生 App 体验测试</span>
+    <!-- 顶部测试说明条 -->
+    <aside class="preview-bar">
+      <span>全端统一架构测试页 · 电脑与手机响应式无缝融合</span>
       <div>
-        <a href="/preview/design">查看 PC 旗舰版</a>
-        <span style="color: var(--border-subtle); margin: 0 6px;">|</span>
-        <a href="/preview">选型大厅</a>
+        <a href="/preview">返回选型大厅</a>
       </div>
     </aside>
 
-    <!-- 手机应用框架 -->
-    <div class="app-wrapper">
-      <!-- 手机顶部导航 -->
-      <header class="mobile-header">
-        <div class="brand-box">
-          <div class="brand-dot"></div>
+    <!-- 统一通顶导航栏 -->
+    <header class="navbar">
+      <div class="nav-inner">
+        <a href="/" class="brand">
+          <!-- 官方琥珀星光 LOGO -->
+          <svg class="brand-star" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="navStarGrad" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stop-color="#FCD34D"/>
+                <stop offset="60%" stop-color="#F97316"/>
+                <stop offset="100%" stop-color="#EA580C"/>
+              </linearGradient>
+            </defs>
+            <path d="M24 4C24 15 29 20 40 24C29 28 24 33 24 44C24 33 19 28 8 24C19 20 24 15 24 4Z" fill="url(#navStarGrad)"/>
+          </svg>
           <span>星光影库</span>
-        </div>
-        <div class="header-actions">
-          <button type="button" class="header-btn" id="toggleSearchBtn" aria-label="搜索片源">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-          </button>
-          <a href="https://t.me/xkykMovie" target="_blank" class="header-btn" aria-label="Telegram 影迷群">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        </a>
+
+        <!-- PC端导航链接 -->
+        <nav class="nav-links">
+          <a href="/" class="nav-link active">全部精选</a>
+          <a href="/explore" class="nav-link">片库检索</a>
+
+          <!-- 交互式搜索组件：点击呼出展开 -->
+          <div class="search-widget" id="searchWidget">
+            <button type="button" class="search-trigger-btn" id="searchTriggerBtn">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <span>搜索片源</span>
+            </button>
+            <form class="search-popup" id="searchPopup" action="/explore" method="GET">
+              <input type="text" name="q" id="searchInput" placeholder="搜索片名、演员或导演..." />
+              <button type="submit" class="search-popup-btn">确定</button>
+            </form>
+          </div>
+        </nav>
+
+        <!-- 社区与高级入口 -->
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <a href="https://t.me/xkykMovie" target="_blank" class="btn-tg">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
               <line x1="22" y1="2" x2="11" y2="13"></line>
               <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
             </svg>
+            <span>TG 影迷群</span>
           </a>
         </div>
-      </header>
+      </div>
+    </header>
 
-      <!-- 手机展开式即时搜索 -->
-      <section class="search-drawer" id="searchDrawer">
-        <form class="search-input-box" action="/explore" method="GET">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <input type="text" name="q" placeholder="输入片名、演员或导演..." />
-          <button type="submit" class="search-btn-go">搜索</button>
-        </form>
-      </section>
-
-      <!-- 今日精选（手机紧凑轮播横幅） -->
-      {featuredMovie.title && (
-        <section class="spotlight-section">
-          <div class="spotlight-card">
-            <img src={featuredMovie.poster_url} alt={featuredMovie.title} class="spotlight-bg" />
-            <div class="spotlight-overlay"></div>
-            <div class="spotlight-info">
-              <h1 class="spotlight-title">{featuredMovie.title} ({featuredMovie.year || '2026'})</h1>
-              <div class="spotlight-actions">
-                <a href={`/movie/${featuredMovie.id}`} class="btn-spotlight-save">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
-                  </svg>
-                  <span>立即秒存 / 播放</span>
-                </a>
-                <span class="btn-spotlight-more">豆瓣 {featuredMovie.score || '9.0'}</span>
-              </div>
+    <!-- 紧凑型聚光灯头条 (去除空置与多余大搜索框，首屏直达影视) -->
+    {featuredMovie.title && (
+      <section class="hero-wrap">
+        <div class="hero-card">
+          <img src={featuredMovie.poster_url} alt={featuredMovie.title} class="hero-bg" />
+          <div class="hero-mask"></div>
+          <div class="hero-content">
+            <h1 class="hero-title">{featuredMovie.title} ({featuredMovie.year || '2026'})</h1>
+            <p class="hero-desc">{featuredMovie.intro || '精选全网顶级画质影视作品，独家私盘高速秒存与免广告流媒体在线播放。'}</p>
+            <div class="hero-actions">
+              <a href={`/movie/${featuredMovie.id}`} class="btn-hero-primary">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>立即在线看 / 秒存</span>
+              </a>
+              <a href="/explore" class="btn-hero-secondary">
+                <span>浏览全部片库</span>
+              </a>
             </div>
           </div>
-        </section>
-      )}
-
-      <!-- 横向滑动分类胶囊 -->
-      <nav class="category-scroll">
-        {categories.map((c, i) => (
-          <button type="button" class={`cat-chip ${i === 0 ? 'active' : ''}`}>{c}</button>
-        ))}
-      </nav>
-
-      <!-- 手机详情页专属“吸底转化栏”演示说明 -->
-      <section class="detail-preview-banner">
-        <div class="detail-preview-title">手机详情页 · 悬浮吸底大按钮演示</div>
-        <div class="detail-preview-desc">
-          在手机上阅读长简介或选集时，屏幕底部常驻吸底操作栏，大拇指单手一碰直接唤起网盘 App 秒存，拉新佣金转化率倍增：
         </div>
-        <div class="mock-sticky-bar">
+      </section>
+    )}
+
+    <!-- 分类筛选与可用性过滤器 (与网页版完全统一) -->
+    <section class="filters-section">
+      <div class="cat-tabs-row">
+        {categories.map((c, i) => (
+          <button type="button" class={`cat-btn ${i === 0 ? 'active' : ''}`}>{c}</button>
+        ))}
+      </div>
+      <div class="avail-tabs-row">
+        {availFilters.map((f, i) => (
+          <button type="button" class={`avail-btn ${i === 0 ? 'active' : ''}`}>{f.label}</button>
+        ))}
+      </div>
+    </section>
+
+    <!-- 影视展示网格 -->
+    <main class="catalog-wrap">
+      <!-- 手机端详情页吸底转存栏演示说明 (仅在手机端渲染呈现) -->
+      <div class="mobile-sticky-demo">
+        <div class="sticky-demo-header">手机端详情页 · 悬浮吸底转存栏效果演示</div>
+        <div class="sticky-demo-desc">用户在手机下滑阅读简介时，底部大拇指区域始终常驻：</div>
+        <div class="sticky-bar-mock">
           <div class="btn-mock-stream">免广告播放</div>
           <div class="btn-mock-quark">夸克极速存</div>
           <div class="btn-mock-uc">UC秒存 7TB</div>
         </div>
-      </section>
+      </div>
 
-      <!-- 手机双列海报列表 (瀑布流展示) -->
-      <main class="mobile-catalog">
-        <div class="mobile-grid">
-          {movies.map((m) => {
-            const isSeries = m.category === '电视剧' || m.category === '动漫' || m.category === '综艺';
-            return (
-              <a href={`/movie/${m.id}`} class="mobile-card">
-                <div class="card-cover-box">
-                  <img src={m.poster_url || '/placeholder.jpg'} alt={m.title} class="card-cover" loading="lazy" />
-                  <span class="card-corner-cat">{m.category}</span>
-                  {m.score && <span class="card-corner-score">{m.score}</span>}
+      <div class="catalog-grid">
+        {movies.map((m) => {
+          const isSeries = m.category === '电视剧' || m.category === '动漫' || m.category === '综艺';
+          return (
+            <a href={`/movie/${m.id}`} class="movie-card">
+              <div class="card-cover-box">
+                <img src={m.poster_url || '/placeholder.jpg'} alt={m.title} class="card-cover-img" loading="lazy" />
+                <span class="card-corner-cat">{m.category}</span>
+                {m.score && <span class="card-corner-score">{m.score}</span>}
+              </div>
+              <div class="card-info">
+                <h3 class="card-title" title={m.title}>{m.title}</h3>
+                <div class="card-meta">
+                  <span>{m.year || '2026'} · {m.country || '华语'}</span>
+                  <span>{m.actors ? m.actors.split('/')[0] : '精选阵容'}</span>
                 </div>
-                <div class="card-details">
-                  <h3 class="card-title" title={m.title}>{m.title}</h3>
-                  <div class="card-meta">
-                    <span>{m.year || '2026'}</span>
-                    <span>{m.country || '华语'}</span>
-                  </div>
-                  <div class="card-pills">
-                    {m.is_released === false ? (
-                      <span class="pill-badge">待映</span>
-                    ) : isSeries ? (
-                      m.is_finished ? (
-                        <span class="pill-badge pill-finished">全{m.total_episodes || m.current_episode}集完</span>
-                      ) : (
-                        <span class="pill-badge pill-ongoing">更至{m.current_episode || 1}集</span>
-                      )
+                <div class="card-pills">
+                  {m.is_released === false ? (
+                    <span class="pill">待映</span>
+                  ) : isSeries ? (
+                    m.is_finished ? (
+                      <span class="pill pill-finished">全{m.total_episodes || m.current_episode}集完</span>
                     ) : (
-                      <span class="pill-badge pill-finished">4K原盘</span>
-                    )}
-                    {m.share_link && <span class="pill-badge">夸克</span>}
-                    {m.share_link_uc && <span class="pill-badge pill-uc">UC</span>}
-                    {m.online_play_url && <span class="pill-badge pill-stream">可播</span>}
-                  </div>
+                      <span class="pill pill-ongoing">更至{m.current_episode || 1}集</span>
+                    )
+                  ) : (
+                    <span class="pill pill-finished">4K原盘</span>
+                  )}
+                  {m.share_link && <span class="pill">夸克</span>}
+                  {m.share_link_uc && <span class="pill pill-uc">UC</span>}
+                  {m.online_play_url && <span class="pill pill-stream">可播</span>}
                 </div>
-              </a>
-            );
-          })}
-        </div>
-      </main>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </main>
 
-      <!-- 手机常驻底部原生 TabBar -->
-      <nav class="mobile-tabbar">
-        <div class="tabbar-item active">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
-            <polyline points="9 22 9 12 15 12 15 22"></polyline>
-          </svg>
-          <span>精选</span>
-        </div>
-        <a href="/explore" class="tabbar-item">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-          </svg>
-          <span>片库</span>
-        </a>
-        <a href="/explore" class="tabbar-item">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
-          </svg>
-          <span>筛选</span>
-        </a>
-        <a href="https://t.me/xkykMovie" target="_blank" class="tabbar-item">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
-          <span>影迷群</span>
-        </a>
-      </nav>
-    </div>
+    <!-- 统一版页脚 -->
+    <footer class="site-footer">
+      <div>星光影库 · 全端统一响应式架构测试</div>
+      <div>基于 Astro 静态预渲染 · 夸克与UC官方分佣驱动</div>
+    </footer>
 
-    <!-- 交互脚本：轻点搜索展开 -->
+    <!-- 手机专属常驻底部 TabBar -->
+    <nav class="mobile-tabbar">
+      <div class="tab-item active">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+          <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        <span>精选</span>
+      </div>
+      <a href="/explore" class="tab-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <span>片库</span>
+      </a>
+      <a href="/explore" class="tab-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+        </svg>
+        <span>筛选</span>
+      </a>
+      <a href="https://t.me/xkykMovie" target="_blank" class="tab-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+        <span>影迷群</span>
+      </a>
+    </nav>
+
+    <!-- 交互脚本：搜索片源点击展开 -->
     <script>
-      const toggleSearchBtn = document.getElementById('toggleSearchBtn');
-      const searchDrawer = document.getElementById('searchDrawer');
-      toggleSearchBtn?.addEventListener('click', () => {
-        searchDrawer?.classList.toggle('open');
+      const searchTriggerBtn = document.getElementById('searchTriggerBtn');
+      const searchPopup = document.getElementById('searchPopup');
+      const searchInput = document.getElementById('searchInput');
+
+      searchTriggerBtn?.addEventListener('click', () => {
+        searchPopup?.classList.toggle('open');
+        if (searchPopup?.classList.contains('open')) {
+          searchInput?.focus();
+        }
+      });
+
+      document.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        if (!target.closest('#searchWidget')) {
+          searchPopup?.classList.remove('open');
+        }
       });
     </script>
   </body>
