@@ -91,7 +91,7 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
 ---
 
 <Layout title={pageTitle} description={pageDesc} movieId={movie.id} movieTitle={movie.title}>
-  <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+  <div class="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-12 pb-24 sm:pb-12">
     <!-- 面包屑导航 -->
     <nav class="flex items-center gap-2 text-xs text-slate-400 mb-8">
       <a href="/" class="hover:text-orange-400 transition-colors">首页</a>
@@ -769,5 +769,57 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
         });
       </script>
     </>
+  )}
+
+  <!-- 移动端悬浮吸底快捷行动栏 (大拇指友好原生体验，仅移动端显示) -->
+  {movie.is_released !== false && (movie.share_link || movie.share_link_uc || movie.online_play_url) && (
+    <div class="md:hidden fixed bottom-0 inset-x-0 z-50 bg-[#0b0f19]/95 backdrop-blur-lg border-t border-slate-800/90 px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] shadow-2xl flex items-center gap-2">
+      {movie.online_play_url && (
+        <a 
+          href={`/player.html?v=${encodeURIComponent(movie.online_play_url)}`} 
+          class="flex-1 py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-100 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700/80 active:scale-95 transition"
+          data-track="play"
+          data-resource-id={movie.id}
+          data-resource-title={movie.title}
+        >
+          <svg class="w-3.5 h-3.5 text-rose-400 fill-current" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+          <span>免播</span>
+        </a>
+      )}
+      {movie.share_link && (
+        <a 
+          href={movie.share_link} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="flex-[1.5] py-2.5 px-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-orange-500/20 active:scale-95 transition"
+          data-track="quark"
+          data-resource-id={movie.id}
+          data-resource-title={movie.title}
+        >
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+          </svg>
+          <span>夸克极速存</span>
+        </a>
+      )}
+      {movie.share_link_uc && (
+        <a 
+          href={movie.share_link_uc} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          class="flex-[1.5] py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition"
+          data-track="uc"
+          data-resource-id={movie.id}
+          data-resource-title={movie.title}
+        >
+          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+          </svg>
+          <span>UC 秒存</span>
+        </a>
+      )}
+    </div>
   )}
 </Layout>

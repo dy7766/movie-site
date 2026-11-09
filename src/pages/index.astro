@@ -13,8 +13,8 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
 ---
 
 <Layout title="星光影库 - 4K高清影视与网盘无损资源分享">
-  <!-- Hero Section (紧凑极简版，消除留白，让首屏一眼直达影视资源) -->
-  <section class="relative py-4 sm:py-6 overflow-hidden border-b border-slate-800/60 bg-gradient-to-b from-slate-900/40 via-[#0b0f19] to-[#0b0f19]">
+  <!-- Hero Section (移动端隐藏以首屏直达影视海报，桌面端保留紧凑版) -->
+  <section class="hidden md:block relative py-4 sm:py-6 overflow-hidden border-b border-slate-800/60 bg-gradient-to-b from-slate-900/40 via-[#0b0f19] to-[#0b0f19]">
     <div class="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-orange-500/10 via-transparent to-transparent pointer-events-none"></div>
     
     <div class="max-w-4xl mx-auto px-4 text-center relative z-10 space-y-2">
@@ -37,7 +37,7 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
   </section>
 
   <!-- 资源列表与分类筛选 -->
-  <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-7" id="resources-section">
+  <section class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3.5 sm:py-7" id="resources-section">
     <!-- 筛选控制栏：分类与资源可用性 -->
     <div class="space-y-4 mb-8">
       <!-- 分类标签 -->
@@ -80,8 +80,8 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
       </div>
     </div>
 
-    <!-- 电影网格卡片 -->
-    <div id="movieGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 sm:gap-6">
+    <!-- 电影网格卡片 (移动端双列大图瀑布流) -->
+    <div id="movieGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-6">
       {movies.map((m) => (
         <article class="movie-card group bg-slate-900/60 rounded-2xl overflow-hidden border border-slate-800/80 hover:border-orange-500/40 hover:shadow-xl hover:shadow-orange-500/5 transition-all flex flex-col"
           data-title={m.title}
