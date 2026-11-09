@@ -548,7 +548,7 @@ const availFilters = [
         {movies.map((m) => {
           const isSeries = m.category === '电视剧' || m.category === '动漫' || m.category === '综艺';
           return (
-            <a href={`/movie/${m.id}`} class="movie-card">
+            <a href="/preview/mobile-detail" class="movie-card">
               <div class="card-cover-box">
                 <img src={m.poster_url || '/placeholder.jpg'} alt={m.title} class="card-cover-img" loading="lazy" />
                 <span class="card-corner-cat">{m.category}</span>
@@ -598,14 +598,14 @@ const availFilters = [
         </svg>
         <span>精选</span>
       </div>
-      <a href="/explore" class="tab-item">
+      <a href="/preview/mobile-explore" class="tab-item">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="11" cy="11" r="8"></circle>
           <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
         </svg>
         <span>片库</span>
       </a>
-      <a href="/explore" class="tab-item">
+      <a href="/preview/mobile-explore" class="tab-item">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
         </svg>

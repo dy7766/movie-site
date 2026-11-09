@@ -1,0 +1,556 @@
+---
+// 移动端与网页版统一UI · 影视详情页测试样例 (Movie Detail Mobile Experience Preview)
+import { getMovies } from '../../lib/db.js';
+
+let movies = [];
+try {
+  movies = await getMovies({ limit: 50 });
+} catch (e) {
+  console.error('Failed to fetch movies:', e);
+}
+
+// 挑选一部带有剧集、剧照和双网盘的代表作作为体验样板
+const movie = movies.find(m => (m.category === '电视剧' || m.category === '动漫') && (m.share_link || m.share_link_uc)) || movies[0] || {};
+
+const isTvShow = movie.category === '电视剧' || movie.category === '动漫' || movie.category === '综艺';
+const epUnit = movie.category === '综艺' ? '期' : '集';
+const totalEpisodes = movie.total_episodes || 24;
+const currentEpisodes = movie.current_episode || 8;
+const isFinished = movie.is_finished === true;
+
+const episodesList = Array.from({ length: totalEpisodes }, (_, i) => ({
+  ep: i + 1,
+  isAvailable: i + 1 <= currentEpisodes
+}));
+
+// 解析剧照
+const stills: string[] = Array.isArray(movie.stills)
+  ? movie.stills
+  : (typeof movie.stills === 'string' ? JSON.parse(movie.stills || '[]') : []);
+
+// 解析影评
+interface Review {
+  author: string;
+  rating: number;
+  date: string;
+  content: string;
+}
+const reviews: Review[] = Array.isArray(movie.reviews)
+  ? movie.reviews
+  : (typeof movie.reviews === 'string' ? JSON.parse(movie.reviews || '[]') : [
+      { author: "影迷阿飞", rating: 9, date: "2026-03-12", content: "节奏极其紧凑，原盘画质色彩惊艳，4K大屏秒存后看起来非常震撼！" },
+      { author: "云端漫步", rating: 8, date: "2026-03-15", content: "剧情没有尿点，更新速度也跟得上，UC和夸克双线路太方便了。" }
+    ]);
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>{movie.title || '影视详情'} · 全端统一移动详情页测试</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-main: oklch(14% 0.015 255);
+        --bg-surface: oklch(18% 0.02 255 / 0.7);
+        --bg-surface-elevated: oklch(21% 0.025 255);
+        --bg-surface-card: oklch(17% 0.02 255 / 0.85);
+        --bg-tabbar: oklch(14% 0.015 255 / 0.95);
+        --bg-poster: oklch(12% 0.015 255);
+
+        --border-subtle: oklch(25% 0.02 255);
+        --border-hover: oklch(70% 0.20 45 / 0.5);
+        --border-active: oklch(70% 0.20 45);
+
+        --text-primary: oklch(98% 0.005 255);
+        --text-secondary: oklch(80% 0.015 255);
+        --text-muted: oklch(62% 0.02 255);
+        --text-accent: oklch(98% 0.01 45);
+
+        --color-orange: oklch(70% 0.20 45);
+        --color-orange-glow: oklch(70% 0.20 45 / 0.25);
+        --color-orange-deep: oklch(62% 0.21 45);
+        --color-orange-tint: oklch(76% 0.17 50);
+        --color-orange-bg: oklch(70% 0.20 45 / 0.12);
+        --color-orange-border: oklch(70% 0.20 45 / 0.35);
+
+        --color-gold: oklch(78% 0.18 80);
+        --color-gold-bg: oklch(78% 0.18 80 / 0.12);
+        --color-gold-border: oklch(78% 0.18 80 / 0.35);
+
+        --color-sky: oklch(75% 0.14 230);
+        --color-sky-bg: oklch(75% 0.14 230 / 0.12);
+        --color-sky-border: oklch(75% 0.14 230 / 0.35);
+
+        --color-emerald: oklch(75% 0.16 160);
+        --color-emerald-bg: oklch(75% 0.16 160 / 0.12);
+        --color-emerald-border: oklch(75% 0.16 160 / 0.35);
+
+        --color-cyan: oklch(76% 0.13 200);
+        --color-cyan-bg: oklch(76% 0.13 200 / 0.12);
+        --color-cyan-border: oklch(76% 0.13 200 / 0.35);
+
+        --overlay-hero-mask: oklch(14% 0.015 255 / 0.9);
+        --shadow-sticky: 0 -8px 26px oklch(0% 0 0 / 0.5);
+        --shadow-card: 0 4px 16px oklch(0% 0 0 / 0.3);
+
+        --radius-sm: 6px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --radius-pill: 9999px;
+
+        --container: 1080px;
+        --gutter: 20px;
+        --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg-main);
+        color: var(--text-primary);
+        font-family: var(--font-sans);
+        overflow-x: clip;
+      }
+      :focus-visible { outline: 2px solid var(--border-active); outline-offset: 2px; }
+      a { color: inherit; text-decoration: none; }
+
+      /* 顶部导航条 */
+      .top-nav {
+        background: var(--bg-main);
+        border-bottom: 1px solid var(--border-subtle);
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+      }
+      .top-nav-inner {
+        max-width: var(--container);
+        margin: 0 auto;
+        padding: 12px var(--gutter);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .btn-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 13px;
+        color: var(--text-secondary);
+        padding: 5px 10px;
+        border-radius: var(--radius-pill);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        cursor: pointer;
+      }
+      .brand-title {
+        font-size: 15px;
+        font-weight: 700;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .brand-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: var(--radius-pill);
+        background: var(--color-orange);
+      }
+
+      /* 主体容器 (为底部吸底操作栏留出安全内边距) */
+      .detail-layout {
+        max-width: var(--container);
+        margin: 0 auto;
+        padding: 16px var(--gutter) calc(84px + env(safe-area-inset-bottom, 20px));
+      }
+
+      /* 影视顶部核心卡片：在手机上紧凑整合竖版海报与关键信息 */
+      .movie-header-card {
+        display: flex;
+        gap: 18px;
+        background: var(--bg-surface-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        padding: 18px;
+        position: relative;
+        overflow: hidden;
+      }
+      .header-poster {
+        width: 120px;
+        aspect-ratio: 2 / 3;
+        flex-shrink: 0;
+        border-radius: var(--radius-md);
+        object-fit: cover;
+        background: var(--bg-poster);
+        border: 1px solid var(--border-subtle);
+      }
+      .header-info {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex: 1;
+        min-width: 0;
+      }
+      .movie-title {
+        font-size: clamp(1.2rem, 3.5vw, 1.8rem);
+        font-weight: 800;
+        line-height: 1.25;
+        margin: 0;
+        overflow-wrap: break-word;
+        min-width: 0;
+      }
+      .movie-submeta {
+        font-size: 12px;
+        color: var(--text-muted);
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .score-tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 2px 7px;
+        border-radius: 4px;
+        background: var(--color-gold-bg);
+        border: 1px solid var(--color-gold-border);
+        color: var(--color-gold);
+        font-weight: 700;
+        font-size: 12px;
+      }
+      .status-pill {
+        display: inline-flex;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 500;
+      }
+      .pill-ongoing { background: var(--color-orange-bg); border: 1px solid var(--color-orange-border); color: var(--color-orange-tint); }
+      .pill-finished { background: var(--color-sky-bg); border: 1px solid var(--color-sky-border); color: var(--color-sky); }
+
+      /* 演职阵容与标签行 */
+      .meta-list {
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      /* 模块分块通用样式 */
+      .section-block {
+        margin-top: 20px;
+        background: var(--bg-surface-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-lg);
+        padding: 16px 18px;
+      }
+      .section-heading {
+        font-size: 15px;
+        font-weight: 700;
+        margin: 0 0 12px 0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .plot-text {
+        font-size: 13px;
+        color: var(--text-secondary);
+        line-height: 1.6;
+        margin: 0;
+      }
+
+      /* 剧集智能选集网格 (适配手机横向触控或网格) */
+      .episodes-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(62px, 1fr));
+        gap: 8px;
+      }
+      .ep-btn {
+        padding: 8px 0;
+        border-radius: var(--radius-sm);
+        background: var(--bg-surface-elevated);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-secondary);
+        font-size: 12px;
+        font-weight: 600;
+        text-align: center;
+        cursor: pointer;
+        transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+      }
+      .ep-btn:hover, .ep-btn.active {
+        background: var(--color-orange);
+        color: var(--text-accent);
+        border-color: var(--color-orange);
+      }
+
+      /* 4K 剧照画廊 (手机横向轻滑) */
+      .stills-gallery {
+        display: flex;
+        gap: 10px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding-bottom: 4px;
+      }
+      .stills-gallery::-webkit-scrollbar { display: none; }
+      .still-img {
+        width: 180px;
+        aspect-ratio: 16 / 9;
+        object-fit: cover;
+        border-radius: var(--radius-sm);
+        flex-shrink: 0;
+        border: 1px solid var(--border-subtle);
+        background: var(--bg-poster);
+      }
+
+      /* 豆瓣影迷口碑短评 */
+      .review-card {
+        padding: 12px 0;
+        border-bottom: 1px solid var(--border-subtle);
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .review-card:last-child { border-bottom: none; }
+      .review-meta {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--text-muted);
+      }
+      .review-body {
+        font-size: 12px;
+        color: var(--text-secondary);
+        line-height: 1.5;
+      }
+
+      /* 核心功能：手机端悬浮吸底转存操作栏 (Sticky Action Bar) */
+      .sticky-save-bar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 150;
+        background: var(--bg-tabbar);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
+        border-top: 1px solid var(--border-subtle);
+        box-shadow: var(--shadow-sticky);
+        padding: 10px var(--gutter) calc(10px + env(safe-area-inset-bottom, 16px));
+      }
+      .sticky-bar-inner {
+        max-width: var(--container);
+        margin: 0 auto;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .btn-play-stream {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px 14px;
+        border-radius: var(--radius-pill);
+        background: var(--bg-surface-elevated);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-primary);
+        font-size: 12px;
+        font-weight: 600;
+        flex: 1;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .btn-save-quark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px 16px;
+        border-radius: var(--radius-pill);
+        background: linear-gradient(135deg, var(--color-orange), var(--color-orange-deep));
+        color: var(--text-accent);
+        font-size: 13px;
+        font-weight: 700;
+        flex: 1.3;
+        box-shadow: 0 4px 14px var(--color-orange-glow);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .btn-save-uc {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 10px 16px;
+        border-radius: var(--radius-pill);
+        background: var(--color-cyan-bg);
+        border: 1px solid var(--color-cyan-border);
+        color: var(--color-cyan);
+        font-size: 13px;
+        font-weight: 700;
+        flex: 1.3;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      @media (max-width: 600px) {
+        .movie-header-card { gap: 14px; padding: 14px; }
+        .header-poster { width: 95px; }
+        .episodes-grid { grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); }
+      }
+      @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+    </style>
+  </head>
+  <body>
+    <!-- 顶部极简导航 -->
+    <header class="top-nav">
+      <div class="top-nav-inner">
+        <a href="/preview/mobile" class="btn-back">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          <span>返回片单</span>
+        </a>
+        <div class="brand-title">
+          <div class="brand-dot"></div>
+          <span>星光影库 · 4K原盘详情</span>
+        </div>
+        <a href="https://t.me/xkykMovie" target="_blank" style="font-size: 12px; color: var(--color-sky);">
+          <span>影迷群</span>
+        </a>
+      </div>
+    </header>
+
+    <main class="detail-layout">
+      <!-- 影视顶部概览卡片 (手机端大图自适应) -->
+      <section class="movie-header-card">
+        <img src={movie.poster_url || '/placeholder.jpg'} alt={movie.title} class="header-poster" />
+        <div class="header-info">
+          <h1 class="movie-title">{movie.title}</h1>
+          <div class="movie-submeta">
+            <span>{movie.year || '2026'}</span>
+            <span>{movie.country || '华语'}</span>
+            <span>{movie.category || '精选'}</span>
+            {movie.score && (
+              <span class="score-tag">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+                </svg>
+                {movie.score}
+              </span>
+            )}
+            {isTvShow ? (
+              isFinished ? (
+                <span class="status-pill pill-finished">全{totalEpisodes}{epUnit}完结</span>
+              ) : (
+                <span class="status-pill pill-ongoing">更新至第{currentEpisodes}{epUnit}</span>
+              )
+            ) : (
+              <span class="status-pill pill-finished">4K原盘已就绪</span>
+            )}
+          </div>
+          <div class="meta-list">
+            <div>导演：{movie.director || '名导力作'}</div>
+            <div>主演：{movie.actors || '群星演绎'}</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 智能分集选集 (针对连载剧集/动漫/综艺) -->
+      {isTvShow && (
+        <section class="section-block">
+          <div class="section-heading">
+            <span>智能剧集选集 (共 {totalEpisodes} {epUnit})</span>
+            <span style="font-size: 11px; color: var(--text-muted);">点击直达对应集数转存</span>
+          </div>
+          <div class="episodes-grid">
+            {episodesList.map((item) => (
+              <a
+                href={movie.share_link_uc || movie.share_link || '#'}
+                target="_blank"
+                class={`ep-btn ${item.ep === currentEpisodes ? 'active' : ''}`}
+              >
+                第{item.ep}{epUnit}
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <!-- 剧情简介 -->
+      <section class="section-block">
+        <h2 class="section-heading">剧情简介</h2>
+        <p class="plot-text">
+          {movie.intro || '本片精选全网顶级画质影视资源，配备超高清4K原画分辨率与原盘无损音轨，支持极速秒存至个人私人网盘随时随地观看，无任何贴片广告干扰。'}
+        </p>
+      </section>
+
+      <!-- 4K 官方剧照画廊 -->
+      {stills.length > 0 && (
+        <section class="section-block">
+          <h2 class="section-heading">官方高清剧照 ({stills.length} 张)</h2>
+          <div class="stills-gallery">
+            {stills.map((s) => (
+              <img src={s} alt="剧照" class="still-img" loading="lazy" />
+            ))}
+          </div>
+        </section>
+      )}
+
+      <!-- 影迷短评口碑 -->
+      <section class="section-block">
+        <h2 class="section-heading">豆瓣热门影迷口碑</h2>
+        <div>
+          {reviews.map((r) => (
+            <div class="review-card">
+              <div class="review-meta">
+                <span style="font-weight: 600; color: var(--text-primary);">{r.author}</span>
+                <span>豆瓣评分 {r.rating} 分 · {r.date}</span>
+              </div>
+              <div class="review-body">{r.content}</div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </main>
+
+    <!-- 手机端专属常驻吸底操作栏 (无论用户滑到哪里，大拇指一触秒存！) -->
+    <aside class="sticky-save-bar">
+      <div class="sticky-bar-inner">
+        {movie.online_play_url && (
+          <a href={movie.online_play_url} target="_blank" class="btn-play-stream">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <span>免费在线看</span>
+          </a>
+        )}
+        {movie.share_link && (
+          <a href={movie.share_link} target="_blank" class="btn-save-quark">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+            </svg>
+            <span>夸克极速存</span>
+          </a>
+        )}
+        {movie.share_link_uc && (
+          <a href={movie.share_link_uc} target="_blank" class="btn-save-uc">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            <span>UC秒存 7TB</span>
+          </a>
+        )}
+      </div>
+    </aside>
+  </body>
+</html>

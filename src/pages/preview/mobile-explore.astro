@@ -1,0 +1,519 @@
+---
+// 移动端与网页版统一UI · 多维片库检索中心测试样例 (Mobile & Web Explore Center Preview)
+import { getMovies } from '../../lib/db.js';
+
+let movies = [];
+try {
+  movies = await getMovies({ limit: 120 });
+} catch (e) {
+  console.error('Failed to fetch movies:', e);
+}
+
+const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录片'];
+const genres = ['全部', '剧情', '科幻', '动作', '犯罪', '悬疑', '喜剧', '爱情', '动画', '惊悚'];
+const countries = ['全部', '华语', '中国大陆', '中国香港', '美国', '日本', '韩国', '欧洲'];
+const years = ['全部', '2026', '2025', '2024', '2020-2023', '更早'];
+const sorts = ['综合推荐', '评分最高', '年份最新'];
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>片库检索 · 全端统一移动探索中心测试</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg-main: oklch(14% 0.015 255);
+        --bg-surface: oklch(18% 0.02 255 / 0.7);
+        --bg-surface-elevated: oklch(21% 0.025 255);
+        --bg-surface-card: oklch(17% 0.02 255 / 0.85);
+        --bg-tabbar: oklch(14% 0.015 255 / 0.95);
+        --bg-poster: oklch(12% 0.015 255);
+
+        --border-subtle: oklch(25% 0.02 255);
+        --border-hover: oklch(70% 0.20 45 / 0.5);
+        --border-active: oklch(70% 0.20 45);
+
+        --text-primary: oklch(98% 0.005 255);
+        --text-secondary: oklch(80% 0.015 255);
+        --text-muted: oklch(62% 0.02 255);
+        --text-accent: oklch(98% 0.01 45);
+
+        --color-orange: oklch(70% 0.20 45);
+        --color-orange-glow: oklch(70% 0.20 45 / 0.25);
+        --color-orange-deep: oklch(62% 0.21 45);
+        --color-orange-tint: oklch(76% 0.17 50);
+        --color-orange-bg: oklch(70% 0.20 45 / 0.12);
+        --color-orange-border: oklch(70% 0.20 45 / 0.35);
+
+        --color-gold: oklch(78% 0.18 80);
+        --color-gold-bg: oklch(78% 0.18 80 / 0.12);
+        --color-gold-border: oklch(78% 0.18 80 / 0.35);
+
+        --color-sky: oklch(75% 0.14 230);
+        --color-sky-bg: oklch(75% 0.14 230 / 0.12);
+        --color-sky-border: oklch(75% 0.14 230 / 0.35);
+
+        --color-emerald: oklch(75% 0.16 160);
+        --color-emerald-bg: oklch(75% 0.16 160 / 0.12);
+        --color-emerald-border: oklch(75% 0.16 160 / 0.35);
+
+        --color-cyan: oklch(76% 0.13 200);
+        --color-cyan-bg: oklch(76% 0.13 200 / 0.12);
+        --color-cyan-border: oklch(76% 0.13 200 / 0.35);
+
+        --bg-corner-badge: oklch(14% 0.015 255 / 0.85);
+        --shadow-tabbar: 0 -4px 24px oklch(0% 0 0 / 0.4);
+        --shadow-card: 0 4px 16px oklch(0% 0 0 / 0.3);
+
+        --radius-sm: 6px;
+        --radius-md: 12px;
+        --radius-lg: 16px;
+        --radius-pill: 9999px;
+
+        --container: 1280px;
+        --gutter: 16px;
+        --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg-main);
+        color: var(--text-primary);
+        font-family: var(--font-sans);
+        overflow-x: clip;
+      }
+      :focus-visible { outline: 2px solid var(--border-active); outline-offset: 2px; }
+      a { color: inherit; text-decoration: none; }
+
+      /* 顶部搜索与导航条 */
+      .explore-header {
+        position: sticky;
+        top: 0;
+        z-index: 100;
+        background: var(--bg-main);
+        border-bottom: 1px solid var(--border-subtle);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        padding: 10px var(--gutter);
+      }
+      .header-row {
+        max-width: var(--container);
+        margin: 0 auto;
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .btn-nav-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 7px 12px;
+        border-radius: var(--radius-pill);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-secondary);
+        font-size: 13px;
+        cursor: pointer;
+        flex-shrink: 0;
+      }
+      .search-box-large {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--bg-surface-elevated);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-pill);
+        padding: 7px 14px;
+        transition: border-color 0.15s ease;
+      }
+      .search-box-large:focus-within {
+        border-color: var(--border-active);
+      }
+      .search-box-large input {
+        background: transparent;
+        border: none;
+        color: var(--text-primary);
+        font-size: 13px;
+        width: 100%;
+        outline: none;
+      }
+
+      /* 多维筛选区域 (水平滑动标签组，移动端单手极佳体验) */
+      .filters-container {
+        max-width: var(--container);
+        margin: 10px auto 0;
+        padding: 0 var(--gutter);
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      .filter-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .filter-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        flex-shrink: 0;
+        width: 32px;
+      }
+      .chips-track {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        padding-bottom: 2px;
+        flex: 1;
+      }
+      .chips-track::-webkit-scrollbar { display: none; }
+      .chip-btn {
+        flex-shrink: 0;
+        padding: 4px 12px;
+        border-radius: var(--radius-pill);
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-secondary);
+        font-size: 12px;
+        cursor: pointer;
+        transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+      }
+      .chip-btn.active {
+        background: var(--color-orange);
+        color: var(--text-accent);
+        border-color: var(--color-orange);
+        font-weight: 600;
+      }
+
+      /* 状态与排序汇总栏 */
+      .meta-summary-bar {
+        max-width: var(--container);
+        margin: 14px auto 0;
+        padding: 0 var(--gutter);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+      .count-number {
+        color: var(--color-orange-tint);
+        font-weight: 600;
+      }
+      .sort-chips {
+        display: flex;
+        gap: 6px;
+      }
+      .sort-chip {
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 4px;
+        background: var(--bg-surface);
+        border: 1px solid var(--border-subtle);
+        color: var(--text-muted);
+        cursor: pointer;
+      }
+      .sort-chip.active {
+        color: var(--color-orange-tint);
+        border-color: var(--color-orange-border);
+        font-weight: 600;
+      }
+
+      /* 影视网格陈列：电脑端 5 列自适应，手机端双列大图 */
+      .results-section {
+        max-width: var(--container);
+        margin: 14px auto calc(70px + env(safe-area-inset-bottom, 16px));
+        padding: 0 var(--gutter);
+      }
+      .movie-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+        gap: 16px;
+      }
+      .grid-card {
+        background: var(--bg-surface-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: var(--radius-md);
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+      }
+      .grid-card:active { transform: scale(0.98); }
+      .grid-card:hover {
+        transform: translateY(-3px);
+        border-color: var(--border-hover);
+        box-shadow: var(--shadow-card);
+      }
+
+      .card-cover-box {
+        position: relative;
+        aspect-ratio: 2 / 3;
+        background: var(--bg-poster);
+        overflow: hidden;
+      }
+      .card-cover-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .corner-score {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        background: var(--bg-corner-badge);
+        border: 1px solid var(--color-gold-border);
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--color-gold);
+        backdrop-filter: blur(4px);
+      }
+      .corner-cat {
+        position: absolute;
+        top: 6px;
+        left: 6px;
+        background: var(--bg-corner-badge);
+        border: 1px solid var(--border-subtle);
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-size: 10px;
+        color: var(--text-secondary);
+        backdrop-filter: blur(4px);
+      }
+
+      .card-meta-box {
+        padding: 8px 10px 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        flex: 1;
+      }
+      .card-title {
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .card-sub {
+        font-size: 11px;
+        color: var(--text-muted);
+        display: flex;
+        justify-content: space-between;
+      }
+      .card-tags {
+        display: flex;
+        gap: 4px;
+        flex-wrap: wrap;
+        margin-top: 2px;
+      }
+      .tag-pill {
+        font-size: 10px;
+        padding: 1px 5px;
+        border-radius: 3px;
+        border: 1px solid var(--border-subtle);
+        background: var(--bg-surface-elevated);
+        color: var(--text-muted);
+      }
+      .tag-ongoing { border-color: var(--color-orange-border); color: var(--color-orange-tint); background: var(--color-orange-bg); }
+      .tag-finished { border-color: var(--color-sky-border); color: var(--color-sky); background: var(--color-sky-bg); }
+      .tag-uc { border-color: var(--color-cyan-border); color: var(--color-cyan); background: var(--color-cyan-bg); }
+      .tag-stream { border-color: var(--color-emerald-border); color: var(--color-emerald); background: var(--color-emerald-bg); }
+
+      /* 移动端底部常驻 TabBar */
+      .mobile-tabbar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: calc(56px + env(safe-area-inset-bottom, 16px));
+        background: var(--bg-tabbar);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border-top: 1px solid var(--border-subtle);
+        box-shadow: var(--shadow-tabbar);
+        display: flex;
+        justify-content: space-around;
+        align-items: flex-start;
+        padding-top: 6px;
+        z-index: 150;
+      }
+      .tabbar-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 3px;
+        color: var(--text-muted);
+        font-size: 10px;
+        padding: 2px 14px;
+        cursor: pointer;
+      }
+      .tabbar-item.active {
+        color: var(--color-orange);
+        font-weight: 600;
+      }
+
+      @media (max-width: 768px) {
+        .movie-grid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+    </style>
+  </head>
+  <body>
+    <!-- 顶部统一检索条 -->
+    <header class="explore-header">
+      <div class="header-row">
+        <a href="/preview/mobile" class="btn-nav-back" aria-label="返回首页精选">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6"></polyline>
+          </svg>
+          <span>首页</span>
+        </a>
+        <div class="search-box-large">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="color: var(--text-muted);">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+          </svg>
+          <input type="text" id="filterInput" placeholder="输入片名、演员或导演即时检索..." />
+        </div>
+      </div>
+    </header>
+
+    <!-- 多维筛选项 (水平滑动胶囊) -->
+    <section class="filters-container">
+      <!-- 频道 -->
+      <div class="filter-row">
+        <span class="filter-label">频道</span>
+        <div class="chips-track" id="catTrack">
+          {categories.map((c, i) => (
+            <button type="button" class={`chip-btn ${i === 0 ? 'active' : ''}`} data-cat={c}>{c}</button>
+          ))}
+        </div>
+      </div>
+
+      <!-- 流派 -->
+      <div class="filter-row">
+        <span class="filter-label">类型</span>
+        <div class="chips-track" id="genreTrack">
+          {genres.map((g, i) => (
+            <button type="button" class={`chip-btn ${i === 0 ? 'active' : ''}`} data-genre={g}>{g}</button>
+          ))}
+        </div>
+      </div>
+
+      <!-- 年代 -->
+      <div class="filter-row">
+        <span class="filter-label">年份</span>
+        <div class="chips-track" id="yearTrack">
+          {years.map((y, i) => (
+            <button type="button" class={`chip-btn ${i === 0 ? 'active' : ''}`} data-year={y}>{y}</button>
+          ))}
+        </div>
+      </div>
+
+      <!-- 地区 -->
+      <div class="filter-row">
+        <span class="filter-label">地区</span>
+        <div class="chips-track" id="countryTrack">
+          {countries.map((c, i) => (
+            <button type="button" class={`chip-btn ${i === 0 ? 'active' : ''}`} data-country={c}>{c}</button>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- 筛选结果汇总统计与排序 -->
+    <div class="meta-summary-bar">
+      <div>已筛选出 <span class="count-number" id="resultCount">{movies.length}</span> 部影视资源</div>
+      <div class="sort-chips">
+        {sorts.map((s, i) => (
+          <button type="button" class={`sort-chip ${i === 0 ? 'active' : ''}`}>{s}</button>
+        ))}
+      </div>
+    </div>
+
+    <!-- 电影网格展示区 (双列瀑布流) -->
+    <main class="results-section">
+      <div class="movie-grid" id="movieGrid">
+        {movies.map((m) => {
+          const isSeries = m.category === '电视剧' || m.category === '动漫' || m.category === '综艺';
+          return (
+            <a href="/preview/mobile-detail" class="grid-card">
+              <div class="card-cover-box">
+                <img src={m.poster_url || '/placeholder.jpg'} alt={m.title} class="card-cover-img" loading="lazy" />
+                <span class="corner-cat">{m.category}</span>
+                {m.score && <span class="corner-score">{m.score}</span>}
+              </div>
+              <div class="card-meta-box">
+                <h3 class="card-title" title={m.title}>{m.title}</h3>
+                <div class="card-sub">
+                  <span>{m.year || '2026'} · {m.country || '华语'}</span>
+                </div>
+                <div class="card-tags">
+                  {m.is_released === false ? (
+                    <span class="tag-pill">待映</span>
+                  ) : isSeries ? (
+                    m.is_finished ? (
+                      <span class="tag-pill tag-finished">全{m.total_episodes || m.current_episode}集完</span>
+                    ) : (
+                      <span class="tag-pill tag-ongoing">更至{m.current_episode || 1}集</span>
+                    )
+                  ) : (
+                    <span class="tag-pill tag-finished">4K原盘</span>
+                  )}
+                  {m.share_link && <span class="tag-pill">夸克</span>}
+                  {m.share_link_uc && <span class="tag-pill tag-uc">UC</span>}
+                  {m.online_play_url && <span class="tag-pill tag-stream">可播</span>}
+                </div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </main>
+
+    <!-- 移动端常驻底部 TabBar -->
+    <nav class="mobile-tabbar">
+      <a href="/preview/mobile" class="tabbar-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+          <polyline points="9 22 9 12 15 12 15 22"></polyline>
+        </svg>
+        <span>精选</span>
+      </a>
+      <div class="tabbar-item active">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
+        <span>片库</span>
+      </div>
+      <div class="tabbar-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+        </svg>
+        <span>筛选</span>
+      </div>
+      <a href="https://t.me/xkykMovie" target="_blank" class="tabbar-item">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+        <span>影迷群</span>
+      </a>
+    </nav>
+  </body>
+</html>
