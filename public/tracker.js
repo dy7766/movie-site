@@ -17,7 +17,10 @@
     return 'desktop';
   }
 
-  // 2. 发送埋点数据到 Cloudflare Pages Edge Function (/api/track)
+  // 2. 发送埋点数据 (双通道高可靠：优先 /api/track，同时支持直连 Supabase REST)
+  var SUPABASE_DIRECT_URL = 'https://oncktqesgpjsilngtcok.supabase.co/rest/v1/analytics_events';
+  var SUPABASE_PUBLIC_KEY = 'sb_publishable_pQLb1OOxod2ibn_i1QqoJg_lt9FZPTH';
+
   function sendTrack(eventType, extra) {
     try {
       extra = extra || {};
@@ -41,17 +44,35 @@
       var jsonPayload = JSON.stringify(payload);
       var endpoint = '/api/track';
 
-      // 优先使用 sendBeacon，保证页面即使跳转也能可靠送达
+      // 优先使用 sendBeacon，保证页面即使跳转或关闭也能可靠送达边缘
+      var beaconSent = false;
       if (navigator.sendBeacon) {
-        var blob = new Blob([jsonPayload], { type: 'application/json' });
-        navigator.sendBeacon(endpoint, blob);
-      } else {
+        try {
+          var blob = new Blob([jsonPayload], { type: 'application/json' });
+          beaconSent = navigator.sendBeacon(endpoint, blob);
+        } catch (_) {}
+      }
+
+      // 若 sendBeacon 不可用或排队失败，使用 keepalive fetch 直连边缘/Supabase
+      if (!beaconSent) {
         fetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: jsonPayload,
           keepalive: true
-        }).catch(function() {});
+        }).catch(function() {
+          // 兜底直连 Supabase REST API
+          fetch(SUPABASE_DIRECT_URL, {
+            method: 'POST',
+            headers: {
+              'apikey': SUPABASE_PUBLIC_KEY,
+              'Authorization': 'Bearer ' + SUPABASE_PUBLIC_KEY,
+              'Content-Type': 'application/json'
+            },
+            body: jsonPayload,
+            keepalive: true
+          }).catch(function() {});
+        });
       }
     } catch (e) {
       // 埋点异常绝不阻断用户正常交互
