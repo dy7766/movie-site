@@ -23,6 +23,18 @@ export async function onRequestPost(context) {
       referrer = ''
     } = body;
 
+    // 从 Cloudflare 请求头和 CF 上下文中毫秒级提取访问者真实 IP 与城市地区
+    const clientIp = context.request.headers.get('cf-connecting-ip') || 
+                     context.request.headers.get('x-real-ip') || 
+                     (context.request.headers.get('x-forwarded-for') || '').split(',')[0].trim() || 
+                     '';
+    
+    const cf = context.request.cf || {};
+    const city = cf.city || '';
+    const region = cf.region || '';
+    const country = cf.country || '';
+    const location = [city, region, country].filter(Boolean).join(', ') || '';
+
     // 写入 Supabase 实时埋点事件流水表
     const res = await fetch(`${SUPABASE_URL}/rest/v1/analytics_events`, {
       method: 'POST',
@@ -37,7 +49,9 @@ export async function onRequestPost(context) {
         resource_title: resource_title || '',
         device,
         page_url,
-        referrer
+        referrer,
+        ip: clientIp,
+        location: location
       })
     });
 

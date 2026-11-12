@@ -411,9 +411,14 @@ const serializedMovies = JSON.stringify(allMovies);
                           {ev.resource_title || '星光影库页面'}
                         </span>
                       </div>
-                      <div class="flex items-center gap-2 flex-shrink-0 text-[10px] font-mono text-slate-500">
+                      <div class="flex items-center gap-2 flex-shrink-0 text-[10px] font-mono text-slate-400">
+                        {ev.ip && (
+                          <span class="px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-300 border border-slate-700/60" title={ev.location || ''}>
+                            📍 {ev.ip}{ev.location ? ` (${ev.location.split(',')[0]})` : ''}
+                          </span>
+                        )}
                         <span>{ev.device === 'mobile' ? '📱' : '💻'}</span>
-                        <span>{timeStr}</span>
+                        <span class="text-slate-500">{timeStr}</span>
                       </div>
                     </div>
                   );
@@ -1422,8 +1427,8 @@ const serializedMovies = JSON.stringify(allMovies);
         if (statusText) statusText.textContent = manual ? '正在同步最新指标...' : '实时连接中...';
 
         try {
-          // 并发拉取实时 6 维计数器与最近事件流水
-          const [pv, mobilePv, desktopPv, quark, uc, play, recentRes] = await Promise.all([
+          // 并发拉取实时 6 维计数器、最近事件流水与 TOP 10 转化最高影视
+          const [pv, mobilePv, desktopPv, quark, uc, play, recentRes, topMoviesRes] = await Promise.all([
             getSupabaseCount('analytics_events?event_type=eq.page_view&select=id'),
             getSupabaseCount('analytics_events?event_type=eq.page_view&device=eq.mobile&select=id'),
             getSupabaseCount('analytics_events?event_type=eq.page_view&device=eq.desktop&select=id'),
@@ -1431,6 +1436,9 @@ const serializedMovies = JSON.stringify(allMovies);
             getSupabaseCount('analytics_events?event_type=eq.click_uc&select=id'),
             getSupabaseCount('analytics_events?event_type=eq.click_play&select=id'),
             fetch(`${SUPABASE_BASE_URL}/analytics_events?order=created_at.desc&limit=15`, {
+              headers: { 'apikey': SUPABASE_PUB_KEY, 'Authorization': `Bearer ${SUPABASE_PUB_KEY}` }
+            }).then(r => r.json()).catch(() => []),
+            fetch(`${SUPABASE_BASE_URL}/resources?has_metadata=eq.true&or=(views.gt.0,clicks_quark.gt.0,clicks_uc.gt.0,clicks_play.gt.0)&order=clicks_quark.desc,clicks_uc.desc,views.desc&limit=15`, {
               headers: { 'apikey': SUPABASE_PUB_KEY, 'Authorization': `Bearer ${SUPABASE_PUB_KEY}` }
             }).then(r => r.json()).catch(() => [])
           ]);
@@ -1482,6 +1490,11 @@ const serializedMovies = JSON.stringify(allMovies);
               recentList.innerHTML = recentRes.map(ev => {
                 const badge = evLabels[ev.event_type] || { text: ev.event_type, color: 'bg-slate-800 text-slate-400 border-slate-700' };
                 const timeStr = new Date(ev.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const ipBadge = ev.ip ? `
+                  <span class="px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/60 font-mono text-[9px]" title="${ev.location || ''}">
+                    📍 ${ev.ip}${ev.location ? ` (${ev.location.split(',')[0]})` : ''}
+                  </span>
+                ` : '';
                 return `
                   <div class="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-900/60 border border-slate-800/50 hover:border-slate-700 transition">
                     <div class="flex items-center gap-2 overflow-hidden">
@@ -1492,7 +1505,8 @@ const serializedMovies = JSON.stringify(allMovies);
                         ${ev.resource_title || '星光影库页面'}
                       </span>
                     </div>
-                    <div class="flex items-center gap-2 flex-shrink-0 text-[10px] font-mono text-slate-500">
+                    <div class="flex items-center gap-1.5 flex-shrink-0 text-[10px] font-mono text-slate-500">
+                      ${ipBadge}
                       <span>${ev.device === 'mobile' ? '📱' : '💻'}</span>
                       <span>${timeStr}</span>
                     </div>
@@ -1500,6 +1514,53 @@ const serializedMovies = JSON.stringify(allMovies);
                 `;
               }).join('');
             }
+          }
+
+          // 动态更新 TOP 10 真实转存转化排行榜
+          const topTableBody = document.getElementById('topConvertingTableBody');
+          if (topTableBody && Array.isArray(topMoviesRes) && topMoviesRes.length > 0) {
+            const sorted = topMoviesRes.map(m => {
+              const saves = (m.clicks_quark || 0) + (m.clicks_uc || 0);
+              const views = m.views || 0;
+              const rate = views > 0 ? ((saves / views) * 100).toFixed(2) : '0.00';
+              return { ...m, total_saves: saves, rate };
+            }).sort((a, b) => (b.total_saves - a.total_saves) || (b.views - a.views));
+
+            topTableBody.innerHTML = sorted.slice(0, 10).map((item, idx) => {
+              const rankBadge = idx < 3 ? `
+                <span class="inline-block w-5 h-5 rounded-full text-center leading-5 text-[10px] font-bold ${
+                  idx === 0 ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' :
+                  idx === 1 ? 'bg-slate-300/20 text-slate-200 border border-slate-300/30' :
+                  'bg-orange-500/20 text-orange-300 border border-orange-500/30'
+                }">
+                  ${idx + 1}
+                </span>
+              ` : `<span>${idx + 1}</span>`;
+
+              return `
+                <tr class="hover:bg-slate-900/50 transition">
+                  <td class="py-2 px-2 text-center font-mono text-slate-500">${rankBadge}</td>
+                  <td class="py-2 px-3 text-slate-200 font-medium">
+                    <a href="/movie/${item.id}" target="_blank" class="hover:text-orange-400 transition hover:underline">
+                      ${item.title}
+                    </a>
+                    ${item.year ? `<span class="text-slate-500 font-normal ml-1">(${item.year})</span>` : ''}
+                  </td>
+                  <td class="py-2 px-2 text-center text-slate-400">
+                    <span class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px]">${item.category || '电影'}</span>
+                  </td>
+                  <td class="py-2 px-2 text-center font-mono text-slate-300">${item.views || 0}</td>
+                  <td class="py-2 px-2 text-center font-mono text-purple-300">${item.clicks_quark || 0}</td>
+                  <td class="py-2 px-2 text-center font-mono text-cyan-300">${item.clicks_uc || 0}</td>
+                  <td class="py-2 px-2 text-center font-mono text-amber-300 font-bold">${item.total_saves || 0}</td>
+                  <td class="py-2 px-3 text-right">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/30">
+                      ${item.rate}%
+                    </span>
+                  </td>
+                </tr>
+              `;
+            }).join('');
           }
 
           const now = new Date();
