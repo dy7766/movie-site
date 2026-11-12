@@ -306,10 +306,10 @@ const serializedMovies = JSON.stringify(allMovies);
           </div>
         </div>
 
-        <!-- 下层双栏：TOP 10 转化最高影视榜单 + 实时流水与端分布 -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <!-- 左栏：TOP 10 转化最高影视 (8列) -->
-          <div class="lg:col-span-8 bg-slate-950/70 border border-slate-800/80 rounded-xl p-4">
+        <!-- 垂直堆叠：转存转化率排行榜 (TOP 10) 与 实时埋点事件流水 -->
+        <div class="space-y-4">
+          <!-- 上栏：TOP 10 转化最高影视 (全宽) -->
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4">
             <div class="flex items-center justify-between mb-3">
               <div class="flex items-center gap-2">
                 <span class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
@@ -381,8 +381,8 @@ const serializedMovies = JSON.stringify(allMovies);
             </div>
           </div>
 
-          <!-- 右栏：实时埋点流水事件 (4列) -->
-          <div class="lg:col-span-4 bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between">
+          <!-- 下栏：实时埋点流水事件 (全宽) -->
+          <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 flex flex-col justify-between">
             <div>
               <div class="flex items-center justify-between mb-3">
                 <span class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
@@ -391,7 +391,7 @@ const serializedMovies = JSON.stringify(allMovies);
                 <span class="text-[10px] text-slate-500">最近上报</span>
               </div>
 
-              <div id="recentEventsList" class="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+              <div id="recentEventsList" class="space-y-2 max-h-[320px] overflow-y-auto pr-1">
                 {analyticsMetrics.recentEvents.map((ev) => {
                   const evLabels = {
                     page_view: { text: 'PV 浏览', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
