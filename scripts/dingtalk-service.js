@@ -146,3 +146,58 @@ export async function sendDingTalkExpiredAlert({
 
   return await res.json();
 }
+
+/**
+ * 3. 发送网盘空间告警与熔断通知
+ */
+export async function sendDingTalkCapacityAlert({
+  usedTb = 0,
+  totalTb = 0,
+  freeGb = 0,
+  provider = 'UC'
+}) {
+  const finalUrl = getSignedUrl();
+  const config = getConfig();
+  const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+
+  const text = `
+## <font color="#FF0000">⚠️【网盘容量耗尽告警·自动转存熔断】</font>
+---
+**📅 告警时间**: ${now}  
+**💽 目标网盘**: **${provider} 网盘** (个人转存中枢)  
+**📊 空间现状大盘**:
+- 📦 网盘总容量: **${totalTb} TB**
+- 💾 当前已使用: **${usedTb} TB**
+- 🚨 剩余可用空间: **<font color="#FF0000">${freeGb} GB</font>** (已低于 15GB 安全熔断警戒线)
+
+---
+### 🛑 **触发防护机制说明**:
+1. 自动搜源与转存流水线已**触发熔断保护并挂起**，坚决拦截空目录转存与假绑定死链；
+2. 钉钉通知已停止虚报成功；
+3. **处理建议**：请登录 ${provider} 网页端或客户端，清理无用的历史转存目录或清空回收站释放空间，空间恢复后转存将自动恢复！
+`;
+
+  const payload = {
+    msgtype: 'markdown',
+    markdown: {
+      title: `⚠️ ${provider}网盘空间不足告警 (仅剩${freeGb}GB) @${config.alertName}`,
+      text: text.trim()
+    },
+    at: {
+      atMobiles: [config.alertPhone],
+      isAtAll: false
+    }
+  };
+
+  try {
+    const res = await fetch(finalUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    return await res.json();
+  } catch (err) {
+    console.error('发送钉钉容量告警失败:', err);
+    return null;
+  }
+}

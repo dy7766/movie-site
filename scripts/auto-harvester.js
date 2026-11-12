@@ -1,6 +1,7 @@
 import fs from 'fs';
 import { execSync } from 'child_process';
 import { getDbPool } from '../src/lib/db.js';
+import { sendDingTalkCapacityAlert } from './dingtalk-service.js';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || 'fc3786eb5ea9d4b8c8b09cc89df373b4';
 const TARGET_FOLDER_FID = '8c4fd9e810c643529d1e6fe59b17ea42'; // movie-site
@@ -195,11 +196,60 @@ export async function inspectAndFilterUcShare(pwd_id) {
   }
 }
 
+// 2.5 检查 UC 网盘容量与安全水位
+export async function checkUcCapacity() {
+  const cookie = getUcCookie();
+  if (!cookie) return { ok: false, error: '未配置 UC Cookie' };
+  try {
+    const res = await ucFetch('https://pc-api.uc.cn/1/clouddrive/member?pr=UCBrowser&fr=pc', {
+      headers: {
+        'cookie': cookie,
+        'referer': 'https://drive.uc.cn/'
+      }
+    });
+    const data = await res.json();
+    if (data.code === 0 && data.data) {
+      const total = Number(data.data.total_capacity) || 0;
+      const used = Number(data.data.use_capacity) || 0;
+      const free = Math.max(0, total - used);
+      const freeGb = parseFloat((free / (1024 * 1024 * 1024)).toFixed(2));
+      const totalTb = parseFloat((total / (1024 * 1024 * 1024 * 1024)).toFixed(2));
+      const usedTb = parseFloat((used / (1024 * 1024 * 1024 * 1024)).toFixed(2));
+      return {
+        ok: true,
+        total,
+        used,
+        free,
+        freeGb,
+        totalTb,
+        usedTb,
+        isFull: free < 15 * 1024 * 1024 * 1024 // 剩余空间少于 15GB 判定为不足触发熔断
+      };
+    }
+    return { ok: false, error: data.message || '获取容量失败' };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
 // 3. 转存入个人盘、重命名并生成带 PID 专属分享链接
 export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken, list) {
   const cookie = getUcCookie();
   if (!cookie) {
     console.error('未配置 UC Cookie，无法执行个人盘秒存');
+    return null;
+  }
+
+  // 容量前置预检与熔断
+  const cap = await checkUcCapacity();
+  if (cap.ok && cap.isFull) {
+    console.warn(`  🚨 [UC网盘容量不足熔断] 剩余空间仅 ${cap.freeGb} GB (< 15GB)，已暂停转存以防假绑定死链`);
+    await sendDingTalkCapacityAlert({
+      usedTb: cap.usedTb,
+      totalTb: cap.totalTb,
+      freeGb: cap.freeGb,
+      provider: 'UC'
+    });
     return null;
   }
 
@@ -237,15 +287,26 @@ export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken
 
   await new Promise(r => setTimeout(r, 2000));
 
-  // 定位新存入的项
-  const folderRes = await ucFetch(`https://pc-api.uc.cn/1/clouddrive/file/sort?pr=UCBrowser&fr=pc&pdir_fid=${TARGET_FOLDER_FID}&_page=1&_size=10&_sort=file_type:asc,updated_at:desc`, {
+  // 定位新存入的项（精确匹配文件名，严禁盲目回退到 list[0]）
+  const folderRes = await ucFetch(`https://pc-api.uc.cn/1/clouddrive/file/sort?pr=UCBrowser&fr=pc&pdir_fid=${TARGET_FOLDER_FID}&_page=1&_size=15&_sort=file_type:asc,updated_at:desc`, {
     headers: HEADERS
   });
   const fData = await folderRes.json();
-  const savedItem = fData.data?.list?.find(f => f.file_name === rootItem.file_name) || fData.data?.list?.[0];
+  const savedItem = fData.data?.list?.find(f => f.file_name === rootItem.file_name);
   if (!savedItem) {
-    console.log(`  ✗ 未能在目标目录定位到新转存的项 (目录为空)`);
+    console.log(`  ✗ 未能在目标目录定位到新转存的项: ${rootItem.file_name} (转存可能因空间不足或接口异常失败)`);
     return null;
+  }
+
+  // 深度质检：严禁转存空文件夹
+  if (savedItem.dir && (savedItem.include_items === 0 || savedItem.include_items === undefined)) {
+    await new Promise(r => setTimeout(r, 1500));
+    const checkRes = await ucFetch(`https://pc-api.uc.cn/1/clouddrive/file/sort?pr=UCBrowser&fr=pc&pdir_fid=${savedItem.fid}&_page=1&_size=5`, { headers: HEADERS });
+    const checkData = await checkRes.json();
+    if (!checkData.data?.list || checkData.data.list.length === 0) {
+      console.log(`  ✗ 转存项为空目录 (0 文件)，判定为失败`);
+      return null;
+    }
   }
 
   // 规范重命名
@@ -271,13 +332,17 @@ export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken
 
   await new Promise(r => setTimeout(r, 1200));
 
-  // 提取带用户 UID 的专属链接
+  // 提取带用户 UID 的专属链接（精确匹配 first_fid 或 title）
   const myRes = await ucFetch('https://pc-api.uc.cn/1/clouddrive/share/mypage/detail?pr=UCBrowser&fr=pc&_page=1&_size=8', {
     headers: HEADERS
   });
   const myData = await myRes.json();
-  const share = myData.data?.list?.find(s => s.first_fid === savedItem.fid || s.title === standardName) || myData.data?.list?.[0];
-  return share?.share_url || null;
+  const share = myData.data?.list?.find(s => s.first_fid === savedItem.fid || s.title === standardName);
+  if (!share || !share.share_url) {
+    console.log(`  ✗ 未能获取到新生成的专属分享链接`);
+    return null;
+  }
+  return share.share_url;
 }
 
 // 4. TMDB 抓取并同步 Supabase 数据库

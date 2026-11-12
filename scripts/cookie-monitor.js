@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
-import { sendDingTalkExpiredAlert } from './dingtalk-service.js';
+import { sendDingTalkExpiredAlert, sendDingTalkCapacityAlert } from './dingtalk-service.js';
 
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
@@ -132,7 +132,21 @@ export async function checkDriveCookies() {
       report.uc.ok = true;
       report.uc.totalGB = (res.data.data.total_capacity / 1024 / 1024 / 1024).toFixed(1);
       report.uc.freeGB = ((res.data.data.total_capacity - res.data.data.use_capacity) / 1024 / 1024 / 1024).toFixed(1);
-      report.uc.message = `正常运行中（可用容量: ${report.uc.freeGB} GB / ${report.uc.totalGB} GB）`;
+      if (parseFloat(report.uc.freeGB) < 15) {
+        report.uc.message = `⚠️ 空间耗尽熔断（仅剩 ${report.uc.freeGB} GB / ${report.uc.totalGB} GB）`;
+        report.hasAlert = true;
+        report.isCapacityFull = true;
+        try {
+          await sendDingTalkCapacityAlert({
+            usedTb: ((parseFloat(report.uc.totalGB) - parseFloat(report.uc.freeGB)) / 1024).toFixed(2),
+            totalTb: (parseFloat(report.uc.totalGB) / 1024).toFixed(2),
+            freeGb: report.uc.freeGB,
+            provider: 'UC'
+          });
+        } catch (e) {}
+      } else {
+        report.uc.message = `正常运行中（可用容量: ${report.uc.freeGB} GB / ${report.uc.totalGB} GB）`;
+      }
     } else if (res.status === 401 || res.status === 403 || (res.data && res.data.code !== 0)) {
       // 真实鉴权失效
       report.uc.ok = false;
