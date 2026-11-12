@@ -84,6 +84,8 @@ const categories = ['全部', '电影', '电视剧', '动漫', '综艺', '纪录
     <div id="movieGrid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-6">
       {movies.map((m) => (
         <article class="movie-card group bg-slate-900/60 rounded-2xl overflow-hidden border border-slate-800/80 hover:border-orange-500/40 hover:shadow-xl hover:shadow-orange-500/5 transition-all flex flex-col"
+          data-resource-id={m.id}
+          data-resource-title={m.title}
           data-title={m.title}
           data-actors={m.actors || ''}
           data-category={m.category || '电影'}

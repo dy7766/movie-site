@@ -251,6 +251,9 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
                     href={movie.share_link} 
                     target="_blank" 
                     rel="noopener noreferrer"
+                    data-track="quark"
+                    data-resource-id={movie.id}
+                    data-resource-title={movie.title}
                     class="py-3.5 px-5 rounded-2xl bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-sm text-center shadow-lg shadow-orange-500/20 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 group"
                   >
                     <svg class="w-4 h-4 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
@@ -265,6 +268,9 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
                     href={movie.share_link_uc} 
                     target="_blank" 
                     rel="noopener noreferrer"
+                    data-track="uc"
+                    data-resource-id={movie.id}
+                    data-resource-title={movie.title}
                     class="py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-extrabold text-sm text-center shadow-lg shadow-amber-500/20 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 group"
                   >
                     <svg class="w-4 h-4 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
@@ -394,12 +400,12 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
             {(movie.share_link || movie.share_link_uc) ? (
               <>
                 {movie.share_link && (
-                  <a href={movie.share_link} target="_blank" rel="noopener noreferrer" class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-md shadow-orange-500/25 transition-all flex items-center justify-center gap-1.5">
+                  <a href={movie.share_link} target="_blank" rel="noopener noreferrer" data-track="quark" data-resource-id={movie.id} data-resource-title={movie.title} class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold shadow-md shadow-orange-500/25 transition-all flex items-center justify-center gap-1.5">
                     <span>转存《{movie.title}》4K 原盘（夸克网盘） →</span>
                   </a>
                 )}
                 {movie.share_link_uc && (
-                  <a href={movie.share_link_uc} target="_blank" rel="noopener noreferrer" class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-extrabold shadow-md shadow-amber-500/25 transition-all flex items-center justify-center gap-1.5">
+                  <a href={movie.share_link_uc} target="_blank" rel="noopener noreferrer" data-track="uc" data-resource-id={movie.id} data-resource-title={movie.title} class="flex-1 sm:flex-initial px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-extrabold shadow-md shadow-amber-500/25 transition-all flex items-center justify-center gap-1.5">
                     <span>转存《{movie.title}》4K 原盘（UC 网盘） →</span>
                   </a>
                 )}
@@ -437,6 +443,9 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
                   href={movie.share_link} 
                   target="_blank" 
                   rel="noopener noreferrer"
+                  data-track="quark"
+                  data-resource-id={movie.id}
+                  data-resource-title={movie.title}
                   class="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white text-xs font-bold transition-all shadow-md shadow-orange-500/20 flex items-center gap-1.5"
                 >
                   <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
@@ -450,6 +459,9 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
                   href={movie.share_link_uc} 
                   target="_blank" 
                   rel="noopener noreferrer"
+                  data-track="uc"
+                  data-resource-id={movie.id}
+                  data-resource-title={movie.title}
                   class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-extrabold transition-all shadow-md shadow-amber-500/20 flex items-center gap-1.5"
                 >
                   <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">

@@ -30,12 +30,20 @@
       var metaTitle = document.querySelector('meta[name="resource-title"]');
       
       var resourceId = extra.resourceId || (metaId ? metaId.getAttribute('content') : null);
-      var resourceTitle = extra.resourceTitle || (metaTitle ? metaTitle.getAttribute('content') : document.title);
+      var resourceTitle = extra.resourceTitle || (metaTitle ? metaTitle.getAttribute('content') : '');
+
+      // 门禁规则：转存事件 (click_quark / click_uc) 与点播必须严格绑定具体影视资产！
+      // 坚决拦截未绑定片名、或误将网站通用标题当成电影的假埋点
+      if (eventType === 'click_quark' || eventType === 'click_uc' || eventType === 'click_play') {
+        if (!resourceId || !resourceTitle || resourceTitle.indexOf('星光影库 -') === 0 || resourceTitle === '星光影库') {
+          return;
+        }
+      }
 
       var payload = {
         event_type: eventType,
         resource_id: resourceId ? String(resourceId).trim() : null,
-        resource_title: resourceTitle || '',
+        resource_title: resourceTitle || (eventType === 'page_view' ? document.title : ''),
         device: getDeviceType(),
         page_url: window.location.href,
         referrer: document.referrer || ''

@@ -23,6 +23,16 @@ export async function onRequestPost(context) {
       referrer = ''
     } = body;
 
+    // 门禁安全校验：真实转存与播放事件必须严格归属于具体影片，坚决拦截没有片名或整站标题的无效埋点
+    if (event_type === 'click_quark' || event_type === 'click_uc' || event_type === 'click_play') {
+      if (!resource_id || !resource_title || resource_title.includes('星光影库 -') || resource_title === '星光影库') {
+        return new Response(JSON.stringify({ success: false, reason: 'Invalid movie resource for save/play event' }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+        });
+      }
+    }
+
     // 从 Cloudflare 请求头和 CF 上下文中毫秒级提取访问者真实 IP 与城市地区
     const clientIp = context.request.headers.get('cf-connecting-ip') || 
                      context.request.headers.get('x-real-ip') || 

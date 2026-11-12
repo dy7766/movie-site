@@ -197,6 +197,8 @@ const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/T
       {movies.map((m) => (
         <article 
           class="movie-card group bg-slate-900/60 rounded-2xl overflow-hidden border border-slate-800/80 hover:border-orange-500/40 hover:shadow-xl hover:shadow-orange-500/5 transition-all flex flex-col"
+          data-resource-id={m.id}
+          data-resource-title={m.title}
           data-id={m.id}
           data-title={m.title}
           data-category={m.category || '电影'}
