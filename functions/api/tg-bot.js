@@ -132,16 +132,6 @@ export async function onRequestPost(context) {
       });
       return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
     }
-              { text: '🎬 打开星光影库 (小程序选片)', web_app: { url: 'https://xkykmovie.com/explore' } }
-            ],
-            [
-              { text: '🔥 查看今日热门榜单', callback_data: 'cmd:hot' }
-            ]
-          ]
-        }
-      });
-      return new Response(JSON.stringify({ ok: true }), { headers: { 'Content-Type': 'application/json' } });
-    }
 
     // B. 提取搜片关键词
     const query = extractSearchQuery(text, isPrivate);
