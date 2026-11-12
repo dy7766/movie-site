@@ -232,8 +232,8 @@ export async function checkUcCapacity() {
   }
 }
 
-// 3. 转存入个人盘、重命名并生成带 PID 专属分享链接
-export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken, list) {
+// 3. 转存入个人盘、重命名并生成带 PID 专属分享链接 (返回完整详情)
+export async function saveAndShareUcDetail(targetTitle, year, category, pwd_id, stoken, list) {
   const cookie = getUcCookie();
   if (!cookie) {
     console.error('未配置 UC Cookie，无法执行个人盘秒存');
@@ -342,7 +342,89 @@ export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken
     console.log(`  ✗ 未能获取到新生成的专属分享链接`);
     return null;
   }
-  return share.share_url;
+  return {
+    shareUrl: share.share_url,
+    fid: savedItem.fid,
+    pwdId: share.share_id,
+    title: standardName
+  };
+}
+
+export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken, list) {
+  const detail = await saveAndShareUcDetail(targetTitle, year, category, pwd_id, stoken, list);
+  return detail ? detail.shareUrl : null;
+}
+
+// 增量追更：获取我方网盘目录下的文件列表
+export async function getUcFolderFiles(pdir_fid) {
+  const cookie = getUcCookie();
+  if (!cookie) return [];
+  const HEADERS = {
+    'cookie': cookie,
+    'referer': 'https://drive.uc.cn/',
+    'user-agent': BROWSER_UA
+  };
+  try {
+    const res = await ucFetch(`https://pc-api.uc.cn/1/clouddrive/file/sort?pr=UCBrowser&fr=pc&pdir_fid=${pdir_fid}&_page=1&_size=100`, { headers: HEADERS });
+    const data = await res.json();
+    return data.data?.list || [];
+  } catch {
+    return [];
+  }
+}
+
+// 增量追更：将新单集直接存入已有目录
+export async function saveFilesToExistingUcFolder(pdir_fid, pwd_id, stoken, fileItems) {
+  const cookie = getUcCookie();
+  if (!cookie || !fileItems || fileItems.length === 0) return { ok: false, count: 0 };
+  const HEADERS = {
+    'cookie': cookie,
+    'content-type': 'application/json',
+    'origin': 'https://drive.uc.cn',
+    'referer': 'https://drive.uc.cn/',
+    'user-agent': BROWSER_UA
+  };
+  try {
+    const saveRes = await ucFetch('https://pc-api.uc.cn/1/clouddrive/share/sharepage/save?pr=UCBrowser&fr=pc', {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({
+        pwd_id,
+        stoken,
+        fid_list: fileItems.map(f => f.fid),
+        fid_token_list: fileItems.map(f => f.share_fid_token),
+        to_pdir_fid: pdir_fid
+      })
+    });
+    const sData = await saveRes.json();
+    return { ok: sData.code === 0, count: sData.code === 0 ? fileItems.length : 0, message: sData.message };
+  } catch (err) {
+    return { ok: false, count: 0, error: err.message };
+  }
+}
+
+// 物理删除指定 UC 文件/文件夹
+export async function deleteUcFiles(filelist) {
+  const cookie = getUcCookie();
+  if (!cookie || !filelist || filelist.length === 0) return false;
+  const HEADERS = {
+    'cookie': cookie,
+    'content-type': 'application/json',
+    'origin': 'https://drive.uc.cn',
+    'referer': 'https://drive.uc.cn/',
+    'user-agent': BROWSER_UA
+  };
+  try {
+    const res = await ucFetch('https://pc-api.uc.cn/1/clouddrive/file/delete?pr=UCBrowser&fr=pc', {
+      method: 'POST',
+      headers: HEADERS,
+      body: JSON.stringify({ filelist })
+    });
+    const data = await res.json();
+    return data.code === 0;
+  } catch {
+    return false;
+  }
 }
 
 // 4. TMDB 抓取并同步 Supabase 数据库
