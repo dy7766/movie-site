@@ -1,5 +1,5 @@
 import { execSync } from 'child_process';
-import { getDbPool } from '../src/lib/db.js';
+import { getDbPool, getTransferSettings } from '../src/lib/db.js';
 import { 
   searchPublicShares, 
   inspectAndFilterUcShare, 
@@ -205,6 +205,10 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
   const res = await pool.query(query);
   const candidateList = res.rows;
 
+  // 0. 读取管理员后台转存控制开关
+  const transferSettings = await getTransferSettings();
+  console.log(`⚙️ [转存配置] 电视剧自动追更网盘转存: ${transferSettings.uc ? '🟢 开启' : '🔴 已暂停 (仅同步排期状态，不转存物理网盘文件)'}`);
+
   if (candidateList.length === 0) {
     console.log('🟢 当前片库中暂无待同步集数的剧集，全部已完结或处于最新状态。');
     return { updatedCount: 0, items: [] };
@@ -247,6 +251,9 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
       if (expectedEp > oldCur && !s.is_finished) {
         console.log(`  🎉 发现最新剧集更新！《${s.title}》官方/切片已播出至第 ${expectedEp} 集 (当前库内: 第 ${oldCur} 集)`);
 
+        if (!transferSettings.uc) {
+          console.log(`  ⏸️ [后台控制跳过] 管理员已在后台关闭【UC网盘转存】，跳过《${s.title}》的增量/整包追更转存，保持集数真实性防虚标`);
+        } else {
         let strategyASucceeded = false;
 
         // -------------------------------------------------------------
@@ -351,6 +358,7 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
           } else {
             console.log(`  ⏳ [策略A暂缓] 原源距上次更新仅 ${daysSinceUpdate.toFixed(1)} 天 (< 3天)，继续观察原作者更新，未触发兜底置换。`);
           }
+        }
         }
       }
 

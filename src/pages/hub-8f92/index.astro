@@ -1,10 +1,11 @@
 ---
-import { getAllMoviesForAdmin, getAnalyticsMetrics } from '../../lib/db.js';
+import { getAllMoviesForAdmin, getAnalyticsMetrics, getTransferSettings } from '../../lib/db.js';
 
-// 获取全量影视资源数据与实时转化大盘指标
-const [allMovies, analyticsMetrics] = await Promise.all([
+// 获取全量影视资源数据、实时转化大盘指标与自动化网盘转存控制配置
+const [allMovies, analyticsMetrics, initialTransferSettings] = await Promise.all([
   getAllMoviesForAdmin(),
-  getAnalyticsMetrics()
+  getAnalyticsMetrics(),
+  getTransferSettings()
 ]);
 
 // 基础统计大盘指标计算
@@ -25,6 +26,7 @@ for (const cat of categories.slice(1)) {
 
 // 格式化数据传递给客户端（避免超长不可序列化数据）
 const serializedMovies = JSON.stringify(allMovies);
+const serializedTransferSettings = JSON.stringify(initialTransferSettings);
 ---
 
 <!doctype html>
@@ -205,6 +207,100 @@ const serializedMovies = JSON.stringify(allMovies);
             <span class="text-[11px] text-orange-500">部</span>
           </div>
           <span class="text-[10px] text-orange-400/80 mt-1">每日定时巡检更新集数</span>
+        </div>
+      </section>
+
+      <!-- 自动化网盘转存控制中心 (Automated Netdisk Transfer Control Center) -->
+      <section class="bg-gradient-to-r from-slate-900/90 via-slate-900/80 to-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3.5">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500/20 to-purple-500/20 border border-slate-700 flex items-center justify-center text-slate-300">
+              <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-sm font-bold text-white tracking-wide">自动化网盘转存控制中心</h3>
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+                  独立双网盘控制
+                </span>
+                <span id="transferSettingsSyncBadge" class="inline-flex items-center gap-1 text-[10px] text-slate-400 font-mono">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  实时同步就绪
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">控制定时搜源、电视剧追更与批量入库流水线是否往个人网盘执行转存 · 支持 UC 与 夸克 分离独立热开关</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 self-start sm:self-auto text-xs text-slate-400 font-mono" id="transferSettingsUpdatedTime">
+            {initialTransferSettings.updated_at ? `上次变更: ${new Date(initialTransferSettings.updated_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}
+          </div>
+        </div>
+
+        <!-- 双控制开关卡片矩阵 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- 1. UC 网盘转存控制 -->
+          <div class="bg-slate-950/60 border border-slate-800 hover:border-cyan-500/40 rounded-xl p-4 transition-all duration-300 flex items-center justify-between gap-4 group">
+            <div class="flex items-start gap-3.5">
+              <div class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center font-bold text-cyan-400 text-sm shadow-lg shadow-cyan-500/10 group-hover:scale-105 transition-transform flex-shrink-0">
+                UC
+              </div>
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <h4 class="text-sm font-semibold text-slate-100">UC 网盘自动转存</h4>
+                  <span id="ucStatusBadge" class={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${initialTransferSettings.uc ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/10 text-rose-300 border-rose-500/30'}`}>
+                    <span id="ucStatusDot" class={`w-1.5 h-1.5 rounded-full ${initialTransferSettings.uc ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
+                    <span id="ucStatusLabel">{initialTransferSettings.uc ? '运行中 (允许转存)' : '已暂停 (跳过转存)'}</span>
+                  </span>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                  开启后，流水线将自动把高分电影与热播追更剧秒存至个人 UC 盘并绑定专属 PID 返佣链接；关闭时保留切片与元数据，跳过网盘转存。
+                </p>
+                <div class="text-[11px] text-cyan-400/80 font-mono">
+                  个人空间: 7TB · 推广UID: 100753582621
+                </div>
+              </div>
+            </div>
+
+            <!-- iOS / Tailwind Tactile Toggle -->
+            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+              <input type="checkbox" id="ucToggleInput" checked={initialTransferSettings.uc} class="sr-only peer" />
+              <div class="w-12 h-6.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5.5 after:w-5.5 after:transition-all after:shadow-md peer-checked:bg-gradient-to-r peer-checked:from-cyan-500 peer-checked:to-blue-600 peer-checked:shadow-lg peer-checked:shadow-cyan-500/25 border border-slate-700 peer-checked:border-cyan-400/60 transition-colors"></div>
+            </label>
+          </div>
+
+          <!-- 2. 夸克网盘转存控制 -->
+          <div class="bg-slate-950/60 border border-slate-800 hover:border-purple-500/40 rounded-xl p-4 transition-all duration-300 flex items-center justify-between gap-4 group">
+            <div class="flex items-start gap-3.5">
+              <div class="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center font-bold text-purple-400 text-sm shadow-lg shadow-purple-500/10 group-hover:scale-105 transition-transform flex-shrink-0">
+                QK
+              </div>
+              <div class="space-y-1">
+                <div class="flex items-center gap-2">
+                  <h4 class="text-sm font-semibold text-slate-100">夸克网盘自动转存</h4>
+                  <span id="quarkStatusBadge" class={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${initialTransferSettings.quark ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/10 text-rose-300 border-rose-500/30'}`}>
+                    <span id="quarkStatusDot" class={`w-1.5 h-1.5 rounded-full ${initialTransferSettings.quark ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
+                    <span id="quarkStatusLabel">{initialTransferSettings.quark ? '运行中 (允许转存)' : '已暂停 (跳过转存)'}</span>
+                  </span>
+                </div>
+                <p class="text-xs text-slate-400 leading-relaxed">
+                  开启后，流水线将自动将院线大片与热门剧集秒存至 6TB 夸克个人盘并生成专属分佣链接；关闭时跳过夸克转存。
+                </p>
+                <div class="text-[11px] text-purple-400/80 font-mono">
+                  个人空间: 6TB (新扩容) · 推广UID: 100061001997
+                </div>
+              </div>
+            </div>
+
+            <!-- iOS / Tailwind Tactile Toggle -->
+            <label class="relative inline-flex items-center cursor-pointer flex-shrink-0">
+              <input type="checkbox" id="quarkToggleInput" checked={initialTransferSettings.quark} class="sr-only peer" />
+              <div class="w-12 h-6.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5.5 after:w-5.5 after:transition-all after:shadow-md peer-checked:bg-gradient-to-r peer-checked:from-purple-500 peer-checked:to-indigo-600 peer-checked:shadow-lg peer-checked:shadow-purple-500/25 border border-slate-700 peer-checked:border-purple-400/60 transition-colors"></div>
+            </label>
+          </div>
         </div>
       </section>
 
@@ -754,6 +850,7 @@ const serializedMovies = JSON.stringify(allMovies);
 
     <!-- 原始全量数据安全存放在客户端供即时秒级检索 -->
     <script id="allMoviesData" type="application/json" set:html={serializedMovies}></script>
+    <script id="transferSettingsData" type="application/json" set:html={serializedTransferSettings}></script>
 
     <script is:inline>
       // 客户端管理面板核心逻辑
@@ -1567,6 +1664,20 @@ const serializedMovies = JSON.stringify(allMovies);
           const timeStr = now.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
           if (statusText) statusText.textContent = '实时已连接';
           if (lastUpdated) lastUpdated.textContent = `最后刷新: ${timeStr}`;
+
+          // 并行同步最新转存控制开关状态
+          fetch(`${SUPABASE_BASE_URL}/system_settings?key=eq.transfer_settings&select=value,updated_at`, {
+            headers: { 'apikey': SUPABASE_PUB_KEY, 'Authorization': `Bearer ${SUPABASE_PUB_KEY}` }
+          }).then(r => r.json()).then(data => {
+            if (data?.[0]?.value) {
+              updateTransferSwitchUi({
+                uc: data[0].value.uc !== false,
+                quark: data[0].value.quark !== false,
+                updated_at: data[0].updated_at || data[0].value.updated_at
+              });
+            }
+          }).catch(() => {});
+
           if (manual) showToast('已刷新并同步最新真实转化大盘数据', '⚡');
         } catch (err) {
           if (statusText) statusText.textContent = '实时刷新失败';
@@ -1574,6 +1685,154 @@ const serializedMovies = JSON.stringify(allMovies);
           if (spinner) spinner.classList.remove('animate-spin');
         }
       }
+
+      // ==========================================
+      // 网盘转存控制开关事件与持久化逻辑
+      // ==========================================
+      const rawTransferSettings = JSON.parse(document.getElementById('transferSettingsData')?.textContent || '{"uc":true,"quark":true}');
+      let currentTransferState = { ...rawTransferSettings };
+
+      const ucToggle = document.getElementById('ucToggleInput');
+      const quarkToggle = document.getElementById('quarkToggleInput');
+
+      function updateTransferSwitchUi(settings) {
+        if (!settings) return;
+        currentTransferState = { ...currentTransferState, ...settings };
+
+        // 1. UC 网盘状态组件更新
+        if (ucToggle && ucToggle.checked !== currentTransferState.uc) {
+          ucToggle.checked = currentTransferState.uc;
+        }
+        const ucBadge = document.getElementById('ucStatusBadge');
+        const ucDot = document.getElementById('ucStatusDot');
+        const ucLabel = document.getElementById('ucStatusLabel');
+        if (ucBadge && ucDot && ucLabel) {
+          if (currentTransferState.uc) {
+            ucBadge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border bg-emerald-500/10 text-emerald-300 border-emerald-500/30';
+            ucDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse';
+            ucLabel.textContent = '运行中 (允许转存)';
+          } else {
+            ucBadge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border bg-rose-500/10 text-rose-300 border-rose-500/30';
+            ucDot.className = 'w-1.5 h-1.5 rounded-full bg-rose-400';
+            ucLabel.textContent = '已暂停 (跳过转存)';
+          }
+        }
+
+        // 2. 夸克网盘状态组件更新
+        if (quarkToggle && quarkToggle.checked !== currentTransferState.quark) {
+          quarkToggle.checked = currentTransferState.quark;
+        }
+        const qkBadge = document.getElementById('quarkStatusBadge');
+        const qkDot = document.getElementById('quarkStatusDot');
+        const qkLabel = document.getElementById('quarkStatusLabel');
+        if (qkBadge && qkDot && qkLabel) {
+          if (currentTransferState.quark) {
+            qkBadge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border bg-emerald-500/10 text-emerald-300 border-emerald-500/30';
+            qkDot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse';
+            qkLabel.textContent = '运行中 (允许转存)';
+          } else {
+            qkBadge.className = 'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border bg-rose-500/10 text-rose-300 border-rose-500/30';
+            qkDot.className = 'w-1.5 h-1.5 rounded-full bg-rose-400';
+            qkLabel.textContent = '已暂停 (跳过转存)';
+          }
+        }
+
+        // 3. 上次变更时间显示
+        const timeEl = document.getElementById('transferSettingsUpdatedTime');
+        if (timeEl && currentTransferState.updated_at) {
+          try {
+            const d = new Date(currentTransferState.updated_at);
+            timeEl.textContent = `上次变更: ${d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+          } catch (_) {}
+        }
+      }
+
+      async function saveTransferSetting(provider, enabled) {
+        const syncBadge = document.getElementById('transferSettingsSyncBadge');
+        if (syncBadge) {
+          syncBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping"></span> 正在保存...';
+        }
+
+        const newSettings = {
+          uc: provider === 'uc' ? enabled : currentTransferState.uc,
+          quark: provider === 'quark' ? enabled : currentTransferState.quark
+        };
+
+        // 乐观更新 UI
+        updateTransferSwitchUi({ ...newSettings, updated_at: new Date().toISOString() });
+
+        try {
+          let success = false;
+          // 优先调用 Cloudflare Pages Function 边缘接口
+          try {
+            const apiRes = await fetch('/api/transfer-settings', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(newSettings)
+            });
+            if (apiRes.ok) {
+              const resData = await apiRes.json();
+              if (resData.success) {
+                success = true;
+                if (resData.settings) updateTransferSwitchUi(resData.settings);
+              }
+            }
+          } catch (_) {}
+
+          // 降级兜底：若直连边缘函数受网络或本地开发限制，直连 Supabase REST API
+          if (!success) {
+            const patchRes = await fetch(`${SUPABASE_BASE_URL}/system_settings?key=eq.transfer_settings`, {
+              method: 'PATCH',
+              headers: {
+                'apikey': SUPABASE_PUB_KEY,
+                'Authorization': `Bearer ${SUPABASE_PUB_KEY}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+              },
+              body: JSON.stringify({
+                value: {
+                  ...newSettings,
+                  updated_at: new Date().toISOString(),
+                  updated_by: 'admin_dashboard'
+                },
+                updated_at: new Date().toISOString()
+              })
+            });
+            if (patchRes.ok) {
+              success = true;
+            }
+          }
+
+          if (success) {
+            const providerName = provider === 'uc' ? 'UC 网盘' : '夸克网盘';
+            const stateText = enabled ? '已开启自动转存' : '已暂停自动转存';
+            showToast(`${providerName} ${stateText}`, enabled ? '🟢' : '⏸️');
+            if (syncBadge) {
+              syncBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> 实时同步成功';
+            }
+          } else {
+            throw new Error('网络请求未成功');
+          }
+        } catch (err) {
+          console.error('Failed to save transfer setting:', err);
+          showToast('转存控制开关保存失败，请检查网络', '❌');
+          // 回滚
+          if (provider === 'uc' && ucToggle) ucToggle.checked = !enabled;
+          if (provider === 'quark' && quarkToggle) quarkToggle.checked = !enabled;
+          updateTransferSwitchUi(currentTransferState);
+          if (syncBadge) {
+            syncBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> 保存失败';
+          }
+        }
+      }
+
+      ucToggle?.addEventListener('change', (e) => {
+        saveTransferSetting('uc', e.target.checked);
+      });
+
+      quarkToggle?.addEventListener('change', (e) => {
+        saveTransferSetting('quark', e.target.checked);
+      });
 
       // 绑定实时刷新按钮
       document.getElementById('refreshLiveMetricsBtn')?.addEventListener('click', () => {

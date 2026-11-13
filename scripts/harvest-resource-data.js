@@ -1,4 +1,4 @@
-import { getDbPool } from '../src/lib/db.js';
+import { getDbPool, getTransferSettings } from '../src/lib/db.js';
 import { searchPublicShares, inspectAndFilterUcShare, saveAndShareUc, checkUcCapacity } from './auto-harvester.js';
 import { sendDingTalkCapacityAlert } from './dingtalk-service.js';
 import { searchCmsStream } from './online-play-monitor.js';
@@ -14,18 +14,26 @@ export async function harvestResourceData(batchSize = 15) {
 
   const pool = getDbPool();
 
-  // 0. 批次前置容量探测：单次更新仅告警一次，空间不足时本批次全局跳过 UC 搜存，专注于切片流
+  // 0. 读取管理员后台转存控制开关 (UC / 夸克 分离控制)
+  const transferSettings = await getTransferSettings();
+  console.log(`⚙️ [转存配置] UC网盘自动转存: ${transferSettings.uc ? '🟢 开启' : '🔴 已暂停'} | 夸克网盘自动转存: ${transferSettings.quark ? '🟢 开启' : '🔴 已暂停'}`);
+
+  // 1. 批次前置容量探测：单次更新仅告警一次，空间不足时本批次全局跳过 UC 搜存，专注于切片流
   let isUcCapacityFull = false;
-  const initialCap = await checkUcCapacity();
-  if (initialCap.ok && initialCap.isFull) {
-    isUcCapacityFull = true;
-    console.warn(`  🚨 [批次前置熔断] UC网盘空间已耗尽 (仅剩 ${initialCap.freeGb} GB < 15GB)，本轮更新跳过全部 UC 转存任务，专注于切片流补充。`);
-    await sendDingTalkCapacityAlert({
-      usedTb: initialCap.usedTb,
-      totalTb: initialCap.totalTb,
-      freeGb: initialCap.freeGb,
-      provider: 'UC'
-    });
+  if (transferSettings.uc) {
+    const initialCap = await checkUcCapacity();
+    if (initialCap.ok && initialCap.isFull) {
+      isUcCapacityFull = true;
+      console.warn(`  🚨 [批次前置熔断] UC网盘空间已耗尽 (仅剩 ${initialCap.freeGb} GB < 15GB)，本轮更新跳过全部 UC 转存任务，专注于切片流补充。`);
+      await sendDingTalkCapacityAlert({
+        usedTb: initialCap.usedTb,
+        totalTb: initialCap.totalTb,
+        freeGb: initialCap.freeGb,
+        provider: 'UC'
+      });
+    }
+  } else {
+    console.log('  ℹ️ [开关生效] UC网盘转存已被管理员设为暂停，跳过 UC 容量探测与预警');
   }
 
   // 1. 全库公平轮转优先：优先从未巡检的条目开始，同时倾斜缺失网盘与高分热片
@@ -69,7 +77,9 @@ export async function harvestResourceData(batchSize = 15) {
 
     // 1. 补齐 UC 网盘转存链接
     if (!m.share_link_uc) {
-      if (isUcCapacityFull) {
+      if (!transferSettings.uc) {
+        console.log(`  ⏸️ [后台控制跳过] 管理员已在后台关闭【UC网盘转存】，跳过《${m.title}》的 UC 资源搜存与转存`);
+      } else if (isUcCapacityFull) {
         console.log(`  ⏩ [容量熔断跳过] UC网盘空间不足 (<15GB)，本轮跳过《${m.title}》的网盘搜存与重复报警`);
       } else {
         console.log(`  🔍 正在全网检索《${m.title}》公开网盘分享...`);

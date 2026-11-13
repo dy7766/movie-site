@@ -160,3 +160,40 @@ export async function getAnalyticsMetrics() {
     recentEvents
   };
 }
+
+// 获取网盘自动转存控制开关设置 (UC 与 夸克 分离独立控制)
+export async function getTransferSettings() {
+  try {
+    const p = getDbPool();
+    const res = await p.query("SELECT value, updated_at FROM system_settings WHERE key = 'transfer_settings'");
+    if (res.rows.length > 0 && res.rows[0].value) {
+      const val = res.rows[0].value;
+      return {
+        uc: val.uc !== false,
+        quark: val.quark !== false,
+        updated_at: res.rows[0].updated_at || val.updated_at || null
+      };
+    }
+  } catch (err) {
+    console.warn('⚠️ 读取网盘转存配置异常, 默认开启:', err.message);
+  }
+  return { uc: true, quark: true, updated_at: null };
+}
+
+// 更新网盘自动转存控制开关设置
+export async function updateTransferSettings({ uc, quark }) {
+  const p = getDbPool();
+  const value = {
+    uc: uc !== false,
+    quark: quark !== false,
+    updated_at: new Date().toISOString()
+  };
+  await p.query(
+    `INSERT INTO system_settings (key, value, updated_at)
+     VALUES ('transfer_settings', $1, NOW())
+     ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+    [JSON.stringify(value)]
+  );
+  return value;
+}
+
