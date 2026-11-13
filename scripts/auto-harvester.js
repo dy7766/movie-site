@@ -232,6 +232,9 @@ export async function checkUcCapacity() {
   }
 }
 
+// 进程内容量告警防刷屏标记 (保证一次更新运行周期内仅告警一次)
+let hasAlertedCapacityInThisProcess = false;
+
 // 3. 转存入个人盘、重命名并生成带 PID 专属分享链接 (返回完整详情)
 export async function saveAndShareUcDetail(targetTitle, year, category, pwd_id, stoken, list) {
   const cookie = getUcCookie();
@@ -244,12 +247,17 @@ export async function saveAndShareUcDetail(targetTitle, year, category, pwd_id, 
   const cap = await checkUcCapacity();
   if (cap.ok && cap.isFull) {
     console.warn(`  🚨 [UC网盘容量不足熔断] 剩余空间仅 ${cap.freeGb} GB (< 15GB)，已暂停转存以防假绑定死链`);
-    await sendDingTalkCapacityAlert({
-      usedTb: cap.usedTb,
-      totalTb: cap.totalTb,
-      freeGb: cap.freeGb,
-      provider: 'UC'
-    });
+    if (!hasAlertedCapacityInThisProcess) {
+      hasAlertedCapacityInThisProcess = true;
+      await sendDingTalkCapacityAlert({
+        usedTb: cap.usedTb,
+        totalTb: cap.totalTb,
+        freeGb: cap.freeGb,
+        provider: 'UC'
+      });
+    } else {
+      console.log(`  ℹ️ [单次更新防刷屏] 本轮更新流水线已发送过 UC 网盘容量告警，本次跳过重复通知。`);
+    }
     return null;
   }
 

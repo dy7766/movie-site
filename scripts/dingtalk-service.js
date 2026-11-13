@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
 import crypto from 'crypto';
 
 const DEFAULT_WEBHOOK = 'https://oapi.dingtalk.com/robot/send?access_token=b4b05e7b29bfcd9d649c48a3669a201817e5069255bfd2d30cf14b28747ebe4d';
@@ -148,14 +149,61 @@ export async function sendDingTalkExpiredAlert({
 }
 
 /**
- * 3. 发送网盘空间告警与熔断通知
+ * 容量告警冷却与防刷屏机制 (单次更新仅提醒一次，跨进程至少冷却 4 小时)
+ */
+const CAPACITY_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 小时静默冷却期
+
+function getCapacityAlertRecordPath(provider) {
+  const safeProvider = (provider || 'uc').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return path.join(os.tmpdir(), `dingtalk_capacity_alert_${safeProvider}.json`);
+}
+
+function shouldThrottleCapacityAlert(provider, cooldownMs = CAPACITY_COOLDOWN_MS) {
+  try {
+    const filePath = getCapacityAlertRecordPath(provider);
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const data = JSON.parse(content);
+      const diff = Date.now() - (data.lastAlertTime || 0);
+      if (diff < cooldownMs) {
+        return {
+          throttle: true,
+          minutesLeft: Math.ceil((cooldownMs - diff) / 60000),
+          lastSentMinutesAgo: Math.round(diff / 60000)
+        };
+      }
+    }
+  } catch (e) {
+    // 降级允许发送
+  }
+  return { throttle: false };
+}
+
+function recordCapacityAlertSent(provider) {
+  try {
+    const filePath = getCapacityAlertRecordPath(provider);
+    fs.writeFileSync(filePath, JSON.stringify({ lastAlertTime: Date.now() }), 'utf-8');
+  } catch (e) {}
+}
+
+/**
+ * 3. 发送网盘空间告警与熔断通知 (支持单次更新防刷屏与静默冷却)
  */
 export async function sendDingTalkCapacityAlert({
   usedTb = 0,
   totalTb = 0,
   freeGb = 0,
-  provider = 'UC'
+  provider = 'UC',
+  force = false
 }) {
+  if (!force) {
+    const check = shouldThrottleCapacityAlert(provider);
+    if (check.throttle) {
+      console.log(`  ℹ️ [钉钉告警静默拦截] ${provider}网盘容量告警处于冷却期（上次发送于 ${check.lastSentMinutesAgo} 分钟前，还需静默 ${check.minutesLeft} 分钟），跳过重复发送。`);
+      return { throttled: true, reason: 'cooldown' };
+    }
+  }
+
   const finalUrl = getSignedUrl();
   const config = getConfig();
   const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
@@ -195,6 +243,7 @@ export async function sendDingTalkCapacityAlert({
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
+    recordCapacityAlertSent(provider);
     return await res.json();
   } catch (err) {
     console.error('发送钉钉容量告警失败:', err);

@@ -1,5 +1,6 @@
 import { getDbPool } from '../src/lib/db.js';
-import { searchPublicShares, inspectAndFilterUcShare, saveAndShareUc } from './auto-harvester.js';
+import { searchPublicShares, inspectAndFilterUcShare, saveAndShareUc, checkUcCapacity } from './auto-harvester.js';
+import { sendDingTalkCapacityAlert } from './dingtalk-service.js';
 import { searchCmsStream } from './online-play-monitor.js';
 
 /**
@@ -12,6 +13,20 @@ export async function harvestResourceData(batchSize = 15) {
   console.log('===============================================================');
 
   const pool = getDbPool();
+
+  // 0. 批次前置容量探测：单次更新仅告警一次，空间不足时本批次全局跳过 UC 搜存，专注于切片流
+  let isUcCapacityFull = false;
+  const initialCap = await checkUcCapacity();
+  if (initialCap.ok && initialCap.isFull) {
+    isUcCapacityFull = true;
+    console.warn(`  🚨 [批次前置熔断] UC网盘空间已耗尽 (仅剩 ${initialCap.freeGb} GB < 15GB)，本轮更新跳过全部 UC 转存任务，专注于切片流补充。`);
+    await sendDingTalkCapacityAlert({
+      usedTb: initialCap.usedTb,
+      totalTb: initialCap.totalTb,
+      freeGb: initialCap.freeGb,
+      provider: 'UC'
+    });
+  }
 
   // 1. 全库公平轮转优先：优先从未巡检的条目开始，同时倾斜缺失网盘与高分热片
   const query = `
@@ -54,28 +69,32 @@ export async function harvestResourceData(batchSize = 15) {
 
     // 1. 补齐 UC 网盘转存链接
     if (!m.share_link_uc) {
-      console.log(`  🔍 正在全网检索《${m.title}》公开网盘分享...`);
-      try {
-        const publicShares = await searchPublicShares(m.title);
-        for (const s of publicShares) {
-          const inspect = await inspectAndFilterUcShare(s.pwd_id);
-          if (!inspect.pass) {
-            console.log(`    - 候选链接 [${s.pwd_id}] 质检跳过: ${inspect.reason}`);
-            continue;
-          }
+      if (isUcCapacityFull) {
+        console.log(`  ⏩ [容量熔断跳过] UC网盘空间不足 (<15GB)，本轮跳过《${m.title}》的网盘搜存与重复报警`);
+      } else {
+        console.log(`  🔍 正在全网检索《${m.title}》公开网盘分享...`);
+        try {
+          const publicShares = await searchPublicShares(m.title);
+          for (const s of publicShares) {
+            const inspect = await inspectAndFilterUcShare(s.pwd_id);
+            if (!inspect.pass) {
+              console.log(`    - 候选链接 [${s.pwd_id}] 质检跳过: ${inspect.reason}`);
+              continue;
+            }
 
-          console.log(`  📥 正在执行免流秒存与生成带 PID 专属分享链接...`);
-          const ucLink = await saveAndShareUc(m.title, m.year, m.category || '电影', s.pwd_id, inspect.stoken, inspect.list);
-          if (ucLink) {
-            await pool.query('UPDATE resources SET share_link_uc = $1, drive_type = COALESCE(drive_type, \'uc\'), status = \'published\' WHERE id = $2', [ucLink, m.id]);
-            console.log(`  ✓ 成功挂载 UC 网盘专属链接: ${ucLink}`);
-            ucSuccess++;
-            didUpdateUc = true;
-            break;
+            console.log(`  📥 正在执行免流秒存与生成带 PID 专属分享链接...`);
+            const ucLink = await saveAndShareUc(m.title, m.year, m.category || '电影', s.pwd_id, inspect.stoken, inspect.list);
+            if (ucLink) {
+              await pool.query('UPDATE resources SET share_link_uc = $1, drive_type = COALESCE(drive_type, \'uc\'), status = \'published\' WHERE id = $2', [ucLink, m.id]);
+              console.log(`  ✓ 成功挂载 UC 网盘专属链接: ${ucLink}`);
+              ucSuccess++;
+              didUpdateUc = true;
+              break;
+            }
           }
+        } catch (err) {
+          console.warn(`  ⚠️ 网盘转存异常:`, err.message);
         }
-      } catch (err) {
-        console.warn(`  ⚠️ 网盘转存异常:`, err.message);
       }
     }
 
