@@ -155,10 +155,10 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
 
   for (const c of candidates) {
     try {
-      // 检查库中是否已存在同名影视（支持同名但年份/分类完全一致判断）
+      // 检查库中是否已存在同名影视（按片名精准去重，防止跨分类重复入库）
       const existRes = await pool.query(
-        'SELECT id FROM resources WHERE title = $1 AND category = $2 LIMIT 1',
-        [c.title, c.category]
+        'SELECT id FROM resources WHERE title = $1 LIMIT 1',
+        [c.title]
       );
 
       if (existRes.rows.length > 0) {
