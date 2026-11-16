@@ -94,8 +94,8 @@ export async function checkDriveCookies() {
       report.quark.totalGB = (res.data.data.total_capacity / 1024 / 1024 / 1024).toFixed(1);
       report.quark.freeGB = ((res.data.data.total_capacity - res.data.data.use_capacity) / 1024 / 1024 / 1024).toFixed(1);
       report.quark.message = `正常运行中（可用容量: ${report.quark.freeGB} GB / ${report.quark.totalGB} GB）`;
-    } else if (res.status === 401 || res.status === 403 || (res.data && res.data.code !== 0)) {
-      // 真实鉴权失效
+    } else if (res.status === 401 || res.status === 403 || (res.data && (res.data.code === 401 || res.data.code === 40101 || res.data.code === 403 || /未登录|登录失效|重新登录|凭证失效|token失效/i.test(res.data.message || '')))) {
+      // 只有明确的 401/403 或 明确提示登录失效，才判定为真实鉴权失效
       report.quark.ok = false;
       report.quark.isAuthExpired = true;
       report.quark.message = res.data?.message || `登录凭证失效 (HTTP ${res.status})`;
@@ -103,11 +103,11 @@ export async function checkDriveCookies() {
       report.isAuthExpired = true;
       report.expiredDrives.push('夸克网盘');
     } else {
-      // 偶发网络异常，不当作凭证失效处理，避免误告警
+      // inner error / 区域限制 / 网络超时 / 海外机房阻断，属于风控或网络抖动，绝不误判为 Cookie 真实失效！
       report.quark.ok = false;
       report.quark.isAuthExpired = false;
-      report.quark.message = `网络轻度抖动 (${res.error || '连接超时'})，Cookie 依然有效`;
-      console.warn(`ℹ️ 夸克网盘心跳遇到网络抖动: ${res.error}，跳过失效误报`);
+      report.quark.message = `网络/区域限制抖动 (${res.data?.message || res.error || '连接超时'})，Cookie 依然保留`;
+      console.warn(`ℹ️ 夸克网盘遇到网络/海外风控拦截: ${res.data?.message || res.error}，跳过失效误报`);
     }
   }
 
@@ -147,7 +147,7 @@ export async function checkDriveCookies() {
       } else {
         report.uc.message = `正常运行中（可用容量: ${report.uc.freeGB} GB / ${report.uc.totalGB} GB）`;
       }
-    } else if (res.status === 401 || res.status === 403 || (res.data && res.data.code !== 0)) {
+    } else if (res.status === 401 || res.status === 403 || (res.data && (res.data.code === 401 || res.data.code === 40101 || res.data.code === 403 || /未登录|登录失效|重新登录|凭证失效|token失效/i.test(res.data.message || '')))) {
       // 真实鉴权失效
       report.uc.ok = false;
       report.uc.isAuthExpired = true;
@@ -159,8 +159,8 @@ export async function checkDriveCookies() {
       // 偶发网络异常，不当作凭证失效处理，避免误告警
       report.uc.ok = false;
       report.uc.isAuthExpired = false;
-      report.uc.message = `网络轻度抖动 (${res.error || '连接超时'})，Cookie 依然有效`;
-      console.warn(`ℹ️ UC 网盘心跳遇到网络抖动: ${res.error}，跳过失效误报`);
+      report.uc.message = `网络轻度抖动 (${res.data?.message || res.error || '连接超时'})，Cookie 依然保留`;
+      console.warn(`ℹ️ UC 网盘心跳遇到网络抖动: ${res.data?.message || res.error}，跳过失效误报`);
     }
   }
 
