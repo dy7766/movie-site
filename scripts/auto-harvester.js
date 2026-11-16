@@ -525,3 +525,215 @@ export async function harvestBatchMovies(candidateList) {
 
   return successItems;
 }
+
+// ===============================================================
+// 夸克网盘自动转存与分享生成引擎
+// ===============================================================
+const TARGET_QUARK_FOLDER_FID = 'b1a2edeeac1c48718c0dab99843cb97c'; // movie-site
+const QUARK_BASE_URL = 'https://drive-pc.quark.cn/1/clouddrive';
+
+export function getQuarkCookie() {
+  if (process.env.QUARK_COOKIE) return process.env.QUARK_COOKIE.trim();
+  const localFile = 'C:/Users/dy776/.gemini/antigravity/brain/fe3e2fd5-ed4e-452e-b677-b0a95e97eddc/scratch/quark_cookie.txt';
+  if (fs.existsSync(localFile)) return fs.readFileSync(localFile, 'utf-8').trim();
+  return '';
+}
+
+function getQuarkHeaders() {
+  const cookie = getQuarkCookie();
+  return {
+    'Cookie': cookie,
+    'Content-Type': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+    'Origin': 'https://pan.quark.cn',
+    'Referer': 'https://pan.quark.cn/'
+  };
+}
+
+export async function searchQuarkShares(title) {
+  const cleanTitle = (title || '').replace(/\([^)]*\)/g, '').replace(/（[^）]*）/g, '').trim();
+  const variants = [title];
+  if (cleanTitle && cleanTitle !== title) variants.push(cleanTitle);
+
+  const numMatch = cleanTitle.match(/^(.*?)([\d]+)$/);
+  if (numMatch) {
+    const base = numMatch[1].trim();
+    variants.push(`${base} 第${numMatch[2]}季`, `${base} 第二季`, base);
+  }
+
+  for (const q of variants) {
+    try {
+      const url = `https://gugeso.com/api/other/web_search?title=${encodeURIComponent(q)}&is_type=0`;
+      const isWin = process.platform === 'win32';
+      const cmd = isWin 
+        ? `curl.exe -s -H "User-Agent: Mozilla/5.0" -H "Referer: https://gugeso.com/" "${url}"`
+        : `curl -s -H "User-Agent: Mozilla/5.0" -H "Referer: https://gugeso.com/" "${url}"`;
+      const stdout = execSync(cmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024, timeout: 10000 });
+      const rawItems = [];
+      for (const line of stdout.split('\n')) {
+        if (line.startsWith('data:') && !line.includes('[DONE]')) {
+          try {
+            const item = JSON.parse(line.slice(5).trim());
+            if (item.url) rawItems.push(item);
+          } catch {}
+        }
+      }
+
+      if (rawItems.length === 0) continue;
+
+      const encUrls = rawItems.filter(i => !i.url.startsWith('http')).map(i => i.url);
+      let decryptedMap = {};
+      if (encUrls.length > 0) {
+        try {
+          const decRes = await fetch('https://gugeso.com/api/other/decrypt_urls', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Referer': 'https://gugeso.com/',
+              'User-Agent': 'Mozilla/5.0'
+            },
+            body: JSON.stringify({ urls: encUrls })
+          });
+          const decJson = await decRes.json();
+          if (decJson.data?.urls) {
+            encUrls.forEach((enc, idx) => {
+              decryptedMap[enc] = decJson.data.urls[idx];
+            });
+          }
+        } catch (_) {}
+      }
+
+      const results = [];
+      for (const item of rawItems) {
+        const finalUrl = item.url.startsWith('http') ? item.url : decryptedMap[item.url];
+        if (finalUrl && finalUrl.includes('quark.cn/s/')) {
+          const m = finalUrl.match(/quark\.cn\/s\/([a-zA-Z0-9]+)/);
+          if (m) {
+            if (!/(短剧|小说|电子书|网文|有声书|广播剧|合辑|总链)/i.test(item.title || '')) {
+              results.push({
+                title: item.title,
+                url: finalUrl,
+                pwd_id: m[1]
+              });
+            }
+          }
+        }
+      }
+
+      if (results.length > 0) return results;
+    } catch (_) {}
+  }
+  return [];
+}
+
+export async function inspectAndFilterQuarkShare(pwd_id) {
+  try {
+    const headers = getQuarkHeaders();
+    if (!headers.Cookie) return { pass: false, reason: '未配置夸克 Cookie' };
+
+    const tokenRes = await fetch(`${QUARK_BASE_URL}/share/sharepage/token?pr=ucpro&fr=pc`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ pwd_id, passcode: '' })
+    });
+    const tokenData = await tokenRes.json();
+    const stoken = tokenData.data?.stoken;
+    if (!stoken) return { pass: false, reason: '链接失效或需提取码' };
+
+    const detailRes = await fetch(`${QUARK_BASE_URL}/share/sharepage/detail?pr=ucpro&fr=pc&pwd_id=${pwd_id}&stoken=${encodeURIComponent(stoken)}&pdir_fid=0&force=0&_page=1&_size=50`, {
+      headers
+    });
+    const detailData = await detailRes.json();
+    const list = detailData.data?.list || [];
+    if (list.length === 0) return { pass: false, reason: '分享链接中无文件' };
+
+    const hasVideoOrDir = list.some(f => f.dir || /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(f.file_name));
+    if (!hasVideoOrDir) return { pass: false, reason: '未发现有效视频文件或目录' };
+
+    return { pass: true, stoken, list };
+  } catch (err) {
+    return { pass: false, reason: err.message };
+  }
+}
+
+export async function saveAndShareQuark(title, pwd_id, stoken, list) {
+  const headers = getQuarkHeaders();
+  const fid_list = list.map(f => f.fid);
+  const fid_token_list = list.map(f => f.share_fid_token || '');
+
+  const saveRes = await fetch(`${QUARK_BASE_URL}/share/sharepage/save?pr=ucpro&fr=pc`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      pwd_id,
+      stoken,
+      fid_list,
+      fid_token_list,
+      to_pdir_fid: TARGET_QUARK_FOLDER_FID
+    })
+  });
+  const saveData = await saveRes.json();
+  if (saveData.code !== 0 && saveData.status !== 200) {
+    throw new Error('夸克秒存被拒: ' + (saveData.message || ''));
+  }
+
+  let topFids = saveData.data?.task_resp?.data?.save_as?.save_as_top_fids || [];
+  const taskId = saveData.data?.task_id;
+  if (taskId) {
+    for (let attempt = 0; attempt < 20; attempt++) {
+      await new Promise(r => setTimeout(r, 600));
+      const taskRes = await fetch(`${QUARK_BASE_URL}/task?pr=ucpro&fr=pc&task_id=${taskId}`, { headers });
+      const taskData = await taskRes.json();
+      if (taskData.data?.status === 2) {
+        topFids = taskData.data.save_as?.save_as_top_fids || taskData.data.save_as?.save_as_select_top_fids || [];
+        break;
+      }
+      if (taskData.data?.status === 3) {
+        throw new Error('夸克转存任务执行失败: ' + (taskData.data.message || ''));
+      }
+    }
+  }
+
+  if (!topFids || topFids.length === 0) {
+    throw new Error('夸克秒存未返回有效文件ID');
+  }
+
+  // 创建专属分享
+  const shareTitle = `《${title}》4K 高清原盘`;
+  const shareRes = await fetch(`${QUARK_BASE_URL}/share?pr=ucpro&fr=pc`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      fid_list: topFids,
+      title: shareTitle,
+      url_type: 1,
+      expired_type: 1,
+      passcode: ''
+    })
+  });
+  const shareData = await shareRes.json();
+  if (shareData.code !== 0 && shareData.status !== 200) {
+    throw new Error('创建夸克分享被拒: ' + (shareData.message || ''));
+  }
+
+  const shareTaskId = shareData.data?.task_id;
+  if (shareTaskId) {
+    for (let attempt = 0; attempt < 15; attempt++) {
+      await new Promise(r => setTimeout(r, 500));
+      const taskRes = await fetch(`${QUARK_BASE_URL}/task?pr=ucpro&fr=pc&task_id=${shareTaskId}`, { headers });
+      const taskData = await taskRes.json();
+      if (taskData.data?.status === 2) break;
+    }
+  }
+
+  await new Promise(r => setTimeout(r, 400));
+  const mySharesRes = await fetch(`${QUARK_BASE_URL}/share/mypage/detail?pr=ucpro&fr=pc&_page=1&_size=10`, { headers });
+  const mySharesData = await mySharesRes.json();
+  const sharesList = mySharesData.data?.list || [];
+  const targetFid = topFids[0];
+  const match = sharesList.find(s => s.first_file?.fid === targetFid) || sharesList[0];
+  if (match?.share_url) {
+    return match.share_url;
+  }
+  throw new Error('未能提取到新生成的夸克分享链接');
+}

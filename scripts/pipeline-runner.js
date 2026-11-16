@@ -42,7 +42,7 @@ export async function runAutomationPipeline() {
 
   // 4. 模块三：为已具备完整元数据的影视执行靶向搜源转存与切片流挂载
   console.log('\n[步骤 4/8] 启动靶向搜源与转存流水线 (模块三)...');
-  let harvestStats = { processed: 0, ucSuccess: 0, streamSuccess: 0 };
+  let harvestStats = { processed: 0, quarkSuccess: 0, ucSuccess: 0, streamSuccess: 0 };
   if (cookieReport.isAuthExpired) {
     console.log('⚠️ 网盘凭证已失效，跳过本批次新片转存，保护现有资源与账号安全');
   } else {
@@ -220,7 +220,7 @@ export async function runAutomationPipeline() {
 
     await sendDingTalkTaskSummary({
       addedCount: (doubanStats.insertedCount || 0) + (enrichStats.enrichedCount || 0),
-      matchedCount: harvestStats.ucSuccess + harvestStats.streamSuccess,
+      matchedCount: (harvestStats.quarkSuccess || 0) + (harvestStats.ucSuccess || 0) + (harvestStats.streamSuccess || 0),
       deployedCount: totalMovies,
       healedCount: streamStats.healed,
       backfilledCount: streamStats.backfilled,

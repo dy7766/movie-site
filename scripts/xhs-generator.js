@@ -1,6 +1,7 @@
 import puppeteer from 'puppeteer-core';
 import fs from 'fs';
 import path from 'path';
+import { execFileSync } from 'child_process';
 import { getDbPool } from '../src/lib/db.js';
 
 const CHROME_PATH = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
@@ -49,7 +50,19 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
   await page.setViewport({ width: 1080, height: 1440, deviceScaleFactor: 1 });
 
   const rawPoster = movie.poster_url || 'https://image.tmdb.org/t/p/w500/dXjYk7fnA6HNqhJHTnmeD6rV4Aw.jpg';
-  const posterUrl = rawPoster.includes('image.tmdb.org') ? `https://wsrv.nl/?url=${encodeURIComponent(rawPoster)}` : rawPoster;
+  let posterDataUri = '';
+  try {
+    const isWin = process.platform === 'win32';
+    const curlBin = isWin ? 'curl.exe' : 'curl';
+    const buf = execFileSync(curlBin, ['-s', '-L', rawPoster], { maxBuffer: 15 * 1024 * 1024, timeout: 20000 });
+    if (buf && buf.length > 1000) {
+      posterDataUri = `data:image/jpeg;base64,${buf.toString('base64')}`;
+      console.log(`  ✓ 成功下载海报并转为本地 Base64 内存直嵌 (大小: ${(buf.length / 1024).toFixed(1)} KB)`);
+    }
+  } catch (err) {
+    console.warn('海报预下载失败:', err.message);
+  }
+  const posterUrl = posterDataUri || (rawPoster.includes('image.tmdb.org') ? `https://wsrv.nl/?url=${encodeURIComponent(rawPoster)}` : rawPoster);
   const genres = Array.isArray(movie.tags) ? movie.tags.slice(0, 3) : ['剧情', '热门'];
   const actors = movie.actors || '群星领衔主演';
   const score = movie.score || 8.0;
@@ -348,7 +361,7 @@ async function main() {
   console.log(`🎬 锁定目标影视: 《${movie.title}》 (${movie.year})`);
 
   console.log('🖼️ 正在调用 Chrome 引擎渲染 3:4 (1080x1440) 黄金比例封面图...');
-  const imagePath = await renderXhsCover(movie);
+  const imagePath = await renderXhsCover(movie, true);
   console.log(`✓ 封面图生成完成: ${imagePath}`);
 
   console.log('✍️ 正在生成爆款文案与安全导流闭环...');
