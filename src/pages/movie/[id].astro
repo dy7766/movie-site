@@ -90,7 +90,7 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
   : (typeof movie.play_sources === 'string' ? JSON.parse(movie.play_sources || '[]') : []);
 ---
 
-<Layout title={pageTitle} description={pageDesc} movieId={movie.id} movieTitle={movie.title}>
+<Layout title={pageTitle} description={pageDesc} movieId={movie.id} movieTitle={movie.title} hideMobileTabBar={true}>
   <div class="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-12 pb-24 sm:pb-12">
     <!-- 面包屑导航 -->
     <nav class="flex items-center gap-2 text-xs text-slate-400 mb-8">
@@ -150,24 +150,24 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
               </span>
             )}
             {(movie.share_link && movie.share_link_uc) ? (
-              <span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-medium flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                夸克 + UC 双线路就绪
+              <span class="px-2.5 py-1 rounded-lg bg-gradient-to-r from-orange-500/15 via-amber-500/15 to-orange-500/15 text-orange-400 border border-orange-500/30 text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+                <span class="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse"></span>
+                🔥 4K HDR 杜比原盘 · 夸克+UC双转存
               </span>
             ) : movie.share_link ? (
-              <span class="px-2.5 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-medium flex items-center gap-1">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                4K 原盘 / 资源就绪
+              <span class="px-2.5 py-1 rounded-lg bg-orange-500/15 text-orange-400 border border-orange-500/30 text-xs font-semibold flex items-center gap-1.5 shadow-sm">
+                <span class="w-1.5 h-1.5 rounded-full bg-orange-400 animate-pulse"></span>
+                ⚡ 夸克 4K HDR 原盘就绪
               </span>
             ) : movie.share_link_uc ? (
-              <span class="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-medium flex items-center gap-1">
+              <span class="px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/30 text-xs font-semibold flex items-center gap-1.5 shadow-sm">
                 <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-                UC网盘 / 资源就绪
+                💾 UC 4K 原盘极速就绪
               </span>
             ) : movie.online_play_url ? (
-              <span class="px-2.5 py-1 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs font-medium flex items-center gap-1">
+              <span class="px-2.5 py-1 rounded-lg bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 text-xs font-medium flex items-center gap-1.5">
                 <span class="w-1.5 h-1.5 rounded-full bg-indigo-400 animate-pulse"></span>
-                4K免流 · 支持在线播放
+                1080P 网页轻量预览
               </span>
             ) : (
               <span class="px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs font-medium flex items-center gap-1">
@@ -232,15 +232,15 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
 
           <!-- 网盘转存按钮组 (如果有网盘链接且已开播) -->
           {movie.is_released !== false && (movie.share_link || movie.share_link_uc) && (
-            <div class="space-y-3">
+            <div class="space-y-3.5">
               <div class="flex items-center justify-between text-xs text-slate-400">
-                <span class="flex items-center gap-1.5 font-medium text-slate-300">
+                <span class="flex items-center gap-1.5 font-bold text-slate-200">
                   <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>{isTvShow ? '4K全集原盘资源就绪（无损原画 / 极速转存 / 离线追剧）：' : '网盘原盘资源就绪（原画无损 / 免流播放 / 高速下载）：'}</span>
+                  <span>{isTvShow ? '4K 全集无损杜比原盘已就绪（支持 TV 投屏 / 离线追剧）：' : '4K 杜比视界原盘已就绪（原画无损 / 免流播放 / 高速下载）：'}</span>
                 </span>
                 {(movie.share_link && movie.share_link_uc) && (
-                  <span class="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-semibold">
-                    双网盘线路已支持
+                  <span class="text-[11px] px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/30 font-bold">
+                    双网盘线路极速秒存
                   </span>
                 )}
               </div>
@@ -254,12 +254,20 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
                     data-track="quark"
                     data-resource-id={movie.id}
                     data-resource-title={movie.title}
-                    class="py-3.5 px-5 rounded-2xl bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-sm text-center shadow-lg shadow-orange-500/20 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 group"
+                    class="relative py-3.5 px-5 rounded-2xl bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold text-sm text-center shadow-xl shadow-orange-500/25 transition-all transform hover:-translate-y-0.5 flex flex-col items-center justify-center gap-1 group overflow-hidden border border-orange-400/40"
                   >
-                    <svg class="w-4 h-4 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-                      <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
-                    </svg>
-                    <span>{movie.share_link_uc ? (isTvShow ? '【线路一】夸克全集打包秒存' : '【线路一】夸克网盘秒存') : (isTvShow ? '立即转存全集（夸克4K秒存）' : '立即转存完整版（夸克网盘4K秒存）')}</span>
+                    <span class="absolute top-2 right-2.5 px-2 py-0.5 rounded-md bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-tight shadow">
+                      新用户送1TB
+                    </span>
+                    <div class="flex items-center justify-center gap-2">
+                      <svg class="w-5 h-5 fill-current group-hover:scale-110 transition-transform text-amber-200" viewBox="0 0 24 24">
+                        <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+                      </svg>
+                      <span class="text-sm sm:text-base font-extrabold tracking-wide">
+                        {movie.share_link_uc ? (isTvShow ? '【首选推荐】夸克全集打包秒存' : '【首选推荐】夸克 4K 杜比原盘秒存') : (isTvShow ? '立即转存全集（夸克 4K 原画）' : '转存完整版（夸克 4K 杜比视界原盘）')}
+                      </span>
+                    </div>
+                    <p class="text-[11px] text-orange-100 font-medium">无损杜比全景声 · 支持电视投屏 · 手机离线缓存</p>
                   </a>
                 )}
 
@@ -271,14 +279,30 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
                     data-track="uc"
                     data-resource-id={movie.id}
                     data-resource-title={movie.title}
-                    class="py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-extrabold text-sm text-center shadow-lg shadow-amber-500/20 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 group"
+                    class="relative py-3.5 px-5 rounded-2xl bg-gradient-to-r from-amber-500 via-yellow-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-extrabold text-sm text-center shadow-xl shadow-amber-500/25 transition-all transform hover:-translate-y-0.5 flex flex-col items-center justify-center gap-1 group overflow-hidden border border-yellow-400/40"
                   >
-                    <svg class="w-4 h-4 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
-                    </svg>
-                    <span>{movie.share_link ? (isTvShow ? '【线路二】UC 全集极速秒存' : '【线路二】UC 网盘秒存') : (isTvShow ? '立即转存全集（UC 网盘极速秒存）' : '立即转存完整版（UC 网盘极速秒存）')}</span>
+                    <span class="absolute top-2 right-2.5 px-2 py-0.5 rounded-md bg-slate-950 text-amber-300 text-[10px] font-black uppercase tracking-tight shadow">
+                      官方特权
+                    </span>
+                    <div class="flex items-center justify-center gap-2">
+                      <svg class="w-5 h-5 fill-current group-hover:scale-110 transition-transform text-slate-900" viewBox="0 0 24 24">
+                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+                      </svg>
+                      <span class="text-sm sm:text-base font-extrabold tracking-wide">
+                        {movie.share_link ? (isTvShow ? '【备用线路】UC 全集极速秒存' : '【备用线路】UC 网盘 4K 原盘秒存') : (isTvShow ? '立即转存全集（UC 网盘极速秒存）' : '转存完整版（UC 网盘 4K 极速秒存）')}
+                      </span>
+                    </div>
+                    <p class="text-[11px] text-slate-900 font-bold">原盘不限速秒转 · 免费领取 1TB 官方空间</p>
                   </a>
                 )}
+              </div>
+
+              <!-- 画质反差与心智说明卡片 -->
+              <div class="p-3 sm:p-3.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start gap-2.5 text-xs text-slate-400">
+                <span class="text-amber-400 font-bold shrink-0 text-sm">💡 画质说明：</span>
+                <p class="leading-relaxed">
+                  下方网页播放受公网切片带宽限制，已压缩为 <span class="text-slate-300 font-medium">1080P 轻量预览流</span>；如需影院级 <strong class="text-amber-300 font-bold">4K 60帧 HDR 杜比视界原盘、无删减版本及原声无损音轨</strong>，强烈推荐免费转存至网盘原画欣赏！
+                </p>
               </div>
 
               <!-- 网盘空间扩容福利指引卡片 (促转存提转化率) -->
@@ -308,12 +332,12 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
             <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
               <a 
                 href="#onlinePlayerSection" 
-                class="flex-1 py-3.5 px-6 rounded-2xl bg-gradient-to-r from-indigo-500 via-purple-600 to-indigo-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold text-sm sm:text-base text-center shadow-xl shadow-indigo-500/25 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2"
+                class="flex-1 py-3 px-6 rounded-2xl bg-indigo-950/40 hover:bg-indigo-900/60 border border-indigo-500/40 hover:border-indigo-400 text-indigo-200 hover:text-white font-semibold text-xs sm:text-sm text-center shadow-lg shadow-indigo-950/40 transition-all transform hover:-translate-y-0.5 flex items-center justify-center gap-2 group"
               >
-                <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                <svg class="w-4 h-4 fill-current text-indigo-400 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z"/>
                 </svg>
-                <span>立即在线播放（1080P极速免流 · 零广告秒播）</span>
+                <span>▶ 1080P 网页轻量预览（适合小屏/省流量 · 零广告试看）</span>
               </a>
             </div>
           )}
@@ -379,6 +403,78 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
           <div id="playerLoadingNotice" class="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center text-slate-400 text-sm gap-3 z-10 transition-opacity">
             <div class="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
             <span>正在连接极速 CDN 视频切片节点...</span>
+          </div>
+
+          <!-- 右上角 4K 原盘切换浮窗与预览标签 -->
+          <div class="absolute top-3 right-3 z-20 pointer-events-auto hidden sm:flex items-center gap-2">
+            <div class="px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-slate-300 text-[11px] font-medium flex items-center gap-1.5 shadow-lg">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+              <span>1080P 网页预览中</span>
+            </div>
+            {(movie.share_link || movie.share_link_uc) && (
+              <a 
+                href={movie.share_link || movie.share_link_uc} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                data-track={movie.share_link ? "quark" : "uc"}
+                data-resource-id={movie.id}
+                data-resource-title={movie.title}
+                class="px-2.5 py-1 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-[11px] flex items-center gap-1 shadow-md hover:scale-105 transition-all"
+                title="一键转存 4K HDR 原盘"
+              >
+                <span>⚡ 换 4K 原盘免流看</span>
+              </a>
+            )}
+          </div>
+
+          <!-- 播放暂停导流浮层 (Pause Overlay Card - 抓住暂停契机转化网盘) -->
+          <div id="playerPauseOverlay" class="absolute inset-0 z-20 hidden bg-black/85 backdrop-blur-md flex flex-col items-center justify-center p-4 text-center transition-all duration-300 pointer-events-auto">
+            <div class="max-w-md w-full p-5 sm:p-6 rounded-2xl bg-slate-900/95 border border-orange-500/30 shadow-2xl space-y-3.5">
+              <div class="flex items-center justify-center gap-2 text-orange-400 font-extrabold text-sm sm:text-base">
+                <span class="text-base sm:text-lg">🎬</span>
+                <span>视频已暂停 · 正在观看网页压缩版</span>
+              </div>
+              <p class="text-xs text-slate-300 leading-relaxed">
+                网页切片受公网带宽限制，画质有所压缩。原画无损 <strong class="text-amber-300 font-bold">4K 60帧杜比全景声原盘</strong> 已入库，转存至网盘享受免广告原画与电视投屏：
+              </p>
+              <div class="flex flex-col sm:flex-row gap-2.5 pt-1">
+                {movie.share_link && (
+                  <a 
+                    href={movie.share_link} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    data-track="quark"
+                    data-resource-id={movie.id}
+                    data-resource-title={movie.title}
+                    class="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-orange-500/30 active:scale-95 transition-all"
+                  >
+                    <span>⚡ 夸克 4K 秒存 (送1TB)</span>
+                  </a>
+                )}
+                {movie.share_link_uc && (
+                  <a 
+                    href={movie.share_link_uc} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    data-track="uc"
+                    data-resource-id={movie.id}
+                    data-resource-title={movie.title}
+                    class="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-orange-500 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/30 active:scale-95 transition-all"
+                  >
+                    <span>💾 UC 极速转存</span>
+                  </a>
+                )}
+              </div>
+              <div>
+                <button 
+                  type="button" 
+                  id="resumePlayBtn" 
+                  class="text-xs text-slate-400 hover:text-white underline cursor-pointer py-1"
+                >
+                  继续播放网页预览版 ▶
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -761,6 +857,30 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
             art.on('ready', () => {
               if (loadingNotice) loadingNotice.classList.add('hidden');
             });
+
+            // 监听暂停与播放事件，弹出/关闭 4K 原盘转存卡片
+            const pauseOverlay = document.getElementById('playerPauseOverlay');
+            const resumeBtn = document.getElementById('resumePlayBtn');
+
+            art.on('pause', () => {
+              if (pauseOverlay) pauseOverlay.classList.remove('hidden');
+            });
+
+            art.on('play', () => {
+              if (pauseOverlay) pauseOverlay.classList.add('hidden');
+            });
+
+            art.on('video:ended', () => {
+              if (pauseOverlay) pauseOverlay.classList.remove('hidden');
+            });
+
+            if (resumeBtn) {
+              resumeBtn.onclick = (e) => {
+                e.preventDefault();
+                if (pauseOverlay) pauseOverlay.classList.add('hidden');
+                if (art) art.play();
+              };
+            }
           }
 
           if (initialUrl) {
@@ -803,21 +923,22 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
     </>
   )}
 
-  <!-- 移动端悬浮吸底快捷行动栏 (大拇指友好原生体验，仅移动端显示) -->
+  <!-- 📱 移动端专属常驻吸底转存栏 (大拇指友好原生体验，高转化专属 CTA) -->
   {movie.is_released !== false && (movie.share_link || movie.share_link_uc || movie.online_play_url) && (
-    <div class="md:hidden fixed bottom-0 inset-x-0 z-50 bg-[#0b0f19]/95 backdrop-blur-lg border-t border-slate-800/90 px-3 py-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] shadow-2xl flex items-center gap-2">
+    <div class="md:hidden fixed bottom-0 inset-x-0 z-[60] bg-[#0b0f19]/95 backdrop-blur-xl border-t border-slate-800/90 px-3 py-2 pb-[max(0.6rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_rgba(0,0,0,0.8)] flex items-center gap-2">
       {movie.online_play_url && (
         <a 
-          href={`/player.html?v=${encodeURIComponent(movie.online_play_url)}`} 
-          class="flex-1 py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-100 font-bold text-xs flex items-center justify-center gap-1.5 border border-slate-700/80 active:scale-95 transition"
+          href="#onlinePlayerSection" 
+          class="py-2.5 px-3 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-200 font-bold text-xs flex flex-col items-center justify-center border border-slate-700/80 active:scale-95 transition shrink-0 min-w-[52px]"
           data-track="play"
           data-resource-id={movie.id}
           data-resource-title={movie.title}
+          title="跳转至网页播放器"
         >
-          <svg class="w-3.5 h-3.5 text-rose-400 fill-current" viewBox="0 0 24 24">
+          <svg class="w-4 h-4 text-indigo-400 fill-current" viewBox="0 0 24 24">
             <path d="M8 5v14l11-7z"/>
           </svg>
-          <span>免播</span>
+          <span class="text-[9px] text-slate-300">试看</span>
         </a>
       )}
       {movie.share_link && (
@@ -825,15 +946,18 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
           href={movie.share_link} 
           target="_blank" 
           rel="noopener noreferrer"
-          class="flex-[1.5] py-2.5 px-3 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-orange-500/20 active:scale-95 transition"
+          class="flex-1 py-2 px-2.5 rounded-xl bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 text-white font-extrabold text-xs flex flex-col items-center justify-center shadow-lg shadow-orange-500/25 active:scale-95 transition relative overflow-hidden"
           data-track="quark"
           data-resource-id={movie.id}
           data-resource-title={movie.title}
         >
-          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-            <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
-          </svg>
-          <span>夸克极速存</span>
+          <div class="flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 fill-current text-amber-200" viewBox="0 0 24 24">
+              <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/>
+            </svg>
+            <span>夸克 4K 秒存</span>
+          </div>
+          <span class="text-[9px] text-orange-100 font-medium scale-90 -mt-0.5">送1TB·支持投屏</span>
         </a>
       )}
       {movie.share_link_uc && (
@@ -841,15 +965,18 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
           href={movie.share_link_uc} 
           target="_blank" 
           rel="noopener noreferrer"
-          class="flex-[1.5] py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-extrabold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition"
+          class="flex-1 py-2 px-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-yellow-500 to-orange-500 text-slate-950 font-extrabold text-xs flex flex-col items-center justify-center shadow-lg shadow-amber-500/25 active:scale-95 transition relative overflow-hidden"
           data-track="uc"
           data-resource-id={movie.id}
           data-resource-title={movie.title}
         >
-          <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
-          </svg>
-          <span>UC 秒存</span>
+          <div class="flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 fill-current text-slate-950" viewBox="0 0 24 24">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/>
+            </svg>
+            <span>UC 极速秒存</span>
+          </div>
+          <span class="text-[9px] text-slate-950 font-bold scale-90 -mt-0.5">官方特权·极速免流</span>
         </a>
       )}
     </div>
