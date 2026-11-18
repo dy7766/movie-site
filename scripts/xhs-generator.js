@@ -2,7 +2,6 @@ import puppeteer from 'puppeteer-core';
 import fs from 'fs';
 import path from 'path';
 import { execFileSync } from 'child_process';
-import QRCode from 'qrcode';
 import { getDbPool } from '../src/lib/db.js';
 
 const CHROME_PATH = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
@@ -67,22 +66,6 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
   const genres = Array.isArray(movie.tags) ? movie.tags.slice(0, 3) : ['剧情', '热门'];
   const actors = movie.actors || '群星领衔主演';
   const score = movie.score || 8.0;
-
-  const detailUrl = `https://xkykmovie.com/movie/${movie.id}`;
-  let qrCodeDataUri = '';
-  try {
-    qrCodeDataUri = await QRCode.toDataURL(detailUrl, {
-      width: 260,
-      margin: 1,
-      color: {
-        dark: '#0a0f1d',
-        light: '#ffffff'
-      }
-    });
-    console.log(`  ✓ 成功生成详情页直达二维码: ${detailUrl}`);
-  } catch (err) {
-    console.warn('二维码生成失败:', err.message);
-  }
 
   const html = `
 <!DOCTYPE html>
@@ -225,66 +208,33 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
       line-height: 1.5;
     }
     .bottom-card {
-      background: rgba(15, 23, 42, 0.9);
-      border: 1px solid rgba(255, 107, 0, 0.4);
+      background: rgba(15, 23, 42, 0.85);
+      border: 1px solid rgba(255, 107, 0, 0.35);
       border-radius: 28px;
-      padding: 24px 36px;
+      padding: 34px 44px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
     }
     .cta-text h3 {
-      font-size: 30px;
+      font-size: 32px;
       font-weight: 800;
       color: #fff;
-      margin-bottom: 6px;
+      margin-bottom: 8px;
     }
     .cta-text p {
-      font-size: 20px;
+      font-size: 22px;
       color: #94a3b8;
     }
-    .qr-badge {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-      background: rgba(255, 255, 255, 0.08);
-      padding: 10px 18px;
-      border-radius: 20px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      flex-shrink: 0;
-    }
-    .qr-img-box {
-      width: 104px;
-      height: 104px;
-      background: #ffffff;
-      padding: 5px;
-      border-radius: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-    }
-    .qr-img-box img {
-      width: 100%;
-      height: 100%;
-      display: block;
-    }
-    .qr-text {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-    .qr-title {
-      font-size: 22px;
+    .cta-btn {
+      background: linear-gradient(135deg, #ff6b00, #ff8c00);
+      color: #fff;
+      font-size: 24px;
       font-weight: 800;
-      color: #ff8c00;
-      white-space: nowrap;
-    }
-    .qr-subtitle {
-      font-size: 16px;
-      color: #cbd5e1;
-      white-space: nowrap;
+      padding: 16px 32px;
+      border-radius: 20px;
+      box-shadow: 0 10px 25px rgba(255, 107, 0, 0.4);
     }
   </style>
 </head>
@@ -322,15 +272,7 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
         <h3>院线超清视效 · 沉浸观影</h3>
         <p>杜比全景声 · 细节纤毫毕现 · 建议大屏观赏</p>
       </div>
-      <div class="qr-badge">
-        <div class="qr-img-box">
-          <img src="${qrCodeDataUri}" alt="QR" />
-        </div>
-        <div class="qr-text">
-          <div class="qr-title">扫码看全片 ➔</div>
-          <div class="qr-subtitle">手机扫码即点即播</div>
-        </div>
-      </div>
+      <div class="cta-btn">影迷私藏推荐 ⭐</div>
     </div>
   </div>
 </body>
@@ -433,7 +375,7 @@ export function generateXhsCopy(movie) {
   const topics = Array.from(new Set(defaultTopics)).filter(Boolean);
   const formattedTopics = topics.map(t => `#${t} `).join('');
 
-  // 正文文案：极简模式，仅保留影视信息与“扫一扫”指引
+  // 正文文案：深度口碑种草 + 强互动问答（100% 纯净影视讨论，零风控词，促互动推流）
   const body = `
 🎬 片名：《${title}》 (${year})
 ⭐ 评分：${score} 分
@@ -441,7 +383,14 @@ export function generateXhsCopy(movie) {
 📽️ 类型：${genres.slice(0, 3).join(' / ')}
 
 ——
-✨ 看全片请见图扫一扫～
+💬【深度看点 & 真实观后感】：
+"${movie.intro ? movie.intro.slice(0, 150) + '...' : '剧作精湛，笑点与泪点并存，剧情层层反转，后劲实在太大了！'}"
+
+在大屏幕上看高清画质真的太震撼了，每一处微表情和光影细节都极具质感，配合环绕音效，沉浸感直接拉满！
+
+——
+✨ 适合周末静静看完，治愈又震撼～
+看过的友友们在评论区聊聊你们的观后感呀！你给这部片子打几分？👇
 
 ${formattedTopics}
 `.trim();
