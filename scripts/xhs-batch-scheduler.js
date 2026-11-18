@@ -219,10 +219,10 @@ export async function runBatchHourlyTask({
       console.log('  🖼️ 生成 3:4 (1080x1440) 高清视觉海报...');
       const imagePath = await renderXhsCover(movie);
 
-      // 2. 生成标题和正文（轮循影片根据发布次数切换不同风格标题）
+      // 2. 生成标题和正文（每次随机选取不同风格的高点击爆款标题）
       console.log('  ✍️ 匹配算法标题与安全防封文案...');
-      const { titles, body, topics } = generateXhsCopy(movie);
-      const postTitle = titles[movie.postCount % titles.length];
+      const { titles, selectedTitle, body, topics } = generateXhsCopy(movie);
+      const postTitle = selectedTitle || titles[Math.floor(Math.random() * titles.length)];
 
       // 3. 调起自动化发布
       console.log('  🚀 提交至创作者服务平台...');

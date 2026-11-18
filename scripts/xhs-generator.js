@@ -312,16 +312,58 @@ export function generateXhsCopy(movie) {
 
   const genres = movie.genres ? (Array.isArray(movie.genres) ? movie.genres : JSON.parse(movie.genres || '[]')) : ['剧情', '热门'];
 
-  // 小红书标题上限严格为 20 个字，采用走心深度影评推荐风格（杜绝任何风控词）
-  const cleanTitle = title.length > 7 ? title.slice(0, 7) : title;
-  const titles = [
-    `看完《${cleanTitle}》，我彻底被震撼了`,
-    `后劲太大了！《${cleanTitle}》值得二刷`,
-    `私藏高分神作！《${cleanTitle}》太戳心了`
-  ].map(t => t.slice(0, 20));
+  // 小红书标题上限严格为 20 个字，构建多风格爆款标题库并随机选取
+  const scoreNum = (movie.score || '8.5').toString();
+  const formatSafeTitle = (template, movieTitle) => {
+    const overhead = template.replace('%s', '').length;
+    const maxTitleLen = Math.max(2, 20 - overhead);
+    const cleanName = movieTitle.length > maxTitleLen ? movieTitle.slice(0, maxTitleLen) : movieTitle;
+    return template.replace('%s', cleanName).slice(0, 20);
+  };
+
+  const baseTemplates = [
+    '看完《%s》，我彻底被震撼了',
+    '后劲太大了！《%s》值得看无数遍',
+    '答应我！周末一定要去看《%s》',
+    '私藏口碑神作！《%s》被我挖到了',
+    '公认零差评！《%s》真的太绝了',
+    `豆瓣${scoreNum}分！《%s》封神不是吹的`,
+    '求你们去看《%s》！看完直接跪了',
+    '被全网疯狂安利！《%s》到底多好看',
+    '全程高能无尿点！《%s》太爽了',
+    '99%的人没看过！《%s》绝对是遗珠',
+    '千万别一个人看！《%s》太戳心了',
+    '哭到停不下来！《%s》真的太绝了'
+  ];
+
+  const category = movie.category || '电影';
+  if (category === '动漫') {
+    baseTemplates.push(
+      '治愈天花板！《%s》简直人间美好',
+      '吹爆这部神仙番！《%s》太治愈了',
+      '今年最强黑马番！《%s》直接封神',
+      '神作无误！《%s》每一帧都在心动'
+    );
+  } else if (category === '电视剧') {
+    baseTemplates.push(
+      '一口气刷完全集！《%s》太上头了',
+      '熬夜狂刷停不下来！《%s》太上瘾',
+      '年度最佳好剧！《%s》细节细思极恐',
+      '今年最敢拍的剧！《%s》直接封神'
+    );
+  } else {
+    baseTemplates.push(
+      '电影院欠它一张票！《%s》太敢拍了',
+      '顶级视效盛宴！《%s》每帧都是壁纸',
+      '层层反转！《%s》不到最后猜不到',
+      '这才是顶级大片！《%s》直接封神'
+    );
+  }
+
+  const titles = baseTemplates.map(tpl => formatSafeTitle(tpl, title));
+  const selectedTitle = titles[Math.floor(Math.random() * titles.length)];
 
   // 智能匹配分类专属官方热门话题（严禁使用“4K原盘”等版权风控词）
-  const category = movie.category || '电影';
   let defaultTopics = ['电影推荐', title];
   if (category === '动漫') {
     defaultTopics = ['动漫推荐', '治愈系动漫', '豆瓣高分动漫', title];
@@ -353,7 +395,7 @@ export function generateXhsCopy(movie) {
 ${formattedTopics}
 `.trim();
 
-  return { titles, body, topics };
+  return { titles, selectedTitle, body, topics };
 }
 
 /**
@@ -378,10 +420,11 @@ async function main() {
   console.log(`✓ 封面图生成完成: ${imagePath}`);
 
   console.log('✍️ 正在生成爆款文案与安全导流闭环...');
-  const { titles, body } = generateXhsCopy(movie);
+  const { titles, selectedTitle, body } = generateXhsCopy(movie);
 
   console.log(`\n===============================================================`);
-  console.log(`📌【小红书备选爆款标题库 (3选1)】:`);
+  console.log(`🎲【本次随机命中的优选标题】: "${selectedTitle}"`);
+  console.log(`📌【备选爆款标题库 (共 ${titles.length} 款不同风格)】:`);
   titles.forEach((t, i) => console.log(`  ${i + 1}. ${t}`));
   console.log(`---------------------------------------------------------------`);
   console.log(`📝【小红书正文排版与安全导流文案】:\n`);

@@ -127,14 +127,14 @@ export async function runXhsPipeline({
   console.log(`✓ 封面图就绪: ${imagePath}`);
 
   console.log('\n[2/3] 正在生成高点击文案矩阵与安全防封导流方案...');
-  const { titles, body, topics } = generateXhsCopy(movie);
-  const selectedTitle = titles[0];
-  console.log(`✓ 优选标题: "${selectedTitle}"`);
+  const { titles, selectedTitle, body, topics } = generateXhsCopy(movie);
+  const finalTitle = selectedTitle || titles[Math.floor(Math.random() * titles.length)];
+  console.log(`✓ 随机优选标题: "${finalTitle}"`);
 
   console.log('\n[3/3] 正在调起创作者服务平台执行发布流程...');
   await publishToXiaohongshu({
     imagePath,
-    title: selectedTitle,
+    title: finalTitle,
     content: body,
     topics,
     autoSubmit
