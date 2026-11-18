@@ -433,7 +433,7 @@ export function generateXhsCopy(movie) {
   const topics = Array.from(new Set(defaultTopics)).filter(Boolean);
   const formattedTopics = topics.map(t => `#${t} `).join('');
 
-  // 正文文案：深度口碑种草 + 强互动问答（100% 免疫机器文本扫描，促互动拉升系统推流）
+  // 正文文案：极简模式，仅保留影视信息与“扫一扫”指引
   const body = `
 🎬 片名：《${title}》 (${year})
 ⭐ 评分：${score} 分
@@ -441,14 +441,7 @@ export function generateXhsCopy(movie) {
 📽️ 类型：${genres.slice(0, 3).join(' / ')}
 
 ——
-💬【深度看点 & 真实观后感】：
-"${movie.intro ? movie.intro.slice(0, 150) + '...' : '剧作精湛，笑点与泪点并存，剧情层层反转，后劲实在太大了！'}"
-
-在大屏幕上看高清画质真的太震撼了，每一处微表情和光影细节都极具质感，配合环绕音效，沉浸感直接拉满！
-
-——
-✨ 已经整理好高清版留着随时二刷，大屏看真的太享受了～
-看过的友友们在评论区聊聊你们的观后感呀！你给这部片子打几分？👇
+✨ 看全片请见图扫一扫～
 
 ${formattedTopics}
 `.trim();
