@@ -123,7 +123,7 @@ export async function runXhsPipeline({
   console.log(`⭐ 评分: ${movie.score || '8.0'} | 演职员: ${movie.actors || '群星'}`);
 
   console.log('\n[1/3] 正在生成 3:4 (1080x1440) 高清爆款视觉封面...');
-  const imagePath = await renderXhsCover(movie);
+  const imagePath = await renderXhsCover(movie, true);
   console.log(`✓ 封面图就绪: ${imagePath}`);
 
   console.log('\n[2/3] 正在生成高点击文案矩阵与安全防封导流方案...');
