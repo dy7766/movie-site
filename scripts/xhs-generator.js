@@ -269,8 +269,8 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
 
     <div class="bottom-card">
       <div class="cta-text">
-        <h3>星光影库 · 4K超清原画</h3>
-        <p>免广告极速点播 · 详见主页介绍</p>
+        <h3>院线超清视效 · 沉浸观影</h3>
+        <p>杜比全景声 · 细节纤毫毕现 · 建议大屏观赏</p>
       </div>
       <div class="cta-btn">看主页同好交流 ➔</div>
     </div>
@@ -386,7 +386,7 @@ export function generateXhsCopy(movie) {
 💬【深度看点 & 真实观后感】：
 "${movie.intro ? movie.intro.slice(0, 150) + '...' : '剧作精湛，笑点与泪点并存，剧情层层反转，后劲实在太大了！'}"
 
-在大屏幕上看 4K 超高清原画真的太震撼了，每一处微表情和光影细节都极具质感，配合环绕音效，沉浸感直接拉满！
+在大屏幕上看高清画质真的太震撼了，每一处微表情和光影细节都极具质感，配合环绕音效，沉浸感直接拉满！
 
 ——
 ✨ 已经整理好高清版留着随时二刷，大屏看真的太享受了～
