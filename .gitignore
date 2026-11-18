@@ -21,3 +21,7 @@ pnpm-debug.log*
 # OS metadata
 .DS_Store
 Thumbs.db
+
+# Generated covers
+public/xhs-covers/
+
