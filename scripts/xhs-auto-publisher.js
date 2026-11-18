@@ -13,6 +13,7 @@ export async function publishToXiaohongshu({
   imagePath,
   title,
   content,
+  topics = [],
   autoSubmit = false, // 默认 false: 填写完毕后保留在浏览器窗口供人眼最后确认，避免误发
   silent = false,     // 静默模式: 窗口隐藏在屏幕外或无头运行
   headless = false
@@ -120,7 +121,7 @@ export async function publishToXiaohongshu({
     await titleInput.type(safeTitle, { delay: 40 });
     console.log(`✓ 标题已填写: "${safeTitle}"`);
 
-    // 3. 填写正文内容与话题标签
+    // 3. 填写正文内容与官方话题挂载
     console.log('📝 正在自动填写正文与安全导流文案...');
     const contentArea = await page.waitForSelector('.tiptap.ProseMirror, [contenteditable="true"], textarea', { timeout: 15000 });
     await contentArea.click();
@@ -129,9 +130,31 @@ export async function publishToXiaohongshu({
     await page.keyboard.up('Control');
     await page.keyboard.press('Backspace');
     
-    // 模拟输入
-    await contentArea.type(content, { delay: 10 });
-    console.log('✓ 正文文案与话题标签已完整注入！');
+    // 解析正文与话题
+    let cleanContent = content;
+    let finalTopics = [...(topics || [])];
+    const extractedMatches = content.match(/#([^\s#\n\r]+)/g);
+    if (extractedMatches && finalTopics.length === 0) {
+      finalTopics = extractedMatches.map(m => m.replace(/^#/, '').trim()).filter(Boolean);
+      cleanContent = content.replace(/(?:\s*#[^\s#\n\r]+)+\s*$/, '').trim();
+    } else if (finalTopics.length > 0) {
+      cleanContent = content.replace(/(?:\s*#[^\s#\n\r]+)+\s*$/, '').trim();
+    }
+
+    // 模拟输入主正文
+    await contentArea.type(cleanContent, { delay: 5 });
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+
+    // 逐个挂载官方互动话题 (触发 TipTap 话题联想并保证有效间距)
+    for (const tag of finalTopics) {
+      console.log(`🏷️ 正在智能挂载官方话题: #${tag}`);
+      await contentArea.type(`#${tag}`, { delay: 40 });
+      await new Promise(r => setTimeout(r, 600));
+      await page.keyboard.press('Space');
+      await new Promise(r => setTimeout(r, 300));
+    }
+    console.log('✓ 正文文案与官方互动话题标签已完整注入！');
 
     // 滚动到底部以确保所有底部操作条就绪
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));

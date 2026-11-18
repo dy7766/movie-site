@@ -127,7 +127,7 @@ export async function runXhsPipeline({
   console.log(`✓ 封面图就绪: ${imagePath}`);
 
   console.log('\n[2/3] 正在生成高点击文案矩阵与安全防封导流方案...');
-  const { titles, body } = generateXhsCopy(movie);
+  const { titles, body, topics } = generateXhsCopy(movie);
   const selectedTitle = titles[0];
   console.log(`✓ 优选标题: "${selectedTitle}"`);
 
@@ -136,6 +136,7 @@ export async function runXhsPipeline({
     imagePath,
     title: selectedTitle,
     content: body,
+    topics,
     autoSubmit
   });
 

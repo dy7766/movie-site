@@ -320,7 +320,20 @@ export function generateXhsCopy(movie) {
     `私藏高分神作！《${cleanTitle}》太戳心了`
   ].map(t => t.slice(0, 20));
 
-  // 正文文案：纯正深度影评与情绪种草，彻底剔除“私信/扣1/无偿自取/网盘转存”等违规词
+  // 智能匹配分类专属官方热门话题
+  const category = movie.category || '电影';
+  let defaultTopics = ['4K原盘', title];
+  if (category === '动漫') {
+    defaultTopics = ['动漫推荐', '治愈系动漫', '4K原盘', '豆瓣高分动漫', title];
+  } else if (category === '电视剧') {
+    defaultTopics = ['电视剧推荐', '追剧日常', '4K原盘', '口碑好剧', title];
+  } else {
+    defaultTopics = ['电影推荐', '周末看电影', '4K原盘', '豆瓣高分电影', title];
+  }
+  const topics = Array.from(new Set(defaultTopics)).filter(Boolean);
+  const formattedTopics = topics.map(t => `#${t} `).join('');
+
+  // 正文文案：深度口碑种草 + 多渠道高转化安全引流闭环
   const body = `
 🎬 片名：《${title}》 (${year})
 ⭐ 评分：${score} 分
@@ -329,18 +342,20 @@ export function generateXhsCopy(movie) {
 
 ——
 💬【深度看点 & 真实观后感】：
-"${movie.intro ? movie.intro.slice(0, 160) + '...' : '剧作精湛，笑点与泪点并存，剧情层层反转，后劲实在太大了！'}"
+"${movie.intro ? movie.intro.slice(0, 150) + '...' : '剧作精湛，笑点与泪点并存，剧情层层反转，后劲实在太大了！'}"
 
-在大屏幕上看高清画质真的太震撼了，每一处微表情和光影细节都极具质感，配合环绕音效，沉浸感直接拉满！
+在大屏幕上看 4K 超高清原画真的太震撼了，每一处微表情和光影细节都极具质感，配合环绕音效，沉浸感直接拉满！
 
 ——
-✨ 已经整理好高清版留着随时二刷，大屏看真的太享受了～
-看过的友友们在评论区聊聊你们的观后感呀！你给这部片子打几分？👇
+💡【全片 4K 原盘 / 免广告全集在线看自取】：
+👉 方案 1：点击进入【主页】，加入【置顶粉丝群】在群公告自取～
+👉 方案 2：评论区回复【${title}】或【111】，看到会第一时间私发给你！
+👉 方案 3：浏览器搜【星光影库】，免广告 1080P 纯净在线看，4K 原盘极速秒存！
 
-#电影推荐 #周末看电影 #高清电影 #电影美学 #豆瓣高分电影 #${title} #值得二刷的电影 #宝藏电影
+${formattedTopics}
 `.trim();
 
-  return { titles, body };
+  return { titles, body, topics };
 }
 
 /**

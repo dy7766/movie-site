@@ -221,7 +221,7 @@ export async function runBatchHourlyTask({
 
       // 2. 生成标题和正文（轮循影片根据发布次数切换不同风格标题）
       console.log('  ✍️ 匹配算法标题与安全防封文案...');
-      const { titles, body } = generateXhsCopy(movie);
+      const { titles, body, topics } = generateXhsCopy(movie);
       const postTitle = titles[movie.postCount % titles.length];
 
       // 3. 调起自动化发布
@@ -230,6 +230,7 @@ export async function runBatchHourlyTask({
         imagePath,
         title: postTitle,
         content: body,
+        topics,
         autoSubmit: true, // 定时任务全自动点击发布
         silent
       });
