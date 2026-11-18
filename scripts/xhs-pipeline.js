@@ -77,6 +77,8 @@ async function selectBestMovie(keyword) {
   let query = `
     SELECT * FROM resources 
     WHERE (share_link IS NOT NULL OR share_link_uc IS NOT NULL)
+      AND has_metadata = true
+      AND poster_url IS NOT NULL
   `;
   const params = [];
   if (postedIds.length > 0) {
@@ -96,6 +98,8 @@ async function selectBestMovie(keyword) {
   const fallbackRes = await pool.query(`
     SELECT * FROM resources 
     WHERE (share_link IS NOT NULL OR share_link_uc IS NOT NULL)
+      AND has_metadata = true
+      AND poster_url IS NOT NULL
     ORDER BY score DESC LIMIT 1
   `);
   return fallbackRes.rows[0] || null;
@@ -160,6 +164,8 @@ if (process.argv[1]?.endsWith('xhs-pipeline.js')) {
   runXhsPipeline({
     keyword: keywordArg,
     autoSubmit
+  }).then(() => {
+    process.exit(0);
   }).catch(err => {
     console.error('❌ 流水线执行失败:', err);
     process.exit(1);

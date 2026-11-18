@@ -130,6 +130,8 @@ async function selectBatchMovies(count) {
   const res = await pool.query(`
     SELECT * FROM resources 
     WHERE (share_link IS NOT NULL OR share_link_uc IS NOT NULL)
+      AND has_metadata = true
+      AND poster_url IS NOT NULL
     ORDER BY created_at DESC, score DESC
   `);
 
@@ -295,6 +297,8 @@ if (process.argv[1]?.endsWith('xhs-batch-scheduler.js')) {
   runBatchHourlyTask({
     count,
     silent: isSilent
+  }).then(() => {
+    process.exit(0);
   }).catch(err => {
     console.error('Fatal:', err);
     process.exit(1);

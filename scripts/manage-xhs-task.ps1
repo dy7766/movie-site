@@ -1,11 +1,16 @@
-param(
-    [ValidateSet("status", "start", "stop", "enable", "delete")]
+﻿param(
+    [ValidateSet("status", "start", "stop", "enable", "delete", "install")]
     [string]$Action = "status"
 )
 
 $TaskName = "XHS_Hourly_Movie_Publisher"
+$VbsPath = "C:\Users\dy776\.gemini\antigravity\scratch\movie-site\scripts\run-xhs-silent.vbs"
 
 switch ($Action) {
+    "install" {
+        Write-Host "📦 注册小红书每小时定时发布计划任务..." -ForegroundColor Green
+        schtasks /Create /TN $TaskName /TR "wscript.exe $VbsPath" /SC HOURLY /MO 1 /F
+    }
     "status" {
         Write-Host "🔍 查询小红书每小时定时发布任务状态..." -ForegroundColor Cyan
         schtasks /Query /TN $TaskName /FO LIST
