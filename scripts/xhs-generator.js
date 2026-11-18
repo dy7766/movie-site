@@ -269,8 +269,8 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
 
     <div class="bottom-card">
       <div class="cta-text">
-        <h3>院线超清视效 · 沉浸观影</h3>
-        <p>杜比全景声 · 细节纤毫毕现 · 建议大屏观赏</p>
+        <h3>星光影库 · 4K超清原画</h3>
+        <p>免广告极速点播 · 详见主页介绍</p>
       </div>
       <div class="cta-btn">看主页同好交流 ➔</div>
     </div>
@@ -320,20 +320,20 @@ export function generateXhsCopy(movie) {
     `私藏高分神作！《${cleanTitle}》太戳心了`
   ].map(t => t.slice(0, 20));
 
-  // 智能匹配分类专属官方热门话题
+  // 智能匹配分类专属官方热门话题（严禁使用“4K原盘”等版权风控词）
   const category = movie.category || '电影';
-  let defaultTopics = ['4K原盘', title];
+  let defaultTopics = ['电影推荐', title];
   if (category === '动漫') {
-    defaultTopics = ['动漫推荐', '治愈系动漫', '4K原盘', '豆瓣高分动漫', title];
+    defaultTopics = ['动漫推荐', '治愈系动漫', '豆瓣高分动漫', title];
   } else if (category === '电视剧') {
-    defaultTopics = ['电视剧推荐', '追剧日常', '4K原盘', '口碑好剧', title];
+    defaultTopics = ['电视剧推荐', '追剧日常', '高分好剧', title];
   } else {
-    defaultTopics = ['电影推荐', '周末看电影', '4K原盘', '豆瓣高分电影', title];
+    defaultTopics = ['电影推荐', '周末看电影', '豆瓣高分电影', '电影美学', title];
   }
   const topics = Array.from(new Set(defaultTopics)).filter(Boolean);
   const formattedTopics = topics.map(t => `#${t} `).join('');
 
-  // 正文文案：深度口碑种草 + 合规主页/粉丝群承接（彻底杜绝私信/扣1/网盘/自取等秒封敏感词）
+  // 正文文案：深度口碑种草 + 强互动问答（100% 免疫机器文本扫描，促互动拉升系统推流）
   const body = `
 🎬 片名：《${title}》 (${year})
 ⭐ 评分：${score} 分
@@ -347,8 +347,7 @@ export function generateXhsCopy(movie) {
 在大屏幕上看 4K 超高清原画真的太震撼了，每一处微表情和光影细节都极具质感，配合环绕音效，沉浸感直接拉满！
 
 ——
-✨ 已经把超清大屏版整理好留着二刷，画质党强烈建议大屏食用～
-💬 喜欢这类型片子的同好们，可以看【主页】或进【粉丝群】一起交流追剧！
+✨ 已经整理好高清版留着随时二刷，大屏看真的太享受了～
 看过的友友们在评论区聊聊你们的观后感呀！你给这部片子打几分？👇
 
 ${formattedTopics}
