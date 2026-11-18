@@ -333,7 +333,7 @@ export function generateXhsCopy(movie) {
   const topics = Array.from(new Set(defaultTopics)).filter(Boolean);
   const formattedTopics = topics.map(t => `#${t} `).join('');
 
-  // 正文文案：深度口碑种草 + 多渠道高转化安全引流闭环
+  // 正文文案：深度口碑种草 + 合规主页/粉丝群承接（彻底杜绝私信/扣1/网盘/自取等秒封敏感词）
   const body = `
 🎬 片名：《${title}》 (${year})
 ⭐ 评分：${score} 分
@@ -347,10 +347,9 @@ export function generateXhsCopy(movie) {
 在大屏幕上看 4K 超高清原画真的太震撼了，每一处微表情和光影细节都极具质感，配合环绕音效，沉浸感直接拉满！
 
 ——
-💡【全片 4K 原盘 / 免广告全集在线看自取】：
-👉 方案 1：点击进入【主页】，加入【置顶粉丝群】在群公告自取～
-👉 方案 2：评论区回复【${title}】或【111】，看到会第一时间私发给你！
-👉 方案 3：浏览器搜【星光影库】，免广告 1080P 纯净在线看，4K 原盘极速秒存！
+✨ 已经把超清大屏版整理好留着二刷，画质党强烈建议大屏食用～
+💬 喜欢这类型片子的同好们，可以看【主页】或进【粉丝群】一起交流追剧！
+看过的友友们在评论区聊聊你们的观后感呀！你给这部片子打几分？👇
 
 ${formattedTopics}
 `.trim();
