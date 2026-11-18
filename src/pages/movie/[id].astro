@@ -337,7 +337,7 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
                 <svg class="w-4 h-4 fill-current text-indigo-400 group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z"/>
                 </svg>
-                <span>▶ 1080P 网页轻量预览（适合小屏/省流量 · 零广告试看）</span>
+                <span>▶ {(movie.share_link || movie.share_link_uc) ? '1080P 网页轻量试看（前6分钟体验 · 零广告）' : '1080P 网页轻量预览（适合小屏/省流量 · 零广告试看）'}</span>
               </a>
             </div>
           )}
@@ -383,13 +383,15 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
             <div>
               <h2 class="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
                 <span>在线免流播放</span>
-                <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">1080P原画 · 零广告切片 · 支持倍速</span>
+                <span class="text-[11px] px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-medium">
+                  {(movie.share_link || movie.share_link_uc) ? '限时试看6分钟 · 无删减全片请转存网盘' : '1080P原画 · 零广告切片 · 支持倍速'}
+                </span>
               </h2>
             </div>
           </div>
           <div class="flex items-center gap-2 text-xs text-slate-400">
             <span id="currentEpisodeBadge" class="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-slate-300">
-              正在播放：{playSources[0]?.episodes?.[0]?.name || '正片'}
+              正在播放：{playSources[0]?.episodes?.[0]?.name || '正片'} {(movie.share_link || movie.share_link_uc) ? '(试看6分钟)' : ''}
             </span>
             <button id="reloadPlayerBtn" class="text-xs text-indigo-400 hover:text-indigo-300 underline cursor-pointer">
               刷新播放
@@ -399,7 +401,15 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
 
         <!-- 播放器视口 -->
         <div class="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-2xl flex items-center justify-center">
-          <div id="artplayer-app" class="w-full h-full" data-url={movie.online_play_url} data-poster={movie.poster_url || ''}></div>
+          <div 
+            id="artplayer-app" 
+            class="w-full h-full" 
+            data-url={movie.online_play_url} 
+            data-poster={movie.poster_url || ''}
+            data-has-drive={(movie.share_link || movie.share_link_uc) ? 'true' : 'false'}
+            data-is-tv={isTvShow ? 'true' : 'false'}
+            data-title={movie.title}
+          ></div>
           <div id="playerLoadingNotice" class="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center text-slate-400 text-sm gap-3 z-10 transition-opacity">
             <div class="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
             <span>正在连接极速 CDN 视频切片节点...</span>
@@ -407,9 +417,9 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
 
           <!-- 右上角 4K 原盘切换浮窗与预览标签 -->
           <div class="absolute top-3 right-3 z-20 pointer-events-auto hidden sm:flex items-center gap-2">
-            <div class="px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-slate-300 text-[11px] font-medium flex items-center gap-1.5 shadow-lg">
+            <div class="px-2.5 py-1 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-amber-300 text-[11px] font-medium flex items-center gap-1.5 shadow-lg">
               <span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
-              <span>1080P 网页预览中</span>
+              <span>{(movie.share_link || movie.share_link_uc) ? '限时试看 6 分钟' : '1080P 网页预览'}</span>
             </div>
             {(movie.share_link || movie.share_link_uc) && (
               <a 
@@ -432,7 +442,7 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
             <div class="max-w-md w-full p-5 sm:p-6 rounded-2xl bg-slate-900/95 border border-orange-500/30 shadow-2xl space-y-3.5">
               <div class="flex items-center justify-center gap-2 text-orange-400 font-extrabold text-sm sm:text-base">
                 <span class="text-base sm:text-lg">🎬</span>
-                <span>视频已暂停 · 正在观看网页压缩版</span>
+                <span>视频已暂停 · 试看预览中</span>
               </div>
               <p class="text-xs text-slate-300 leading-relaxed">
                 网页切片受公网带宽限制，画质有所压缩。原画无损 <strong class="text-amber-300 font-bold">4K 60帧杜比全景声原盘</strong> 已入库，转存至网盘享受免广告原画与电视投屏：
@@ -471,8 +481,65 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
                   id="resumePlayBtn" 
                   class="text-xs text-slate-400 hover:text-white underline cursor-pointer py-1"
                 >
-                  继续播放网页预览版 ▶
+                  继续试看播放 ▶
                 </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ⏱️ 试看结束与剧集锁定拦截浮层 (Cutoff & Lock Overlay Card - 强力转化门禁) -->
+          <div id="previewCutoffOverlay" class="absolute inset-0 z-30 hidden bg-slate-950/95 backdrop-blur-xl flex flex-col items-center justify-center p-4 text-center transition-all duration-300 pointer-events-auto">
+            <div class="max-w-md w-full p-5 sm:p-7 rounded-3xl bg-slate-900/95 border border-orange-500/50 shadow-2xl shadow-orange-500/20 space-y-4">
+              <div class="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-orange-500/20 text-orange-400 border border-orange-500/40 shadow-inner">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+              </div>
+
+              <div class="space-y-1">
+                <h3 id="cutoffOverlayTitle" class="text-base sm:text-lg font-black text-white tracking-tight flex items-center justify-center gap-1.5">
+                  🎬 本片精彩试看已结束 · 解锁完整版
+                </h3>
+                <p id="cutoffOverlaySub" class="text-xs text-orange-400 font-bold">
+                  网页轻量预览仅支持前 6 分钟试看
+                </p>
+              </div>
+
+              <p class="text-xs text-slate-300 leading-relaxed bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800 text-left sm:text-center">
+                影院级 <strong class="text-amber-300 font-bold">4K 60帧杜比视界原盘</strong> 与后续完整内容已就绪！免费转存到个人网盘，即可<strong>免广告无限制畅看全片</strong>，支持电视大屏投屏与原声无损音轨：
+              </p>
+
+              <div class="flex flex-col sm:flex-row gap-2.5 pt-1">
+                {movie.share_link && (
+                  <a 
+                    href={movie.share_link} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    data-track="quark"
+                    data-resource-id={movie.id}
+                    data-resource-title={movie.title}
+                    class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-orange-500 via-orange-600 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-orange-500/30 active:scale-95 transition-all"
+                  >
+                    <span>⚡ 夸克 4K 秒存 (送1TB)</span>
+                  </a>
+                )}
+                {movie.share_link_uc && (
+                  <a 
+                    href={movie.share_link_uc} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    data-track="uc"
+                    data-resource-id={movie.id}
+                    data-resource-title={movie.title}
+                    class="flex-1 py-3 px-4 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-600 hover:to-orange-500 text-slate-950 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/30 active:scale-95 transition-all"
+                  >
+                    <span>💾 UC 极速转存</span>
+                  </a>
+                )}
+              </div>
+
+              <div class="pt-1 text-[11px] text-slate-400 flex items-center justify-center gap-1">
+                <span>💡 提示：转存后打开夸克/UC App 即可免流原画畅享全片</span>
               </div>
             </div>
           </div>
@@ -483,20 +550,35 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
           <div class="space-y-3 pt-2">
             <div class="flex items-center justify-between text-xs text-slate-400">
               <span class="font-semibold text-slate-200">剧集与线路切换（共 {playSources[0].episodes.length} 集/线）：</span>
-              <span class="text-slate-500">点击自动切换播放</span>
+              <span class="text-slate-500">{(movie.share_link || movie.share_link_uc) ? '第1集免费试看 · 后续剧集请转存' : '点击自动切换播放'}</span>
             </div>
             <div class="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2 max-h-52 overflow-y-auto pr-1">
-              {playSources[0].episodes.map((ep, idx) => (
-                <button 
-                  type="button"
-                  class={`episode-play-btn px-2.5 py-2 rounded-xl text-xs font-medium border transition-all text-center truncate cursor-pointer ${idx === 0 ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30 font-bold' : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700/60'}`}
-                  data-url={ep.url}
-                  data-name={ep.name}
-                  title={ep.name}
-                >
-                  {ep.name}
-                </button>
-              ))}
+              {playSources[0].episodes.map((ep, idx) => {
+                const hasDrive = Boolean(movie.share_link || movie.share_link_uc);
+                const isLocked = hasDrive && idx > 0;
+                return (
+                  <button 
+                    type="button"
+                    class={`episode-play-btn relative px-2.5 py-2 rounded-xl text-xs font-medium border transition-all text-center truncate cursor-pointer ${
+                      idx === 0 
+                        ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-600/30 font-bold' 
+                        : isLocked 
+                          ? 'bg-slate-900/90 hover:bg-slate-800 text-slate-400 border-slate-700/60 hover:border-orange-500/50' 
+                          : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border-slate-700/60'
+                    }`}
+                    data-url={ep.url}
+                    data-name={ep.name}
+                    data-index={idx}
+                    data-locked={isLocked ? "true" : "false"}
+                    title={ep.name + (isLocked ? ' (转存网盘解锁)' : '')}
+                  >
+                    <span>{ep.name}</span>
+                    {isLocked && (
+                      <span class="inline-block ml-0.5 text-[10px] text-amber-400 font-bold">🔒</span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
@@ -787,9 +869,36 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
 
           const initialUrl = playerEl.dataset.url;
           const initialPoster = playerEl.dataset.poster;
+          const hasDriveLinks = playerEl.dataset.hasDrive === 'true';
           const loadingNotice = document.getElementById('playerLoadingNotice');
           const badge = document.getElementById('currentEpisodeBadge');
+          const pauseOverlay = document.getElementById('playerPauseOverlay');
+          const cutoffOverlay = document.getElementById('previewCutoffOverlay');
+          const cutoffTitle = document.getElementById('cutoffOverlayTitle');
+          const cutoffSub = document.getElementById('cutoffOverlaySub');
+          const resumeBtn = document.getElementById('resumePlayBtn');
+
+          const PREVIEW_LIMIT = 360; // 6 分钟试看限制（秒）
+          let isCutoffActive = false;
           let art = null;
+
+          function triggerCutoff(titleText, subText) {
+            isCutoffActive = true;
+            if (art) {
+              try {
+                art.pause();
+                if (art.currentTime > PREVIEW_LIMIT) {
+                  art.currentTime = PREVIEW_LIMIT;
+                }
+              } catch (_) {}
+            }
+            if (pauseOverlay) pauseOverlay.classList.add('hidden');
+            if (cutoffOverlay) {
+              if (cutoffTitle && titleText) cutoffTitle.textContent = titleText;
+              if (cutoffSub && subText) cutoffSub.textContent = subText;
+              cutoffOverlay.classList.remove('hidden');
+            }
+          }
 
           function initPlayer(streamUrl) {
             if (art) {
@@ -858,27 +967,50 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
               if (loadingNotice) loadingNotice.classList.add('hidden');
             });
 
-            // 监听暂停与播放事件，弹出/关闭 4K 原盘转存卡片
-            const pauseOverlay = document.getElementById('playerPauseOverlay');
-            const resumeBtn = document.getElementById('resumePlayBtn');
+            // ⏱️ 核心转化机制：试看 6 分钟强制截断拦截
+            if (hasDriveLinks) {
+              art.on('video:timeupdate', () => {
+                if (art.currentTime >= PREVIEW_LIMIT) {
+                  triggerCutoff('🎬 本片精彩试看已结束 · 解锁完整版', '网页轻量预览仅支持前 6 分钟试看');
+                }
+              });
 
+              art.on('video:seeked', () => {
+                if (art.currentTime >= PREVIEW_LIMIT) {
+                  triggerCutoff('🎬 本片精彩试看已结束 · 解锁完整版', '网页轻量预览仅支持前 6 分钟试看');
+                }
+              });
+            }
+
+            // 监听暂停与播放事件
             art.on('pause', () => {
-              if (pauseOverlay) pauseOverlay.classList.remove('hidden');
+              if (!isCutoffActive && pauseOverlay) {
+                pauseOverlay.classList.remove('hidden');
+              }
             });
 
             art.on('play', () => {
+              if (isCutoffActive) {
+                art.pause();
+                if (cutoffOverlay) cutoffOverlay.classList.remove('hidden');
+                return;
+              }
               if (pauseOverlay) pauseOverlay.classList.add('hidden');
             });
 
             art.on('video:ended', () => {
-              if (pauseOverlay) pauseOverlay.classList.remove('hidden');
+              if (hasDriveLinks) {
+                triggerCutoff('🎬 本片精彩试看已结束 · 解锁完整版', '无删减 4K 完整版已就绪，转存后畅享全片');
+              } else if (pauseOverlay) {
+                pauseOverlay.classList.remove('hidden');
+              }
             });
 
             if (resumeBtn) {
               resumeBtn.onclick = (e) => {
                 e.preventDefault();
                 if (pauseOverlay) pauseOverlay.classList.add('hidden');
-                if (art) art.play();
+                if (art && !isCutoffActive) art.play();
               };
             }
           }
@@ -887,13 +1019,23 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
             initPlayer(initialUrl);
           }
 
-          // 选集切换
+          // 选集切换（第 1 集试看，第 2 集及后续分集必须转存网盘）
           const episodeBtns = document.querySelectorAll('.episode-play-btn');
           episodeBtns.forEach(btn => {
             btn.addEventListener('click', () => {
-              const newUrl = btn.getAttribute('data-url');
+              const isLocked = btn.getAttribute('data-locked') === 'true';
               const newName = btn.getAttribute('data-name');
-              if (!newUrl) return;
+              const newUrl = btn.getAttribute('data-url');
+
+              if (isLocked) {
+                triggerCutoff(`🔒 解锁 ${newName} 及后续全集`, '第 2 集及后续剧集已全部打包在网盘，转存即可解锁畅看');
+                return;
+              }
+
+              // 第 1 集正常切换试看
+              isCutoffActive = false;
+              if (cutoffOverlay) cutoffOverlay.classList.add('hidden');
+              if (pauseOverlay) pauseOverlay.classList.add('hidden');
 
               episodeBtns.forEach(b => {
                 b.classList.remove('bg-indigo-600', 'text-white', 'border-indigo-500', 'shadow-md', 'shadow-indigo-600/30', 'font-bold');
@@ -902,7 +1044,7 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
               btn.classList.add('bg-indigo-600', 'text-white', 'border-indigo-500', 'shadow-md', 'shadow-indigo-600/30', 'font-bold');
               btn.classList.remove('bg-slate-800/80', 'text-slate-300', 'border-slate-700/60');
 
-              if (badge) badge.textContent = '正在播放：' + newName;
+              if (badge) badge.textContent = '正在播放：' + newName + (hasDriveLinks ? ' (试看6分钟)' : '');
               if (loadingNotice) loadingNotice.classList.remove('hidden');
 
               initPlayer(newUrl);
@@ -914,6 +1056,8 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
           if (reloadBtn) {
             reloadBtn.addEventListener('click', () => {
               const currentUrl = (art && art.url) ? art.url : initialUrl;
+              isCutoffActive = false;
+              if (cutoffOverlay) cutoffOverlay.classList.add('hidden');
               if (loadingNotice) loadingNotice.classList.remove('hidden');
               initPlayer(currentUrl);
             });
@@ -938,7 +1082,7 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
           <svg class="w-4 h-4 text-indigo-400 fill-current" viewBox="0 0 24 24">
             <path d="M8 5v14l11-7z"/>
           </svg>
-          <span class="text-[9px] text-slate-300">试看</span>
+          <span class="text-[9px] text-slate-300">{(movie.share_link || movie.share_link_uc) ? '试看6分' : '试看'}</span>
         </a>
       )}
       {movie.share_link && (
