@@ -19,7 +19,7 @@ export async function runAutomationPipeline() {
   if (cookieReport.isAuthExpired) {
     console.warn('⚠️ 检测到网盘凭证真实失效，已触发告警；降级保护：跳过转存，继续执行元数据拉取与全站发布！');
   } else {
-    console.log('🟢 网盘凭证健康，剩余容量充裕，流水线正常运转！');
+    console.log('🟢 网盘凭证健康，流水线正常运转！');
   }
 
   // 2. 模块一：从豆瓣抓取本地没有的热门电影与热播剧集种子

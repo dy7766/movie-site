@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { execSync } from 'child_process';
-import { getDbPool } from '../src/lib/db.js';
+import { getDbPool, getTransferSettings } from '../src/lib/db.js';
 import { sendDingTalkCapacityAlert } from './dingtalk-service.js';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || 'fc3786eb5ea9d4b8c8b09cc89df373b4';
@@ -237,6 +237,13 @@ let hasAlertedCapacityInThisProcess = false;
 
 // 3. 转存入个人盘、重命名并生成带 PID 专属分享链接 (返回完整详情)
 export async function saveAndShareUcDetail(targetTitle, year, category, pwd_id, stoken, list) {
+  // 管理员开关检查：若后台已关闭 UC 转存，立即跳过
+  const transferSettings = await getTransferSettings().catch(() => null);
+  if (transferSettings && !transferSettings.uc) {
+    console.log(`  ℹ️ [后台控制跳过] 管理员已在后台关闭【UC网盘转存】，跳过《${targetTitle}》的转存与容量检查`);
+    return null;
+  }
+
   const cookie = getUcCookie();
   if (!cookie) {
     console.error('未配置 UC Cookie，无法执行个人盘秒存');

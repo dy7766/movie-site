@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
+import { getDbPool, getTransferSettings } from '../src/lib/db.js';
 
 const DEFAULT_WEBHOOK = 'https://oapi.dingtalk.com/robot/send?access_token=b4b05e7b29bfcd9d649c48a3669a201817e5069255bfd2d30cf14b28747ebe4d';
 const DEFAULT_SECRET = 'SECc1a492c159ef4fcd7a81cb81e505f8534fe0ed817a90467be300c6808cef4b10';
@@ -149,7 +150,7 @@ export async function sendDingTalkExpiredAlert({
 }
 
 /**
- * 容量告警冷却与防刷屏机制 (单次更新仅提醒一次，跨进程至少冷却 4 小时)
+ * 容量告警冷却与防刷屏机制 (单次更新仅提醒一次，跨进程/跨云端容器至少冷却 4 小时)
  */
 const CAPACITY_COOLDOWN_MS = 4 * 60 * 60 * 1000; // 4 小时静默冷却期
 
@@ -158,9 +159,34 @@ function getCapacityAlertRecordPath(provider) {
   return path.join(os.tmpdir(), `dingtalk_capacity_alert_${safeProvider}.json`);
 }
 
-function shouldThrottleCapacityAlert(provider, cooldownMs = CAPACITY_COOLDOWN_MS) {
+async function shouldThrottleCapacityAlert(provider, cooldownMs = CAPACITY_COOLDOWN_MS) {
+  const safeProvider = (provider || 'uc').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const key = `${safeProvider}_last_alert_time`;
+
+  // 1. 优先从 Supabase 数据库持久化读取上次告警时间（跨 GitHub Actions 运行保持记忆）
   try {
-    const filePath = getCapacityAlertRecordPath(provider);
+    const pool = getDbPool();
+    const res = await pool.query("SELECT value FROM system_settings WHERE key = 'capacity_alert_state'");
+    if (res.rows.length > 0 && res.rows[0].value) {
+      const lastAlertTime = Number(res.rows[0].value[key] || 0);
+      if (lastAlertTime > 0) {
+        const diff = Date.now() - lastAlertTime;
+        if (diff < cooldownMs) {
+          return {
+            throttle: true,
+            minutesLeft: Math.ceil((cooldownMs - diff) / 60000),
+            lastSentMinutesAgo: Math.round(diff / 60000)
+          };
+        }
+      }
+    }
+  } catch (dbErr) {
+    // 数据库降级回退至本地文件
+  }
+
+  // 2. 本地临时文件兜底
+  try {
+    const filePath = getCapacityAlertRecordPath(safeProvider);
     if (fs.existsSync(filePath)) {
       const content = fs.readFileSync(filePath, 'utf-8');
       const data = JSON.parse(content);
@@ -179,10 +205,29 @@ function shouldThrottleCapacityAlert(provider, cooldownMs = CAPACITY_COOLDOWN_MS
   return { throttle: false };
 }
 
-function recordCapacityAlertSent(provider) {
+async function recordCapacityAlertSent(provider) {
+  const safeProvider = (provider || 'uc').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const now = Date.now();
+  const key = `${safeProvider}_last_alert_time`;
+
+  // 1. 同步记录至 Supabase 数据库
   try {
-    const filePath = getCapacityAlertRecordPath(provider);
-    fs.writeFileSync(filePath, JSON.stringify({ lastAlertTime: Date.now() }), 'utf-8');
+    const pool = getDbPool();
+    await pool.query(`
+      INSERT INTO system_settings (key, value, updated_at)
+      VALUES ('capacity_alert_state', jsonb_build_object($1::text, $2::bigint), NOW())
+      ON CONFLICT (key) DO UPDATE
+      SET value = COALESCE(system_settings.value, '{}'::jsonb) || jsonb_build_object($1::text, $2::bigint),
+          updated_at = NOW()
+    `, [key, now]);
+  } catch (dbErr) {
+    console.warn('⚠️ 记录容量告警状态至数据库异常:', dbErr.message);
+  }
+
+  // 2. 本地临时文件记录
+  try {
+    const filePath = getCapacityAlertRecordPath(safeProvider);
+    fs.writeFileSync(filePath, JSON.stringify({ lastAlertTime: now }), 'utf-8');
   } catch (e) {}
 }
 
@@ -196,8 +241,27 @@ export async function sendDingTalkCapacityAlert({
   provider = 'UC',
   force = false
 }) {
+  // 0. 全局后台开关门禁：若网盘转存已被管理员设为暂停，坚决拦截一切容量不足告警推送
+  try {
+    const transferSettings = await getTransferSettings();
+    if (transferSettings) {
+      const isUc = provider.toUpperCase() === 'UC';
+      const isQuark = provider.toLowerCase() === 'quark' || provider.includes('夸克');
+      if (isUc && !transferSettings.uc) {
+        console.log('  ℹ️ [钉钉告警静默拦截] 管理员已在后台关闭【UC网盘转存】，彻底拦截 UC 容量不足告警推送。');
+        return { throttled: true, reason: 'provider_disabled' };
+      }
+      if (isQuark && !transferSettings.quark) {
+        console.log('  ℹ️ [钉钉告警静默拦截] 管理员已在后台关闭【夸克网盘转存】，彻底拦截 夸克 容量不足告警推送。');
+        return { throttled: true, reason: 'provider_disabled' };
+      }
+    }
+  } catch (err) {
+    // 忽略异常，继续后续流程
+  }
+
   if (!force) {
-    const check = shouldThrottleCapacityAlert(provider);
+    const check = await shouldThrottleCapacityAlert(provider);
     if (check.throttle) {
       console.log(`  ℹ️ [钉钉告警静默拦截] ${provider}网盘容量告警处于冷却期（上次发送于 ${check.lastSentMinutesAgo} 分钟前，还需静默 ${check.minutesLeft} 分钟），跳过重复发送。`);
       return { throttled: true, reason: 'cooldown' };

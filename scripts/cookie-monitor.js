@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
+import { getTransferSettings } from '../src/lib/db.js';
 import { sendDingTalkExpiredAlert, sendDingTalkCapacityAlert } from './dingtalk-service.js';
 
 const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
@@ -49,6 +50,7 @@ async function requestDriveApi(url, headers) {
 }
 
 export async function checkDriveCookies() {
+  const transferSettings = await getTransferSettings().catch(() => ({ uc: true, quark: true }));
   let quarkCookie = process.env.QUARK_COOKIE || '';
   let ucCookie = process.env.UC_COOKIE || '';
 
@@ -114,10 +116,12 @@ export async function checkDriveCookies() {
   // 2. 巡检 UC 网盘
   if (!ucCookie) {
     report.uc.message = '未配置 UC Cookie 凭证';
-    report.uc.isAuthExpired = true;
-    report.hasAlert = true;
-    report.isAuthExpired = true;
-    report.expiredDrives.push('UC 网盘');
+    if (transferSettings.uc) {
+      report.uc.isAuthExpired = true;
+      report.hasAlert = true;
+      report.isAuthExpired = true;
+      report.expiredDrives.push('UC 网盘');
+    }
   } else {
     const res = await requestDriveApi(
       'https://pc-api.uc.cn/1/clouddrive/member?pr=UCBrowser&fr=pc&fetch_subscribe=true&_ch=home',
@@ -132,7 +136,10 @@ export async function checkDriveCookies() {
       report.uc.ok = true;
       report.uc.totalGB = (res.data.data.total_capacity / 1024 / 1024 / 1024).toFixed(1);
       report.uc.freeGB = ((res.data.data.total_capacity - res.data.data.use_capacity) / 1024 / 1024 / 1024).toFixed(1);
-      if (parseFloat(report.uc.freeGB) < 15) {
+      if (!transferSettings.uc) {
+        // 管理员已在后台关闭 UC 转存，静默记录状态，绝不触发容量告警与熔断
+        report.uc.message = `已在后台暂停转存（剩余: ${report.uc.freeGB} GB / ${report.uc.totalGB} GB，静默跳过告警）`;
+      } else if (parseFloat(report.uc.freeGB) < 15) {
         report.uc.message = `⚠️ 空间耗尽熔断（仅剩 ${report.uc.freeGB} GB / ${report.uc.totalGB} GB）`;
         report.hasAlert = true;
         report.isCapacityFull = true;
@@ -152,9 +159,11 @@ export async function checkDriveCookies() {
       report.uc.ok = false;
       report.uc.isAuthExpired = true;
       report.uc.message = res.data?.message || `登录凭证失效 (HTTP ${res.status})`;
-      report.hasAlert = true;
-      report.isAuthExpired = true;
-      report.expiredDrives.push('UC 网盘');
+      if (transferSettings.uc) {
+        report.hasAlert = true;
+        report.isAuthExpired = true;
+        report.expiredDrives.push('UC 网盘');
+      }
     } else {
       // 偶发网络异常，不当作凭证失效处理，避免误告警
       report.uc.ok = false;
@@ -164,14 +173,20 @@ export async function checkDriveCookies() {
     }
   }
 
-  // 仅当确实有凭证过期时，才触发钉钉红色强告警
-  if (report.isAuthExpired && report.expiredDrives.length > 0) {
-    console.error(`🚨 检测到网盘凭证真实失效: ${report.expiredDrives.join(', ')}`);
+  // 仅当开启转存的网盘确实有凭证过期时，才触发钉钉红色强告警
+  const activeExpiredDrives = report.expiredDrives.filter(d => {
+    if (d === 'UC 网盘' && !transferSettings.uc) return false;
+    if (d === '夸克网盘' && !transferSettings.quark) return false;
+    return true;
+  });
+
+  if (activeExpiredDrives.length > 0) {
+    console.error(`🚨 检测到网盘凭证真实失效: ${activeExpiredDrives.join(', ')}`);
     console.error(`   Quark 原因: ${report.quark.message}`);
     console.error(`   UC 原因: ${report.uc.message}`);
     try {
       await sendDingTalkExpiredAlert({
-        expiredDrives: report.expiredDrives,
+        expiredDrives: activeExpiredDrives,
         report
       });
       console.log('📢 已向钉钉群精准发送 @丁一 红色告警');
@@ -191,5 +206,9 @@ if (process.argv[1]?.endsWith('cookie-monitor.js')) {
     console.log(`UC 网盘:  ${rep.uc.ok ? '🟢' : '❌'} ${rep.uc.message}`);
     console.log(`真实失效: ${rep.isAuthExpired ? '🚨 是' : '🟢 否'}`);
     console.log('------------------------------------\n');
-  }).catch(console.error);
+    process.exit(0);
+  }).catch(e => {
+    console.error(e);
+    process.exit(1);
+  });
 }
