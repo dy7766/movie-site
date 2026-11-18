@@ -217,7 +217,7 @@ export async function runBatchHourlyTask({
     try {
       // 1. 生成 3:4 封面图
       console.log('  🖼️ 生成 3:4 (1080x1440) 高清视觉海报...');
-      const imagePath = await renderXhsCover(movie);
+      const imagePath = await renderXhsCover(movie, true);
 
       // 2. 生成标题和正文（每次随机选取不同风格的高点击爆款标题）
       console.log('  ✍️ 匹配算法标题与安全防封文案...');
