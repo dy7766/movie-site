@@ -227,14 +227,49 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
       font-size: 22px;
       color: #94a3b8;
     }
-    .cta-btn {
+    .search-pill-box {
+      display: flex;
+      align-items: center;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1.5px solid rgba(255, 140, 0, 0.6);
+      border-radius: 40px;
+      padding: 6px 8px 6px 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4), inset 0 0 12px rgba(255, 140, 0, 0.15);
+      gap: 16px;
+    }
+    .search-input-mock {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .search-icon {
+      font-size: 22px;
+      opacity: 0.9;
+    }
+    .search-keyword {
+      font-size: 22px;
+      font-weight: 700;
+      color: #cbd5e1;
+      letter-spacing: 0.5px;
+    }
+    .search-keyword strong {
+      color: #ffb703;
+      font-size: 24px;
+      font-weight: 900;
+      text-shadow: 0 0 12px rgba(251, 191, 36, 0.4);
+    }
+    .search-action-btn {
       background: linear-gradient(135deg, #ff6b00, #ff8c00);
       color: #fff;
-      font-size: 24px;
+      font-size: 20px;
       font-weight: 800;
-      padding: 16px 32px;
-      border-radius: 20px;
-      box-shadow: 0 10px 25px rgba(255, 107, 0, 0.4);
+      padding: 12px 24px;
+      border-radius: 30px;
+      box-shadow: 0 4px 15px rgba(234, 88, 12, 0.4);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
     }
   </style>
 </head>
@@ -272,7 +307,13 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
         <h3>院线超清视效 · 沉浸观影</h3>
         <p>杜比全景声 · 细节纤毫毕现 · 建议大屏观赏</p>
       </div>
-      <div class="cta-btn">影迷私藏推荐 ⭐</div>
+      <div class="search-pill-box">
+        <div class="search-input-mock">
+          <span class="search-icon">🔍</span>
+          <span class="search-keyword">浏览器搜 <strong>星光影库</strong> (xkykmovie.com)</span>
+        </div>
+        <div class="search-action-btn">全片点播 ➔</div>
+      </div>
     </div>
   </div>
 </body>
@@ -304,6 +345,14 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
 /**
  * 3. 生成小红书高点击文案矩阵
  */
+// 互动引导词库（促使读者在评论区扣1或提问，拉高自然热度与转化）
+const ENGAGEMENT_PROMPTS = [
+  '✨ 已经整理好高清原画版随时二刷，想看的宝子评论区扣【1】，看到了私发指引给你哦👇',
+  '✨ 大屏看真的太震撼了，片源和投屏指引都备好啦，需要的宝子留言【想看】，挨个发给大家～',
+  '✨ 收藏留着周末刷！需要的友友在评论区留个【666】，看到第一时间发你观影方法👇',
+  '✨ 高清免流在线版已备好，想看的友友在评论区扣【1】，戳你发详细指引～'
+];
+
 export function generateXhsCopy(movie) {
   const title = movie.title;
   const year = movie.year;
@@ -375,7 +424,10 @@ export function generateXhsCopy(movie) {
   const topics = Array.from(new Set(defaultTopics)).filter(Boolean);
   const formattedTopics = topics.map(t => `#${t} `).join('');
 
-  // 正文文案：深度口碑种草 + 强互动问答（100% 纯净影视讨论，零风控词，促互动推流）
+  // 随机选用一条扣1互动诱饵
+  const selectedEngagement = ENGAGEMENT_PROMPTS[Math.floor(Math.random() * ENGAGEMENT_PROMPTS.length)];
+
+  // 正文文案：深度口碑种草 + 强互动“扣1”导流闭环
   const body = `
 🎬 片名：《${title}》 (${year})
 ⭐ 评分：${score} 分
@@ -389,8 +441,7 @@ export function generateXhsCopy(movie) {
 在大屏幕上看高清画质真的太震撼了，每一处微表情和光影细节都极具质感，配合环绕音效，沉浸感直接拉满！
 
 ——
-✨ 适合周末静静看完，治愈又震撼～
-看过的友友们在评论区聊聊你们的观后感呀！你给这部片子打几分？👇
+${selectedEngagement}
 
 ${formattedTopics}
 `.trim();
