@@ -9,8 +9,14 @@ const GUIDE_IMAGE_PATH = path.resolve('public/guide-card.png');
 const HISTORY_FILE = path.resolve('xhs_history.json');
 const PROCESSED_USERS_FILE = path.resolve('xhs_replied_users.json');
 
-// 触发扣1回复的关键词列表
-const TRIGGER_KEYWORDS = ['1', '想看', '求', '看全片', '全集', '666', '怎么看', '在哪里看', '蹲', '指引'];
+// 触发回复的意图关键词库（精准覆盖扣1、怎么看、在哪看、求资源等互动表达）
+const TRIGGER_KEYWORDS = [
+  '1', '111', '扣1', '+1',
+  '怎么看', '在哪里看', '在哪看', '去哪看', '哪里看', '在哪能看', '哪里能看', '如何看',
+  '怎么搜', '怎么找', '怎么看全片',
+  '想看', '求片', '求看', '求资源', '有资源吗', '求链接', '求分享', '求发', '发我',
+  '看全片', '看全集', '指引', '指南', '蹲', '蹲个', '私我', '求', '666'
+];
 
 // 回复评论区的话术库（随机选用，避免重复刷屏）
 const COMMENT_REPLIES = [
@@ -129,9 +135,32 @@ export async function runAutoReplyBot({ silent = true } = {}) {
       const matches = [];
 
       for (const el of items) {
-        const text = el.innerText || '';
-        // 匹配关键词
-        const matchedKw = keywords.find(kw => text.includes(kw));
+        // 优先提取评论正文，避免匹配到用户名或日期中的数字 1
+        const contentEl = el.querySelector('.content, .note-text, .comment-content, .text') || el;
+        const commentContent = (contentEl.innerText || '').trim();
+        const fullText = (el.innerText || '').trim();
+
+        // 排除作者自己的评论
+        if (fullText.includes('作者') && !fullText.includes('回复 作者')) {
+          continue;
+        }
+
+        // 精准意图匹配：
+        // 1. 若为纯数字 "1"，必须满足独立 1 / 111 / 扣1 / +1，避免误伤日期（如 11-19）
+        // 2. 语义词（如 "怎么看", "想看", "在哪看", "求片" 等）精准包含判断
+        let matchedKw = null;
+        for (const kw of keywords) {
+          if (kw === '1') {
+            if (/^1+$/.test(commentContent) || /扣\s*1/.test(commentContent) || /\+1/.test(commentContent)) {
+              matchedKw = kw;
+              break;
+            }
+          } else if (commentContent.includes(kw) || fullText.includes(kw)) {
+            matchedKw = kw;
+            break;
+          }
+        }
+
         if (matchedKw) {
           // 提取用户名
           const userEl = el.querySelector('.user-name, .author, .nickname, a[href*="user"]');
@@ -143,7 +172,7 @@ export async function runAutoReplyBot({ silent = true } = {}) {
 
           matches.push({
             userName,
-            content: text.slice(0, 80),
+            content: (commentContent || fullText).slice(0, 80),
             noteTitle,
             matchedKw
           });
