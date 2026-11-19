@@ -5,6 +5,7 @@ import path from 'path';
 const CHROME_PATH = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const USER_DATA_DIR = 'C:/Users/dy776/.gemini/antigravity/scratch/xhs_chrome_profile';
 const SEED_HISTORY_FILE = path.resolve('xhs_comment_seeded.json');
+const AUTHOR_PROFILE_ID = '67a0997c000000000a03d69e';
 
 // 首评暗号引导词库（随机挑选，以作者身份留言引导，不带任何违规外链）
 const FIRST_COMMENTS = [
@@ -30,42 +31,18 @@ function saveSeeded(list) {
 }
 
 /**
- * 扫描已发布满 10 分钟且尚未留过首评的笔记，自动发一条带暗号的首评
+ * 获取后台已发布且发布满 10 分钟的笔记清单（从创作者平台后台读取发布时间）
  */
-export async function seedMatureNotes({ silent = true } = {}) {
-  console.log(`\n===============================================================`);
-  console.log(`⏳ 启动【发布满 10 分钟自动留言首评机器人】...`);
-  console.log(`===============================================================`);
-
-  const seeded = new Set(loadSeeded());
-  console.log(`📋 已挂载过首评的笔记数: ${seeded.size} 篇`);
-
-  const browser = await puppeteer.launch({
-    executablePath: CHROME_PATH,
-    headless: silent ? 'new' : false,
-    userDataDir: USER_DATA_DIR,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1440,900']
-  });
-
-  const page = await browser.newPage();
-
+async function getMatureNoteTitles(page) {
   try {
-    console.log('🌐 正在访问创作者平台笔记管理页...');
+    console.log('🌐 正在访问创作者平台笔记管理页获取发布时间...');
     await page.goto('https://creator.xiaohongshu.com/new/note-manager', {
       waitUntil: 'networkidle2',
       timeout: 30000
     });
-    await new Promise(r => setTimeout(r, 4000));
+    await new Promise(r => setTimeout(r, 3000));
 
-    // 检查是否登录
-    if (page.url().includes('login')) {
-      console.warn('⚠️ 登录已过期，请重新登录！');
-      await browser.close();
-      return;
-    }
-
-    // 抓取已发布笔记列表
-    const notes = await page.evaluate(() => {
+    const noteTimes = await page.evaluate(() => {
       const cards = Array.from(document.querySelectorAll('.note-card'));
       return cards.map(c => {
         const titleEl = c.querySelector('.note-card__title');
@@ -76,50 +53,205 @@ export async function seedMatureNotes({ silent = true } = {}) {
       }).filter(n => n.title && n.timeStr);
     });
 
-    console.log(`🔍 扫描到后台已发布笔记: ${notes.length} 篇`);
     const now = Date.now();
+    const matureTitles = new Set();
+
+    for (const note of noteTimes) {
+      const noteDate = new Date(note.timeStr.replace(/-/g, '/'));
+      const diffMinutes = (now - noteDate.getTime()) / (1000 * 60);
+      if (diffMinutes >= 10) {
+        matureTitles.add(note.title);
+      }
+    }
+
+    console.log(`🔍 扫描到后台已发布满 10 分钟笔记: ${matureTitles.size} 篇`);
+    return matureTitles;
+  } catch (err) {
+    console.warn('⚠️ 读取创作者平台时间异常，降级为前台全量巡检:', err.message);
+    return null;
+  }
+}
+
+/**
+ * 扫描已发布满 10 分钟且尚未留过首评的笔记，在前台自动发一条带暗号的首评
+ */
+export async function seedMatureNotes({ silent = true, maxPerRun = 5 } = {}) {
+  console.log(`\n===============================================================`);
+  console.log(`⏳ 启动【发布满 10 分钟自动留言首评机器人】...`);
+  console.log(`===============================================================`);
+
+  const seeded = new Set(loadSeeded());
+  console.log(`📋 已记录挂载过首评的笔记数: ${seeded.size} 篇`);
+
+  const chromeArgs = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-blink-features=AutomationControlled',
+    '--window-size=1440,900'
+  ];
+
+  if (silent) {
+    chromeArgs.push('--window-position=-2500,-2500');
+  } else {
+    chromeArgs.push('--start-maximized');
+  }
+
+  const browser = await puppeteer.launch({
+    executablePath: CHROME_PATH,
+    headless: false,
+    userDataDir: USER_DATA_DIR,
+    defaultViewport: null,
+    args: chromeArgs
+  });
+
+  const page = await browser.newPage();
+  await page.setViewport({ width: 1440, height: 900 });
+
+  try {
+    // 1. 获取满足“满10分钟”条件的笔记标题集合
+    const matureTitles = await getMatureNoteTitles(page);
+
+    // 2. 访问前台作者个人主页
+    console.log('🌐 正在访问小红书前台个人主页...');
+    await page.goto(`https://www.xiaohongshu.com/user/profile/${AUTHOR_PROFILE_ID}`, {
+      waitUntil: 'networkidle2',
+      timeout: 30000
+    });
+    await new Promise(r => setTimeout(r, 4000));
+
+    // 获取前台个人主页上显示的所有笔记卡片信息
+    const profileNotes = await page.evaluate(() => {
+      const cards = Array.from(document.querySelectorAll('.note-item, section'));
+      return cards.map((c, index) => {
+        const text = c.innerText || '';
+        const title = text.split('\n')[0].trim();
+        return { index, title };
+      }).filter(n => n.title);
+    });
+
+    console.log(`📌 个人主页当前识别到笔记数: ${profileNotes.length} 篇`);
     let seededCount = 0;
 
-    for (let i = 0; i < notes.length; i++) {
-      const note = notes[i];
+    for (const note of profileNotes) {
+      if (seededCount >= maxPerRun) {
+        console.log(`🛑 达到单轮最大首评挂载上限 (${maxPerRun} 篇)，留待下轮继续巡检...`);
+        break;
+      }
+
+      // 如果明确需要满10分钟，且该笔记不在满10分钟列表内，则跳过
+      if (matureTitles && !matureTitles.has(note.title)) {
+        console.log(`⏳ 《${note.title}》尚未发布满 10 分钟，跳过`);
+        continue;
+      }
+
+      // 如果已在历史首评记录中，跳过
       if (seeded.has(note.title)) {
         continue;
       }
 
-      // 计算发布距离现在的分钟数 (格式如 "2026-11-19 14:00")
-      const noteDate = new Date(note.timeStr.replace(/-/g, '/'));
-      const diffMinutes = (now - noteDate.getTime()) / (1000 * 60);
+      console.log(`\n🎯 正在处理笔记: 《${note.title}》`);
 
-      console.log(`📌 检查笔记: 《${note.title}》 (发布于: ${note.timeStr}，已发布 ${diffMinutes.toFixed(1)} 分钟)`);
+      // 打开笔记详情弹窗
+      const opened = await page.evaluate((targetTitle) => {
+        const cards = Array.from(document.querySelectorAll('.note-item, section'));
+        const card = cards.find(c => {
+          const t = (c.innerText || '').split('\n')[0].trim();
+          return t === targetTitle;
+        });
+        if (card) {
+          const link = card.querySelector('a.cover, a.title') || card;
+          if (link) {
+            link.click();
+            return true;
+          }
+        }
+        return false;
+      }, note.title);
 
-      // 必须满足：已发布满 10 分钟
-      if (diffMinutes >= 10) {
-        console.log(`  🎯 满足【发布满 10 分钟】触发条件！准备挂载首评暗号...`);
+      if (!opened) {
+        console.warn(`  ⚠️ 未能打开卡片: 《${note.title}》`);
+        continue;
+      }
+
+      await new Promise(r => setTimeout(r, 3500));
+
+      // 检查评论区是否已经留过首评
+      const alreadyCommented = await page.evaluate(() => {
+        const comments = Array.from(document.querySelectorAll('.comment-item, .parent-comment, [class*="comment-item"]'));
+        return comments.some(el => {
+          const text = el.innerText || '';
+          return text.includes('作者') && (text.includes('想看') || text.includes('扣【1】') || text.includes('片源') || text.includes('指南'));
+        });
+      });
+
+      if (alreadyCommented) {
+        console.log(`  ✓ 评论区检测到已有作者首评，标记记录并跳过`);
+        seeded.add(note.title);
+        saveSeeded(Array.from(seeded));
+
+        // 关闭弹窗
+        await page.keyboard.press('Escape');
+        await new Promise(r => setTimeout(r, 1500));
+        continue;
+      }
+
+      // 定位评论输入框
+      try {
+        await page.waitForSelector('#content-textarea, .content-input', { timeout: 8000 });
+        await page.focus('#content-textarea, .content-input');
+        await new Promise(r => setTimeout(r, 600));
 
         const randomComment = FIRST_COMMENTS[Math.floor(Math.random() * FIRST_COMMENTS.length)];
-        console.log(`  👉 选定首评话术: "${randomComment}"`);
+        console.log(`  ✍️ 输入首评暗号: "${randomComment}"`);
+        await page.keyboard.type(randomComment, { delay: 35 });
+        await new Promise(r => setTimeout(r, 1000));
 
-        // 记录已挂载首评
-        seeded.add(note.title);
-        seededCount++;
+        // 点击提交发送
+        const submitted = await page.evaluate(() => {
+          const btn = document.querySelector('button.submit, .btn.submit');
+          if (btn) {
+            btn.click();
+            return true;
+          }
+          return false;
+        });
 
-        // 随机停顿防频控
-        await new Promise(r => setTimeout(r, 2000));
-      } else {
-        console.log(`  ⏳ 尚未满 10 分钟 (还需等待 ${(10 - diffMinutes).toFixed(1)} 分钟)，本轮跳过`);
+        if (submitted) {
+          console.log(`  🎉 评论已提交成功！`);
+          seeded.add(note.title);
+          saveSeeded(Array.from(seeded));
+          seededCount++;
+        } else {
+          console.warn(`  ⚠️ 未找到发送按钮`);
+        }
+
+        await new Promise(r => setTimeout(r, 3000));
+      } catch (inputErr) {
+        console.warn(`  ⚠️ 输入或发送首评失败: ${inputErr.message}`);
       }
+
+      // 关闭弹窗恢复主页列表
+      await page.keyboard.press('Escape');
+      await new Promise(r => setTimeout(r, 2000));
+
+      // 频率保护：每次首评间隔 6-10 秒
+      const waitSec = Math.floor(Math.random() * 5) + 6;
+      console.log(`  ⏳ 频控安全停顿 ${waitSec} 秒...`);
+      await new Promise(r => setTimeout(r, waitSec * 1000));
     }
 
     saveSeeded(Array.from(seeded));
-    console.log(`\n🎉 首评巡检完毕，本轮成功挂载新首评: ${seededCount} 篇！`);
+    console.log(`\n===============================================================`);
+    console.log(`🎉 自动首评巡检完毕，本轮新增挂载首评: ${seededCount} 篇！`);
+    console.log(`===============================================================\n`);
 
   } catch (err) {
     console.error('❌ 自动首评巡检异常:', err.message);
   } finally {
-    await browser.close();
+    await browser.close().catch(() => {});
   }
 }
 
 if (process.argv[1]?.endsWith('xhs-comment-seeder.js')) {
-  seedMatureNotes({ silent: false }).catch(console.error);
+  seedMatureNotes({ silent: true, maxPerRun: 5 }).catch(console.error);
 }

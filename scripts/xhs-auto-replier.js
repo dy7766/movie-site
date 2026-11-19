@@ -83,11 +83,25 @@ export async function runAutoReplyBot({ silent = true } = {}) {
   const processedUsers = new Set(loadProcessedUsers());
   console.log(`📋 历史发布影视库: ${history.length} 部 | 已处理互动用户: ${processedUsers.size} 人`);
 
+  const chromeArgs = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-blink-features=AutomationControlled',
+    '--window-size=1440,900'
+  ];
+
+  if (silent) {
+    chromeArgs.push('--window-position=-2500,-2500');
+  } else {
+    chromeArgs.push('--start-maximized');
+  }
+
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
-    headless: silent ? 'new' : false,
+    headless: false,
     userDataDir: USER_DATA_DIR,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--window-size=1440,900']
+    defaultViewport: null,
+    args: chromeArgs
   });
 
   const page = await browser.newPage();
