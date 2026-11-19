@@ -29,16 +29,69 @@ export async function getMovieData(keyword) {
 }
 
 /**
+ * 健壮下载海报为 Buffer（自动尝试环境变量代理、本地 Clash 端口 7897/7890、CDN 镜像 wsrv.nl 及直连）
+ */
+export function fetchPosterBuffer(rawPoster) {
+  if (!rawPoster) return null;
+  const isWin = process.platform === 'win32';
+  const curlBin = isWin ? 'curl.exe' : 'curl';
+  const proxies = [
+    process.env.HTTP_PROXY || process.env.HTTPS_PROXY,
+    'http://127.0.0.1:7897',
+    'http://127.0.0.1:7890',
+    null
+  ].filter((v, i, a) => a.indexOf(v) === i);
+
+  // 1. 尝试直接拉取原图
+  for (const proxy of proxies) {
+    try {
+      const args = ['-s', '-L', '--max-time', '15'];
+      if (proxy) args.push('-x', proxy);
+      args.push(rawPoster);
+      const buf = execFileSync(curlBin, args, { maxBuffer: 15 * 1024 * 1024, timeout: 18000 });
+      if (buf && buf.length > 2000) {
+        return buf;
+      }
+    } catch (e) {}
+  }
+
+  // 2. 尝试国内可访问的 CDN 镜像
+  const mirrorUrl = `https://wsrv.nl/?url=${encodeURIComponent(rawPoster)}`;
+  for (const proxy of proxies) {
+    try {
+      const args = ['-s', '-L', '--max-time', '15'];
+      if (proxy) args.push('-x', proxy);
+      args.push(mirrorUrl);
+      const buf = execFileSync(curlBin, args, { maxBuffer: 15 * 1024 * 1024, timeout: 18000 });
+      if (buf && buf.length > 2000) {
+        return buf;
+      }
+    } catch (e) {}
+  }
+
+  return null;
+}
+
+/**
  * 2. 使用 Chrome 无头渲染生成 3:4 爆款视觉封面图 (1080 x 1440)
  */
 export async function renderXhsCover(movie, forceRegenerate = false) {
   const fileName = `${movie.title.replace(/[\/\\?%*:|"<>]/g, '_')}_xhs_3x4.jpg`;
   const outputPath = path.join(OUTPUT_DIR, fileName);
 
-  if (!forceRegenerate && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 10000) {
+  // 视觉完整封面文件必须 > 200KB；小于 200KB 说明缺少封面海报需重新生成
+  if (!forceRegenerate && fs.existsSync(outputPath) && fs.statSync(outputPath).size > 200000) {
     console.log(`  ✓ 复用已缓存的高清视觉海报: ${outputPath}`);
     return outputPath;
   }
+
+  const rawPoster = movie.poster_url || 'https://image.tmdb.org/t/p/w500/dXjYk7fnA6HNqhJHTnmeD6rV4Aw.jpg';
+  const posterBuf = fetchPosterBuffer(rawPoster);
+  if (!posterBuf) {
+    throw new Error(`无法获取影视《${movie.title}》的海报图片，取消生成以防产出空白封面`);
+  }
+  const posterUrl = `data:image/jpeg;base64,${posterBuf.toString('base64')}`;
+  console.log(`  ✓ 成功下载海报并转为本地 Base64 内存直嵌 (大小: ${(posterBuf.length / 1024).toFixed(1)} KB)`);
 
   const browser = await puppeteer.launch({
     executablePath: CHROME_PATH,
@@ -48,21 +101,6 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
 
   const page = await browser.newPage();
   await page.setViewport({ width: 1080, height: 1440, deviceScaleFactor: 1 });
-
-  const rawPoster = movie.poster_url || 'https://image.tmdb.org/t/p/w500/dXjYk7fnA6HNqhJHTnmeD6rV4Aw.jpg';
-  let posterDataUri = '';
-  try {
-    const isWin = process.platform === 'win32';
-    const curlBin = isWin ? 'curl.exe' : 'curl';
-    const buf = execFileSync(curlBin, ['-s', '-L', rawPoster], { maxBuffer: 15 * 1024 * 1024, timeout: 20000 });
-    if (buf && buf.length > 1000) {
-      posterDataUri = `data:image/jpeg;base64,${buf.toString('base64')}`;
-      console.log(`  ✓ 成功下载海报并转为本地 Base64 内存直嵌 (大小: ${(buf.length / 1024).toFixed(1)} KB)`);
-    }
-  } catch (err) {
-    console.warn('海报预下载失败:', err.message);
-  }
-  const posterUrl = posterDataUri || (rawPoster.includes('image.tmdb.org') ? `https://wsrv.nl/?url=${encodeURIComponent(rawPoster)}` : rawPoster);
   const genres = Array.isArray(movie.tags) ? movie.tags.slice(0, 3) : ['剧情', '热门'];
   const actors = movie.actors || '群星领衔主演';
   const score = movie.score || 8.0;
