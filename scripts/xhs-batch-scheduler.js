@@ -79,6 +79,59 @@ ${itemsMarkdown}${failedMarkdown}
 }
 
 /**
+ * 发送小红书发帖全局异常告警
+ */
+export async function sendGlobalErrorAlert(error, context = '自动发帖异常') {
+  const webhookUrl = process.env.DINGTALK_WEBHOOK || DEFAULT_WEBHOOK;
+  const secret = process.env.DINGTALK_SECRET || DEFAULT_SECRET;
+  const timestamp = Date.now();
+  const stringToSign = `${timestamp}\n${secret}`;
+  const hmac = crypto.createHmac('sha256', secret);
+  hmac.update(stringToSign);
+  const sign = encodeURIComponent(hmac.digest('base64'));
+  const finalUrl = `${webhookUrl}&timestamp=${timestamp}&sign=${sign}`;
+
+  const now = new Date().toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+  const errorMsg = error?.stack || error?.message || String(error);
+
+  const text = `### 🚨【小红书自动发帖】全局异常告警
+---
+- ⏱️ **发生时间**：${now}
+- 💥 **异常环节**：${context}
+- ❌ **错误原因**：\`${error?.message || errorMsg.slice(0, 200)}\`
+- 👤 **责任人**：@${DEFAULT_PHONE}
+
+**📋 错误日志参考**：
+\`\`\`text
+${errorMsg.slice(0, 400)}
+\`\`\`
+
+---
+> ⚠️ 系统已捕获该故障并自动止损，请根据日志及时排查网络、数据库或小红书环境。`;
+
+  try {
+    await fetch(finalUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        msgtype: 'markdown',
+        markdown: {
+          title: `🚨【小红书自动发帖】异常告警 (${context})`,
+          text
+        },
+        at: {
+          atMobiles: [DEFAULT_PHONE],
+          isAtAll: false
+        }
+      })
+    });
+    console.log('✓ 已发送钉钉全局异常告警通知');
+  } catch (e) {
+    console.error('发送钉钉异常告警失败:', e.message);
+  }
+}
+
+/**
  * 发送登录失效紧急告警
  */
 async function sendLoginAlert(errorMsg) {
@@ -198,106 +251,133 @@ export async function runBatchHourlyTask({
     return;
   }
 
-  // 默认每轮随机 2 到 3 篇笔记，符合真实博主发布节奏
-  const targetCount = count || (Math.floor(Math.random() * 2) + 2); // 2 or 3
+  try {
+    // 默认每轮随机 2 到 3 篇笔记，符合真实博主发布节奏
+    const targetCount = count || (Math.floor(Math.random() * 2) + 2); // 2 or 3
 
-  console.log(`\n===============================================================`);
-  console.log(`⏰ 启动小红书每小时定时发帖任务（目标篇数: ${targetCount} 篇，静默模式: ${silent}）`);
-  console.log(`===============================================================`);
+    console.log(`\n===============================================================`);
+    console.log(`⏰ 启动小红书每小时定时发帖任务（目标篇数: ${targetCount} 篇，静默模式: ${silent}）`);
+    console.log(`===============================================================`);
 
-  const candidates = await selectBatchMovies(targetCount);
-  if (candidates.length === 0) {
-    console.log('⚠️ 片库中暂无可用网盘影视资源');
-    return;
-  }
+    const candidates = await selectBatchMovies(targetCount);
+    if (candidates.length === 0) {
+      console.log('⚠️ 片库中暂无可用网盘影视资源');
+      await sendGlobalErrorAlert(new Error('片库中无可用网盘影视资源，无法选出发布候选影片'), '影视选片过滤');
+      return;
+    }
 
-  console.log(`🎯 命中本轮待发布影片列表 (${candidates.length} 部):`);
-  candidates.forEach((c, idx) => {
-    console.log(`  ${idx + 1}. 《${c.title}》 (${c.year}) - ${c.isRecycled ? `【轮循复发 第${c.postCount + 1}次】` : '【新片首发】'}`);
-  });
+    console.log(`🎯 命中本轮待发布影片列表 (${candidates.length} 部):`);
+    candidates.forEach((c, idx) => {
+      console.log(`  ${idx + 1}. 《${c.title}》 (${c.year}) - ${c.isRecycled ? `【轮循复发 第${c.postCount + 1}次】` : '【新片首发】'}`);
+    });
 
-  const successList = [];
-  const failedList = [];
-  const history = loadHistory();
+    const successList = [];
+    const failedList = [];
+    const history = loadHistory();
 
-  for (let i = 0; i < candidates.length; i++) {
-    const movie = candidates[i];
-    console.log(`\n---------------------------------------------------------------`);
-    console.log(`🎬 [${i + 1}/${candidates.length}] 正在处理: 《${movie.title}》...`);
+    for (let i = 0; i < candidates.length; i++) {
+      const movie = candidates[i];
+      console.log(`\n---------------------------------------------------------------`);
+      console.log(`🎬 [${i + 1}/${candidates.length}] 正在处理: 《${movie.title}》...`);
 
-    try {
-      // 1. 生成 3:4 封面图
-      console.log('  🖼️ 生成 3:4 (1080x1440) 高清视觉海报...');
-      const imagePath = await renderXhsCover(movie, true);
+      try {
+        // 1. 生成 3:4 封面图
+        console.log('  🖼️ 生成 3:4 (1080x1440) 高清视觉海报...');
+        const imagePath = await renderXhsCover(movie, true);
 
-      // 2. 生成标题和正文（每次随机选取不同风格的高点击爆款标题）
-      console.log('  ✍️ 匹配算法标题与安全防封文案...');
-      const { titles, selectedTitle, body, topics } = generateXhsCopy(movie);
-      const postTitle = selectedTitle || titles[Math.floor(Math.random() * titles.length)];
+        // 2. 生成标题和正文（每次随机选取不同风格的高点击爆款标题）
+        console.log('  ✍️ 匹配算法标题与安全防封文案...');
+        const { titles, selectedTitle, body, topics } = generateXhsCopy(movie);
+        const postTitle = selectedTitle || titles[Math.floor(Math.random() * titles.length)];
 
-      // 3. 调起自动化发布
-      console.log('  🚀 提交至创作者服务平台...');
-      await publishToXiaohongshu({
-        imagePath,
-        title: postTitle,
-        content: body,
-        topics,
-        autoSubmit: true, // 定时任务全自动点击发布
-        silent
-      });
+        // 3. 调起自动化发布
+        console.log('  🚀 提交至创作者服务平台...');
+        await publishToXiaohongshu({
+          imagePath,
+          title: postTitle,
+          content: body,
+          topics,
+          autoSubmit: true, // 定时任务全自动点击发布
+          silent
+        });
 
-      // 记录成功历史
-      history.push({
-        id: movie.id,
-        title: movie.title,
-        publishedAt: new Date().toISOString(),
-        postTitle,
-        imagePath
-      });
-      saveHistory(history);
+        // 记录成功历史
+        history.push({
+          id: movie.id,
+          title: movie.title,
+          publishedAt: new Date().toISOString(),
+          postTitle,
+          imagePath
+        });
+        saveHistory(history);
 
-      const driveType = (movie.share_link && movie.share_link_uc) 
-        ? '夸克 + UC 双线路' 
-        : (movie.share_link_uc ? 'UC 网盘独家' : '夸克网盘独家');
+        const driveType = (movie.share_link && movie.share_link_uc) 
+          ? '夸克 + UC 双线路' 
+          : (movie.share_link_uc ? 'UC 网盘独家' : '夸克网盘独家');
 
-      successList.push({
-        title: movie.title,
-        year: movie.year,
-        postTitle,
-        driveType,
-        isRecycled: movie.isRecycled
-      });
+        successList.push({
+          title: movie.title,
+          year: movie.year,
+          postTitle,
+          driveType,
+          isRecycled: movie.isRecycled
+        });
 
-      console.log(`  ✓ 《${movie.title}》发布成功！`);
+        console.log(`  ✓ 《${movie.title}》发布成功！`);
 
-      // 若后面还有笔记，等待 45~60 秒安全防刷限流间隔
-      if (i < candidates.length - 1) {
-        const jitterWait = Math.floor(Math.random() * 15) + 45; // 45~60秒
-        console.log(`  ⏳ 为规避小红书高频发帖风控，安全休眠 ${jitterWait} 秒后发布下一篇...`);
-        await new Promise(r => setTimeout(r, jitterWait * 1000));
-      }
-    } catch (err) {
-      console.error(`  ❌ 《${movie.title}》发布失败:`, err.message);
-      failedList.push({ title: movie.title, error: err.message });
+        // 若后面还有笔记，等待 45~60 秒安全防刷限流间隔
+        if (i < candidates.length - 1) {
+          const jitterWait = Math.floor(Math.random() * 15) + 45; // 45~60秒
+          console.log(`  ⏳ 为规避小红书高频发帖风控，安全休眠 ${jitterWait} 秒后发布下一篇...`);
+          await new Promise(r => setTimeout(r, jitterWait * 1000));
+        }
+      } catch (err) {
+        console.error(`  ❌ 《${movie.title}》发布失败:`, err.message);
+        failedList.push({ title: movie.title, error: err.message });
 
-      if (err.message.includes('未登录') || err.message.includes('登录已失效')) {
-        await sendLoginAlert(err.message);
-        break; // 登录失效则停止本轮后续任务，等待用户扫码
+        if (err.message.includes('未登录') || err.message.includes('登录已失效')) {
+          await sendLoginAlert(err.message);
+          break; // 登录失效则停止本轮后续任务，等待用户扫码
+        }
       }
     }
+
+    // 若全部候选均发布失败，立即触发紧急告警
+    if (failedList.length > 0 && successList.length === 0) {
+      const summaryMsg = failedList.map(f => `《${f.title}》: ${f.error}`).join(' | ');
+      await sendGlobalErrorAlert(new Error(summaryMsg), '本轮笔记全量发布失败');
+    }
+
+    // 发送钉钉大盘总结
+    await sendDingTalkBatchReport({
+      successList,
+      failedList,
+      totalCount: candidates.length
+    });
+
+    console.log(`\n===============================================================`);
+    console.log(`🎉 本轮定时任务完成！成功: ${successList.length} 篇，失败: ${failedList.length} 篇`);
+    console.log(`===============================================================\n`);
+  } catch (fatalErr) {
+    console.error('💥 [严重错误] 定时发帖流程发生未捕获异常:', fatalErr);
+    await sendGlobalErrorAlert(fatalErr, '每小时定时发帖主流程');
+    throw fatalErr;
   }
-
-  // 发送钉钉大盘总结
-  await sendDingTalkBatchReport({
-    successList,
-    failedList,
-    totalCount: candidates.length
-  });
-
-  console.log(`\n===============================================================`);
-  console.log(`🎉 本轮定时任务完成！成功: ${successList.length} 篇，失败: ${failedList.length} 篇`);
-  console.log(`===============================================================\n`);
 }
+
+// 全局未捕获异常拦截与兜底通知
+process.on('uncaughtException', async (err) => {
+  console.error('💥 全局 uncaughtException:', err);
+  await sendGlobalErrorAlert(err, '进程崩溃未捕获异常 (uncaughtException)');
+  process.exit(1);
+});
+
+process.on('unhandledRejection', async (reason) => {
+  console.error('💥 全局 unhandledRejection:', reason);
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  await sendGlobalErrorAlert(err, 'Promise未捕获异常 (unhandledRejection)');
+  process.exit(1);
+});
 
 // CLI 执行入口
 if (process.argv[1]?.endsWith('xhs-batch-scheduler.js')) {
@@ -313,8 +393,8 @@ if (process.argv[1]?.endsWith('xhs-batch-scheduler.js')) {
     force: isForce
   }).then(() => {
     process.exit(0);
-  }).catch(err => {
-    console.error('Fatal:', err);
+  }).catch(async err => {
+    await sendGlobalErrorAlert(err, 'CLI入口致命异常');
     process.exit(1);
   });
 }
