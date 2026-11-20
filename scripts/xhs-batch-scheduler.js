@@ -185,8 +185,19 @@ async function selectBatchMovies(count) {
  */
 export async function runBatchHourlyTask({
   count = null,
-  silent = true
+  silent = true,
+  force = false
 } = {}) {
+  // 凌晨 0 点到 9 点处于免打扰静默期，不自动发帖
+  const currentHour = new Date().getHours();
+  if (!force && currentHour >= 0 && currentHour < 9) {
+    console.log(`\n===============================================================`);
+    console.log(`🌙 当前时间 ${currentHour} 点属于凌晨免打扰时段 (00:00 ~ 09:00 不发帖)`);
+    console.log(`💤 跳过本轮自动发帖以保护账号防封并符合真人作息。自动回复机器人仍保持 24 小时全天候正常运行！`);
+    console.log(`===============================================================\n`);
+    return;
+  }
+
   // 默认每轮随机 2 到 3 篇笔记，符合真实博主发布节奏
   const targetCount = count || (Math.floor(Math.random() * 2) + 2); // 2 or 3
 
@@ -292,12 +303,14 @@ export async function runBatchHourlyTask({
 if (process.argv[1]?.endsWith('xhs-batch-scheduler.js')) {
   const args = process.argv.slice(2);
   const isSilent = !args.includes('--visible');
+  const isForce = args.includes('--force');
   const countArg = args.find(a => /^\d+$/.test(a));
   const count = countArg ? parseInt(countArg, 10) : null;
 
   runBatchHourlyTask({
     count,
-    silent: isSilent
+    silent: isSilent,
+    force: isForce
   }).then(() => {
     process.exit(0);
   }).catch(err => {
