@@ -343,15 +343,27 @@ export async function renderXhsCover(movie, forceRegenerate = false) {
  * 3. 生成小红书高点击文案矩阵
  */
 export function generateXhsCopy(movie) {
-  const title = movie.title;
-  const year = movie.year;
-  const actors = movie.actors || '众星云集';
+  const title = movie.title || '未知片名';
+  const year = movie.year || '';
+  const actors = Array.isArray(movie.actors) ? movie.actors.join(' / ') : (movie.actors || '群星领衔主演');
   const score = movie.score || 8.0;
 
-  const genres = movie.genres ? (Array.isArray(movie.genres) ? movie.genres : JSON.parse(movie.genres || '[]')) : ['剧情', '热门'];
+  // 兼容 tags, genres (数组、JSON字符串或逗号分隔)
+  let genres = ['剧情', '热门'];
+  if (Array.isArray(movie.tags) && movie.tags.length > 0) {
+    genres = movie.tags;
+  } else if (movie.genres) {
+    try {
+      const parsed = Array.isArray(movie.genres) ? movie.genres : JSON.parse(movie.genres);
+      if (Array.isArray(parsed) && parsed.length > 0) genres = parsed;
+    } catch (e) {
+      if (typeof movie.genres === 'string') {
+        genres = movie.genres.split(/[\/,，\s]+/).filter(Boolean);
+      }
+    }
+  }
 
-  // 小红书标题上限严格为 20 个字，构建多风格爆款标题库并随机选取
-  const scoreNum = (movie.score || '8.5').toString();
+  // 小红书标题上限严格为 20 个字。构建多风格爆款标题库，非片名文字严格控制在 9~12 字以内
   const formatSafeTitle = (template, movieTitle) => {
     const overhead = template.replace('%s', '').length;
     const maxTitleLen = Math.max(2, 20 - overhead);
@@ -359,76 +371,112 @@ export function generateXhsCopy(movie) {
     return template.replace('%s', cleanName).slice(0, 20);
   };
 
+  // 1. 基础爆款模板池 (覆盖：强力安利型、震撼反思型、后劲十足型、零差评口碑型、情绪钩子型)
+  // 严格规则：仅含一个 %s，overhead (去 %s 后的 length) 必须 <= 12，给片名预留至少 8 字
   const baseTemplates = [
-    '看完《%s》，我彻底被震撼了',
-    '后劲太大了！《%s》值得看无数遍',
-    '答应我！周末一定要去看《%s》',
-    '私藏口碑神作！《%s》被我挖到了',
-    '公认零差评！《%s》真的太绝了',
-    `豆瓣${scoreNum}分！《%s》封神不是吹的`,
-    '求你们去看《%s》！看完直接跪了',
-    '被全网疯狂安利！《%s》到底多好看',
-    '全程高能无尿点！《%s》太爽了',
-    '99%的人没看过！《%s》绝对是遗珠',
-    '千万别一个人看！《%s》太戳心了',
-    '哭到停不下来！《%s》真的太绝了'
+    // [强力安利型]
+    '刷了3遍❗️《%s》太绝了',
+    '私心吹爆❗️最爱《%s》',
+    '求你们去看《%s》❗️封神',
+    '答应我❗️必看《%s》',
+    // [震撼反思型]
+    '后劲太大了❗️《%s》看哭',
+    '看完《%s》❗️彻底失眠',
+    '心气没了？看《%s》就够',
+    '全程高能❗️《%s》太绝了',
+    // [零差评口碑型]
+    '公认零差评❗️《%s》封神',
+    '高分神作❗️《%s》片荒必存',
+    '评分9+神作❗️《%s》对味',
+    '99%没看过《%s》太可惜',
+    // [极致情绪与反差型]
+    '妈呀太好看❗️《%s》杀疯',
+    '第一分沦陷❗️《%s》太顶',
+    '低调却封神❗️《%s》真香',
+    '年度必看❗️《%s》后劲极大'
   ];
 
   const category = movie.category || '电影';
   if (category === '动漫') {
     baseTemplates.push(
-      '治愈天花板！《%s》简直人间美好',
-      '吹爆这部神仙番！《%s》太治愈了',
-      '今年最强黑马番！《%s》直接封神',
-      '神作无误！《%s》每一帧都在心动'
+      '必看神番❗️《%s》后劲贼大',
+      '治愈天花板🌸《%s》太绝',
+      '低调封神番❗️《%s》真对味',
+      '吹爆神仙番❗️《%s》封神',
+      '年度黑马番❗️《%s》封神'
     );
   } else if (category === '电视剧') {
     baseTemplates.push(
-      '一口气刷完全集！《%s》太上头了',
-      '熬夜狂刷停不下来！《%s》太上瘾',
-      '年度最佳好剧！《%s》细节细思极恐',
-      '今年最敢拍的剧！《%s》直接封神'
+      '刷完全集❗️《%s》太上头',
+      '熬夜狂刷❗️《%s》停不下',
+      '第一集杀疯❗️《%s》太顶',
+      '今年最敢拍❗️《%s》太绝',
+      '新剧来袭❗《%s》太好看'
     );
   } else {
     baseTemplates.push(
-      '电影院欠它一张票！《%s》太敢拍了',
-      '顶级视效盛宴！《%s》每帧都是壁纸',
-      '层层反转！《%s》不到最后猜不到',
-      '这才是顶级大片！《%s》直接封神'
+      '影院欠张票❗️《%s》敢拍',
+      '高能反转❗️《%s》猜不到',
+      '每帧是壁纸❗️《%s》太绝',
+      '年度巨作❗️《%s》不看后悔',
+      '看完跪了❗️《%s》顶级大片'
     );
   }
 
   const titles = baseTemplates.map(tpl => formatSafeTitle(tpl, title));
   const selectedTitle = titles[Math.floor(Math.random() * titles.length)];
 
-  // 智能匹配分类专属官方热门话题（严禁使用“4K原盘”等版权风控词）
+  // 智能匹配分类专属官方热门话题（严禁使用“4K原盘”、“私信”等受限风控词）
   let defaultTopics = ['电影推荐', title];
   if (category === '动漫') {
-    defaultTopics = ['动漫推荐', '治愈系动漫', '豆瓣高分动漫', title];
+    defaultTopics = ['动漫推荐', '神作动漫', '治愈系动漫', '豆瓣高分动漫', title];
   } else if (category === '电视剧') {
-    defaultTopics = ['电视剧推荐', '追剧日常', '高分好剧', title];
+    defaultTopics = ['电视剧推荐', '宝藏好剧', '追剧日常', '高分好剧', title];
   } else {
-    defaultTopics = ['电影推荐', '周末看电影', '豆瓣高分电影', '电影美学', title];
+    defaultTopics = ['电影推荐', '豆瓣高分电影', '周末看电影', '宝藏电影', '电影美学', title];
   }
   const topics = Array.from(new Set(defaultTopics)).filter(Boolean);
-  const formattedTopics = topics.map(t => `#${t} `).join('');
+  const formattedTopics = topics.map(t => `#${t}`).join(' ');
 
-  // 正文文案：100% 纯净影视探讨与口碑推荐（绝无任何导流、扣1或私信词汇，确保系统推荐 0 违规）
+  // 深度观后感引语与氛围描述
+  const cleanIntro = (movie.intro || '').replace(/\s+/g, ' ').trim();
+  const highlightQuote = cleanIntro
+    ? (cleanIntro.length > 110 ? cleanIntro.slice(0, 110) + '...' : cleanIntro)
+    : '剧作精湛，笑点与泪点并存，剧情层层反转，后劲实在太大了！';
+
+  let vibeReview = '';
+  if (category === '动漫') {
+    vibeReview = '🌸 画风每一帧都能直接截下来当壁纸，温柔治愈又直击灵魂深处，看完心头久久泛起涟漪，绝对是值得反复回味的神作！';
+  } else if (category === '电视剧') {
+    vibeReview = '🔥 节奏紧凑完全无尿点，剧情高能反转不断！第一集就让人欲罢不能，一口气狂刷到停不下来，编剧功底太扎实了！';
+  } else {
+    vibeReview = '🎞️ 视听质感直接拉满，光影美学与情绪烘托登峰造极！全程让人屏住呼吸，后劲太大，看完陷入深深的震撼与回味。';
+  }
+
+  // 正文文案：排版呼吸感强，Emoji 丰富，纯净影视探讨与互动设问（无任何违规受限词）
   const body = `
-🎬 片名：《${title}》 (${year})
-⭐ 评分：${score} 分
-👥 主演：${actors}
-📽️ 类型：${genres.slice(0, 3).join(' / ')}
+🎬【片名】《${title}》${year ? ` (${year})` : ''}
+⭐【评分】豆瓣 ${score} 分 · 口碑力作
+🏷️【类型】${genres.slice(0, 3).join(' / ')}
+👥【主演】${actors}
 
-——
-💬【深度看点 & 真实观后感】：
-"${movie.intro ? movie.intro.slice(0, 150) + '...' : '剧作精湛，笑点与泪点并存，剧情层层反转，后劲实在太大了！'}"
+━━━━━━━━━━━━━━━
 
-在大屏幕上看高清画质真的太震撼了，每一处微表情和光影细节都极具质感，配合环绕音效，沉浸感直接拉满！
+💬【精选引言 & 看点】：
+"${highlightQuote}"
 
-——
-✨ 适合周末静静看完，治愈又震撼～
-看过的友友们在评论区聊聊你们的观后感呀！你给这部片子打几分？👇
+${vibeReview}
+
+━━━━━━━━━━━━━━━
+
+✨【观影指南】：
+建议佩戴耳机或大屏沉浸式观看，关上房间的灯，让光影与声音彻底包裹感官～
+
+💬【影迷互动区】：
+看过的宝子们在评论区聊聊：
+👉 这部作品你愿意打几分？
+👉 哪一个瞬间或台词最让你触动？
+欢迎在评论区留下你的真实评价，一起交流讨论吧～👇
 
 ${formattedTopics}
 `.trim();
