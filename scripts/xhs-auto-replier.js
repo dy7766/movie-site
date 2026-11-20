@@ -161,7 +161,9 @@ export async function runAutoReplyBot({ silent = true, maxNotesToCheck = 10 } = 
           // 检查该条评论下方是否已经有作者回复过了
           const hasAuthorReplied = text.includes('作者') && (text.includes('宝子') || text.includes('收到') || text.includes('私信'));
 
-          const userProfileHref = authorEl ? (authorEl.getAttribute('href') || authorEl.closest('a')?.getAttribute('href') || '') : '';
+          const userProfileLink = el.querySelector('a[href*="/user/profile/"]');
+          const userProfileHref = userProfileLink ? userProfileLink.getAttribute('href') : '';
+          const authorName = userProfileLink ? userProfileLink.innerText.trim().replace(/\n.*$/, '').trim() : (authorEl ? authorEl.innerText.trim() : '');
 
           if (isMatch && !hasAuthorReplied && authorName) {
             list.push({
@@ -239,28 +241,53 @@ export async function runAutoReplyBot({ silent = true, maxNotesToCheck = 10 } = 
             try {
               console.log(`    ✉️ 正在打开用户 [${item.userName}] 个人主页，触发主动私信...`);
               const dmPage = await browser.newPage();
-              const fullProfileUrl = item.userProfileHref.startsWith('http')
-                ? item.userProfileHref
-                : `https://www.xiaohongshu.com${item.userProfileHref}`;
-              await dmPage.goto(fullProfileUrl, { waitUntil: 'networkidle2', timeout: 20000 });
-              await new Promise(r => setTimeout(r, 1500));
+              const userIdMatch = item.userProfileHref.match(/\/user\/profile\/([a-zA-Z0-9]+)/);
+              const userId = userIdMatch ? userIdMatch[1] : null;
 
-              const clickedIm = await dmPage.evaluate(() => {
-                const imBtn = document.querySelector('.xhs-user-im-btn, button[title="发消息"]');
-                if (imBtn) {
-                  imBtn.click();
-                  return true;
+              let chatReady = false;
+
+              // 优先使用 openUid 直达私信对话框
+              if (userId) {
+                try {
+                  await dmPage.goto(`https://www.xiaohongshu.com/chat?openUid=${userId}`, { waitUntil: 'networkidle2', timeout: 20000 });
+                  await dmPage.waitForSelector('.xhs-im-input-bar-editor', { timeout: 8000 });
+                  chatReady = true;
+                } catch (e) {
+                  console.log(`    ℹ️ openUid 直达超时，切换为主页图标点击模式...`);
                 }
-                return false;
-              });
+              }
 
-              if (clickedIm) {
-                await new Promise(r => setTimeout(r, 2500));
+              // 备选方案：访问个人主页点击【发消息】图标按钮
+              if (!chatReady) {
+                const fullProfileUrl = item.userProfileHref.startsWith('http')
+                  ? item.userProfileHref
+                  : `https://www.xiaohongshu.com${item.userProfileHref}`;
+                await dmPage.goto(fullProfileUrl, { waitUntil: 'networkidle2', timeout: 20000 });
+                await new Promise(r => setTimeout(r, 1500));
+
+                const clickedIm = await dmPage.evaluate(() => {
+                  const imBtn = document.querySelector('.xhs-user-im-btn, button[title="发消息"]');
+                  if (imBtn) {
+                    imBtn.click();
+                    return true;
+                  }
+                  return false;
+                });
+
+                if (clickedIm) {
+                  await new Promise(r => setTimeout(r, 2500));
+                  const allPages = await browser.pages();
+                  const chatPage = allPages.find(p => p.url().includes('/chat')) || dmPage;
+                  await chatPage.waitForSelector('.xhs-im-input-bar-editor', { timeout: 10000 });
+                  chatReady = true;
+                }
+              }
+
+              if (chatReady) {
                 const allPages = await browser.pages();
-                const chatPage = allPages.find(p => p.url().includes('/chat')) || dmPage;
+                const activeChatPage = allPages.find(p => p.url().includes('/chat')) || dmPage;
 
-                await chatPage.waitForSelector('.xhs-im-input-bar-editor', { timeout: 10000 });
-                await chatPage.focus('.xhs-im-input-bar-editor');
+                await activeChatPage.focus('.xhs-im-input-bar-editor');
                 await new Promise(r => setTimeout(r, 300));
 
                 let matchedMovie = null;
@@ -276,21 +303,21 @@ export async function runAutoReplyBot({ silent = true, maxNotesToCheck = 10 } = 
 
                 const lines = dmMessage.split('\n');
                 for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-                  await chatPage.keyboard.type(lines[lineIdx], { delay: 15 });
+                  await activeChatPage.keyboard.type(lines[lineIdx], { delay: 15 });
                   if (lineIdx < lines.length - 1) {
-                    await chatPage.keyboard.down('Shift');
-                    await chatPage.keyboard.press('Enter');
-                    await chatPage.keyboard.up('Shift');
+                    await activeChatPage.keyboard.down('Shift');
+                    await activeChatPage.keyboard.press('Enter');
+                    await activeChatPage.keyboard.up('Shift');
                     await new Promise(r => setTimeout(r, 100));
                   }
                 }
                 await new Promise(r => setTimeout(r, 400));
-                await chatPage.keyboard.press('Enter');
+                await activeChatPage.keyboard.press('Enter');
                 await new Promise(r => setTimeout(r, 1500));
                 console.log(`    🎉 主动私信资源已成功送达用户 [${item.userName}]！`);
-                if (chatPage !== page) await chatPage.close().catch(() => {});
+                if (activeChatPage !== page) await activeChatPage.close().catch(() => {});
               } else {
-                console.warn(`    ⚠️ 未在用户 [${item.userName}] 主页检测到发消息按钮`);
+                console.warn(`    ⚠️ 未能成功唤起用户 [${item.userName}] 的私信会话`);
               }
               if (!dmPage.isClosed() && dmPage !== page) await dmPage.close().catch(() => {});
             } catch (dmErr) {
