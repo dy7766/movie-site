@@ -1,6 +1,7 @@
 import puppeteer from 'puppeteer-core';
 import fs from 'fs';
 import path from 'path';
+import { getMovies } from '../src/lib/db.js';
 
 const CHROME_PATH = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const USER_DATA_DIR = 'C:/Users/dy776/.gemini/antigravity/scratch/xhs_chrome_profile';
@@ -160,10 +161,13 @@ export async function runAutoReplyBot({ silent = true, maxNotesToCheck = 10 } = 
           // 检查该条评论下方是否已经有作者回复过了
           const hasAuthorReplied = text.includes('作者') && (text.includes('宝子') || text.includes('收到') || text.includes('私信'));
 
+          const userProfileHref = authorEl ? (authorEl.getAttribute('href') || authorEl.closest('a')?.getAttribute('href') || '') : '';
+
           if (isMatch && !hasAuthorReplied && authorName) {
             list.push({
               index,
               userName: authorName,
+              userProfileHref,
               content: content.slice(0, 50)
             });
           }
@@ -225,10 +229,74 @@ export async function runAutoReplyBot({ silent = true, maxNotesToCheck = 10 } = 
         });
 
         if (sent) {
-          console.log(`    🎉 成功回复用户 [${item.userName}]: "${replyText}"`);
+          console.log(`    🎉 成功公开回复用户 [${item.userName}]: "${replyText}"`);
           processedUsers.add(item.userName);
           saveProcessedUsers(Array.from(processedUsers));
           repliedTotal++;
+
+          // 触发主动私信直达
+          if (item.userProfileHref) {
+            try {
+              console.log(`    ✉️ 正在打开用户 [${item.userName}] 个人主页，触发主动私信...`);
+              const dmPage = await browser.newPage();
+              const fullProfileUrl = item.userProfileHref.startsWith('http')
+                ? item.userProfileHref
+                : `https://www.xiaohongshu.com${item.userProfileHref}`;
+              await dmPage.goto(fullProfileUrl, { waitUntil: 'networkidle2', timeout: 20000 });
+              await new Promise(r => setTimeout(r, 1500));
+
+              const clickedIm = await dmPage.evaluate(() => {
+                const imBtn = document.querySelector('.xhs-user-im-btn, button[title="发消息"]');
+                if (imBtn) {
+                  imBtn.click();
+                  return true;
+                }
+                return false;
+              });
+
+              if (clickedIm) {
+                await new Promise(r => setTimeout(r, 2500));
+                const allPages = await browser.pages();
+                const chatPage = allPages.find(p => p.url().includes('/chat')) || dmPage;
+
+                await chatPage.waitForSelector('.xhs-im-input-bar-editor', { timeout: 10000 });
+                await chatPage.focus('.xhs-im-input-bar-editor');
+                await new Promise(r => setTimeout(r, 300));
+
+                let matchedMovie = null;
+                try {
+                  const cleanTitle = targetTitle.match(/《([^》]+)》/)?.[1] || targetTitle;
+                  const movies = await getMovies({ search: cleanTitle, limit: 1 });
+                  if (movies && movies.length > 0) matchedMovie = movies[0];
+                } catch (e) {}
+
+                const dmMessage = matchedMovie
+                  ? `宝子久等啦！《${matchedMovie.title}》片源已为你备好：\n🎬 在线免广告看：https://xkykmovie.com/movie/${matchedMovie.id}\n${matchedMovie.share_link ? `💾 夸克原画转存：${matchedMovie.share_link}\n` : ''}${matchedMovie.share_link_uc ? `💾 UC网盘转存：${matchedMovie.share_link_uc}\n` : ''}（手机浏览器直接打开即可观看或保存投屏哦🍿）`
+                  : `宝子久等啦！你想要的影视资源已备好，前往主站搜片名直接免广告在线看：https://xkykmovie.com 🍿`;
+
+                const lines = dmMessage.split('\n');
+                for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
+                  await chatPage.keyboard.type(lines[lineIdx], { delay: 15 });
+                  if (lineIdx < lines.length - 1) {
+                    await chatPage.keyboard.down('Shift');
+                    await chatPage.keyboard.press('Enter');
+                    await chatPage.keyboard.up('Shift');
+                    await new Promise(r => setTimeout(r, 100));
+                  }
+                }
+                await new Promise(r => setTimeout(r, 400));
+                await chatPage.keyboard.press('Enter');
+                await new Promise(r => setTimeout(r, 1500));
+                console.log(`    🎉 主动私信资源已成功送达用户 [${item.userName}]！`);
+                if (chatPage !== page) await chatPage.close().catch(() => {});
+              } else {
+                console.warn(`    ⚠️ 未在用户 [${item.userName}] 主页检测到发消息按钮`);
+              }
+              if (!dmPage.isClosed() && dmPage !== page) await dmPage.close().catch(() => {});
+            } catch (dmErr) {
+              console.warn(`    ⚠️ 主动私信执行异常:`, dmErr.message);
+            }
+          }
         }
 
         // 频控保护
