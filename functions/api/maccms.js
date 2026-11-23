@@ -140,16 +140,16 @@ export async function onRequest(context) {
       const fromList = [];
       const urlList = [];
 
-      // 1. 夸克网盘专线（FongMi / TVBox 原生识别并调用夸克云盘引擎）
+      // 1. 夸克网盘专线（纯净谐音命名：夸父）
       if (item.share_link) {
-        fromList.push('夸克');
-        urlList.push(`4K原画·点击播放$${item.share_link}`);
+        fromList.push('夸父');
+        urlList.push(`正片$${item.share_link}`);
       }
 
-      // 2. UC网盘专线（FongMi / TVBox 原生识别并调用UC云盘引擎）
+      // 2. UC网盘专线（纯净谐音命名：U盘）
       if (item.share_link_uc) {
-        fromList.push('UC');
-        urlList.push(`4K极速·点击播放$${item.share_link_uc}`);
+        fromList.push('U盘');
+        urlList.push(`正片$${item.share_link_uc}`);
       }
 
       // 3. 直链秒播专线 (M3U8) - 兜底普通播放器无网盘账号用户
@@ -161,14 +161,14 @@ export async function onRequest(context) {
       if (Array.isArray(sources) && sources.length > 0) {
         for (const s of sources) {
           if (s.episodes && s.episodes.length > 0) {
-            const sName = s.source || (s.type === 'm3u8' ? '极速秒播' : '备用播放');
+            const sName = s.source ? s.source.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '') : '秒播';
             const epStr = s.episodes.map(e => `${e.name || '正片'}$${e.url}`).join('#');
             fromList.push(sName);
             urlList.push(epStr);
           }
         }
       } else if (item.online_play_url) {
-        fromList.push('极速秒播');
+        fromList.push('秒播');
         urlList.push(`正片$${item.online_play_url}`);
       }
 

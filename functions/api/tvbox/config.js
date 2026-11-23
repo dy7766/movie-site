@@ -26,7 +26,7 @@ export async function onRequestGet(context) {
     sites: [
       {
         key: 'xkyk_4k_pan',
-        name: '🌟┆星光┆4K原盘专线',
+        name: '星光',
         type: 1,
         api: `${host}/api/maccms`,
         searchable: 1,
@@ -36,7 +36,7 @@ export async function onRequestGet(context) {
       },
       {
         key: 'FishPs',
-        name: '🐟┆鱼鱼┆盘搜(摸鱼备用)',
+        name: '鱼鱼',
         type: 3,
         api: 'csp_FishPs',
         searchable: 1,
@@ -44,7 +44,7 @@ export async function onRequestGet(context) {
       },
       {
         key: 'Wogg',
-        name: '👽️┆玩偶┆4K(摸鱼备用)',
+        name: '玩偶',
         type: 3,
         api: 'csp_Wogg',
         searchable: 1,
@@ -61,7 +61,7 @@ export async function onRequestGet(context) {
       // 核心网盘推送与扫码弹窗驱动：当遇到夸克/UC链接时，负责弹窗引导扫码并转存
       {
         key: 'push_agent',
-        name: '💌┆推送┆接收',
+        name: '推送',
         type: 3,
         api: 'csp_Push',
         searchable: 0,
