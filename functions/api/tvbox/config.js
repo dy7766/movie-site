@@ -82,16 +82,7 @@ export async function onRequestGet(context) {
         url: 'https://jx.aidouer.net/?url='
       }
     ],
-    rules: [
-      {
-        name: 'quark',
-        hosts: ['pan.quark.cn']
-      },
-      {
-        name: 'uc',
-        hosts: ['drive.uc.cn']
-      }
-    ],
+    rules: [],
     ijk: [
       {
         group: '硬解码',
