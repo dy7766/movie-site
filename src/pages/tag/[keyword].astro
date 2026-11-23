@@ -1,0 +1,311 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import { getMovies } from '../../lib/db.js';
+
+export async function getStaticPaths() {
+  const allMovies = await getMovies({ limit: 2000 });
+
+  // 1. 基础频道分类
+  const categories = ['电影', '电视剧', '动漫', '综艺', '纪录片'];
+
+  // 2. 从全库影视中提炼所有高频真实流派标签
+  const tagFrequency = new Map();
+  allMovies.forEach(m => {
+    const tags = Array.isArray(m.tags) ? m.tags : (typeof m.tags === 'string' ? JSON.parse(m.tags || '[]') : []);
+    tags.forEach(t => {
+      const clean = t.trim();
+      if (clean && clean.length >= 2 && clean.length <= 6) {
+        tagFrequency.set(clean, (tagFrequency.get(clean) || 0) + 1);
+      }
+    });
+  });
+  const topTags = Array.from(tagFrequency.entries())
+    .filter(([_, count]) => count >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .map(([tag]) => tag);
+
+  // 3. 上映年代长尾关键词
+  const years = ['2026', '2025', '2024', '2023', '2022', '2021', '2020'];
+
+  // 4. 高频搜索意图与爆款专题关键词
+  const intentKeywords = [
+    '高分电影',
+    '豆瓣高分',
+    '4K大片',
+    '经典港片',
+    '热播好剧',
+    '经典神作',
+    '治愈系动漫',
+    '烧脑悬疑',
+    '热血动作',
+    '爆笑喜剧',
+    '浪漫爱情',
+    '科幻巨作',
+    '犯罪大案'
+  ];
+
+  // 5. 提取高频知名演员与导演
+  const actorFrequency = new Map();
+  allMovies.forEach(m => {
+    if (m.actors) {
+      m.actors.split(/[\/,、\s:]+/).forEach(raw => {
+        const a = raw.replace(/[:*?"<>|\\\/]/g, '').trim();
+        if (a && a.length >= 2 && a.length <= 5 && !/等|众星|饰|导演|主演|领衔/i.test(a)) {
+          actorFrequency.set(a, (actorFrequency.get(a) || 0) + 1);
+        }
+      });
+    }
+  });
+  const topActors = Array.from(actorFrequency.entries())
+    .filter(([_, count]) => count >= 3)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 40)
+    .map(([actor]) => actor);
+
+  // 聚合全量候选关键词（严格过滤 Windows 非法路径字符）
+  const candidateKeywords = Array.from(new Set([
+    ...categories,
+    ...topTags,
+    ...years,
+    ...intentKeywords,
+    ...topActors
+  ])).filter(kw => kw && kw.length >= 2 && !/[:*?"<>|\\\/]/.test(kw));
+
+  // 为每个关键词匹配对应影视列表
+  const paths = [];
+  for (const kw of candidateKeywords) {
+    const matched = allMovies.filter(m => {
+      // 年份匹配
+      if (/^\d{4}$/.test(kw)) {
+        return String(m.year) === kw;
+      }
+      // 意图专题匹配
+      if (kw === '高分电影' || kw === '豆瓣高分') {
+        return (m.category === '电影' || !m.category) && parseFloat(m.score || '0') >= 8.0;
+      }
+      if (kw === '4K大片' || kw === '科幻巨作') {
+        const mTags = Array.isArray(m.tags) ? m.tags : [];
+        return mTags.includes('科幻') || parseFloat(m.score || '0') >= 8.0;
+      }
+      if (kw === '热播好剧') {
+        return (m.category === '电视剧' || m.category === '动漫') && parseFloat(m.score || '0') >= 7.8;
+      }
+      if (kw === '治愈系动漫') {
+        const mTags = Array.isArray(m.tags) ? m.tags : [];
+        return m.category === '动漫' || mTags.includes('动画') || mTags.includes('治愈');
+      }
+      if (kw === '烧脑悬疑' || kw === '犯罪大案') {
+        const mTags = Array.isArray(m.tags) ? m.tags : [];
+        return mTags.includes('悬疑') || mTags.includes('犯罪') || mTags.includes('惊悚');
+      }
+      if (kw === '热血动作') {
+        const mTags = Array.isArray(m.tags) ? m.tags : [];
+        return mTags.includes('动作') || mTags.includes('冒险');
+      }
+      if (kw === '爆笑喜剧') {
+        const mTags = Array.isArray(m.tags) ? m.tags : [];
+        return mTags.includes('喜剧');
+      }
+      if (kw === '浪漫爱情') {
+        const mTags = Array.isArray(m.tags) ? m.tags : [];
+        return mTags.includes('爱情');
+      }
+      if (kw === '经典港片') {
+        return m.country === 'HK' || m.country === '中国香港' || (m.tags && m.tags.includes('香港'));
+      }
+      if (kw === '经典神作') {
+        return parseFloat(m.score || '0') >= 8.8;
+      }
+      // 频道匹配
+      if (categories.includes(kw)) {
+        return m.category === kw;
+      }
+      // 标签、演员、片名模糊匹配
+      const mTags = Array.isArray(m.tags) ? m.tags : [];
+      if (mTags.includes(kw)) return true;
+      if (m.actors && m.actors.includes(kw)) return true;
+      if (m.title && m.title.includes(kw)) return true;
+      return false;
+    });
+
+    if (matched.length > 0) {
+      // 评分与年份排序
+      matched.sort((a, b) => {
+        const scoreDiff = parseFloat(b.score || '0') - parseFloat(a.score || '0');
+        if (Math.abs(scoreDiff) > 0.1) return scoreDiff;
+        return (b.year || 0) - (a.year || 0);
+      });
+
+      paths.push({
+        params: { keyword: kw },
+        props: {
+          keyword: kw,
+          movies: matched.slice(0, 60),
+          totalCount: matched.length,
+          allKeywords: candidateKeywords.slice(0, 50)
+        }
+      });
+    }
+  }
+
+  return paths;
+}
+
+const { keyword, movies, totalCount, allKeywords } = Astro.props;
+
+// 全量搜索引擎精准 TDK 配置
+const pageTitle = `【${keyword}】2026最新${keyword}推荐大全_高分${keyword}4K在线观看与网盘下载 - 星光影库`;
+const pageKeywords = `${keyword},${keyword}推荐,高分${keyword},2026最新${keyword},${keyword}片单,${keyword}排行榜,4K${keyword}下载,${keyword}网盘资源,${keyword}免广告在线播放,星光影库`;
+const sampleTitles = movies.slice(0, 4).map(m => `《${m.title}》`).join('、');
+const pageDesc = `星光影库精选收录海量【${keyword}】高清4K优质影视大全，包含${sampleTitles}等共 ${totalCount} 部热门经典佳作。支持夸克网盘与UC网盘原画高速秒存，多线路免广告极速在线播放，每日同步更新！`;
+
+// Schema.org 集合页面结构化数据
+const collectionSchema = {
+  "@context": "https://schema.org",
+  "@type": "CollectionPage",
+  "name": `${keyword}影视大全`,
+  "headline": pageTitle,
+  "description": pageDesc,
+  "url": `https://xkykmovie.com/tag/${encodeURIComponent(keyword)}`,
+  "numberOfItems": totalCount,
+  "about": {
+    "@type": "Thing",
+    "name": keyword
+  }
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "首页",
+      "item": "https://xkykmovie.com/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "探索中心",
+      "item": "https://xkykmovie.com/explore"
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": `${keyword}精选`,
+      "item": `https://xkykmovie.com/tag/${encodeURIComponent(keyword)}`
+    }
+  ]
+};
+---
+
+<Layout 
+  title={pageTitle} 
+  description={pageDesc} 
+  keywords={pageKeywords}
+  schemaJsonLd={[collectionSchema, breadcrumbSchema]}
+>
+  <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-10 pb-20 sm:pb-12">
+    <!-- 面包屑导航 -->
+    <nav class="flex items-center gap-2 text-xs text-slate-400 mb-6">
+      <a href="/" class="hover:text-orange-400 transition-colors">首页</a>
+      <span>/</span>
+      <a href="/explore" class="hover:text-orange-400 transition-colors">探索中心</a>
+      <span>/</span>
+      <span class="text-slate-200 font-semibold">{keyword}</span>
+    </nav>
+
+    <!-- 顶部专题 Header -->
+    <div class="relative bg-gradient-to-r from-slate-900/90 via-slate-900/60 to-orange-950/30 rounded-3xl p-6 sm:p-10 border border-slate-800/80 backdrop-blur-xl shadow-2xl mb-10 overflow-hidden">
+      <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl pointer-events-none"></div>
+      
+      <div class="max-w-3xl space-y-3 relative z-10">
+        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-xs font-bold tracking-wide">
+          <span class="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse"></span>
+          SEO 专属主题聚合 · 实时更新片单
+        </div>
+
+        <h1 class="text-2xl sm:text-4xl font-extrabold text-white tracking-tight flex items-center gap-3">
+          <span>{keyword}</span>
+          <span class="text-sm sm:text-base font-normal text-slate-400 px-3 py-0.5 rounded-xl bg-slate-800/80 border border-slate-700/60">
+            共 {totalCount} 部影视资源
+          </span>
+        </h1>
+
+        <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+          {pageDesc}
+        </p>
+      </div>
+    </div>
+
+    <!-- 影视海报网格 (采用与主站一致的高清质感卡片) -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3.5 sm:gap-6 mb-16">
+      {movies.map((m) => {
+        const isTv = m.category === '电视剧' || m.category === '动漫';
+        return (
+          <a 
+            href={`/movie/${m.id}`} 
+            class="group relative flex flex-col rounded-2xl bg-slate-900/60 border border-slate-800/80 overflow-hidden hover:border-orange-500/50 hover:shadow-2xl hover:shadow-orange-500/10 transition-all duration-300 transform hover:-translate-y-1"
+          >
+            <!-- 海报图容器 -->
+            <div class="relative aspect-[2/3] w-full overflow-hidden bg-slate-800">
+              <img 
+                src={m.poster_url || 'https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?q=80&w=600&auto=format&fit=crop'} 
+                alt={m.title}
+                loading="lazy"
+                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+              />
+              <!-- 评分角标 -->
+              {m.score && (
+                <div class="absolute top-2 right-2 px-1.5 py-0.5 rounded-md bg-black/70 backdrop-blur-md border border-white/10 text-amber-400 text-[11px] font-extrabold shadow">
+                  ★ {Number(m.score).toFixed(1)}
+                </div>
+              )}
+              <!-- 分类标签 -->
+              <div class="absolute bottom-2 left-2 px-2 py-0.5 rounded-md bg-slate-950/80 backdrop-blur-md text-slate-300 text-[10px] font-semibold border border-white/10">
+                {m.category || '电影'}
+              </div>
+            </div>
+
+            <!-- 卡片文本 -->
+            <div class="p-3 flex flex-col flex-1 justify-between gap-1">
+              <h2 class="text-xs sm:text-sm font-bold text-slate-100 group-hover:text-orange-400 transition-colors line-clamp-1">
+                {m.title}
+              </h2>
+              <div class="flex items-center justify-between text-[11px] text-slate-400">
+                <span>{m.year || '2024'}</span>
+                <span class="text-orange-400/90 font-medium">{isTv ? '全集' : '4K原画'}</span>
+              </div>
+            </div>
+          </a>
+        );
+      })}
+    </div>
+
+    <!-- 🌐 蜘蛛内链矩阵与全站关联标签群 (Spider Web Internal Link Cluster) -->
+    <div class="bg-slate-900/40 rounded-3xl p-6 sm:p-8 border border-slate-800/80 backdrop-blur-xl space-y-5">
+      <div class="flex items-center gap-2 text-xs font-bold text-orange-400 uppercase tracking-wider">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+        </svg>
+        <span>全站热门影视标签索引 · 搜索引擎深度爬取指南</span>
+      </div>
+
+      <div class="flex flex-wrap gap-2 text-xs">
+        {allKeywords.map(k => (
+          <a 
+            href={`/tag/${k}`}
+            class={`px-3 py-1.5 rounded-xl border transition-all font-medium ${
+              k === keyword 
+                ? 'bg-orange-500 text-white border-orange-400 shadow-md shadow-orange-500/20' 
+                : 'bg-slate-800/80 hover:bg-orange-500 hover:text-white text-slate-300 border-slate-700/60'
+            }`}
+          >
+            #{k}
+          </a>
+        ))}
+      </div>
+    </div>
+  </div>
+</Layout>

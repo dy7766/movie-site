@@ -17,11 +17,31 @@ const sorts = [
   { label: '年份最新 ↓', value: 'year_desc' },
 ];
 
-const pageTitle = "多维片库检索 - 影视大全与精准筛选 | 星光影库";
-const pageDesc = "支持按频道分类、题材流派、上映年份、豆瓣/TMDB评分多维精准检索海量4K电影、电视剧与动漫，快速发现想看的高清影视好片。";
+const pageTitle = "影视探索中心 - 多维分类筛选与高分片单漫游_4K影视大全 | 星光影库";
+const pageKeywords = "影视检索,多维筛选,4K电影大全,最新电视剧,高分动漫,豆瓣高分推荐,夸克网盘资源,UC网盘转存,免广告在线观看";
+const pageDesc = "星光影库多维分类片库，支持按电影、电视剧、动漫、综艺等频道，动作、科幻、悬疑、爱情等题材流派，上映年份与高分口碑交叉精准筛选，帮您快速发现心仪好片，一键高速转存至网盘无损播放。";
+
+const exploreBreadcrumb = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "首页",
+      "item": "https://xkykmovie.com/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": "探索中心",
+      "item": "https://xkykmovie.com/explore"
+    }
+  ]
+};
 ---
 
-<Layout title={pageTitle} description={pageDesc}>
+<Layout title={pageTitle} description={pageDesc} keywords={pageKeywords} schemaJsonLd={[exploreBreadcrumb]}>
   <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-10 pb-20 sm:pb-10">
     <!-- 头部标题与说明 -->
     <div class="mb-8">

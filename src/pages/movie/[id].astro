@@ -51,8 +51,89 @@ const episodesList = Array.from({ length: totalEpisodes }, (_, i) => {
   return { ep, isAvailable, targetUrl };
 });
 
-const pageTitle = `《${movie.title}》${movie.year ? `(${movie.year})` : ''} ${isTvShow ? (isFinished ? `全${totalEpisodes}${epUnit}完整版` : `连载追更至第${currentEpisodes}${epUnit}`) : '4K完整版'} - 夸克/UC网盘在线转存与播放`;
-const pageDesc = `免费提供《${movie.title}》高清4K原盘资源高速转存与在线播放。主演：${movie.actors || '精选演员'}。剧情简介：${movie.intro ? movie.intro.slice(0, 120) : '暂无简介'}...`;
+const epStatusText = isTvShow 
+  ? (isFinished ? `全${totalEpisodes}${epUnit}完整版` : `连载追更至第${currentEpisodes}${epUnit}`)
+  : '4K超清完整版';
+
+const pageTitle = `《${movie.title}》${movie.year ? `(${movie.year})` : ''}${epStatusText}在线观看_免费下载/夸克UC网盘资源 - 星光影库`;
+
+const cleanActors = (movie.actors || '')
+  .split(/[\/,、\s]+/)
+  .map(a => a.trim())
+  .filter(a => a.length >= 2 && a.length <= 10)
+  .slice(0, 5);
+
+const genreTags: string[] = Array.isArray(movie.tags)
+  ? movie.tags
+  : (typeof movie.tags === 'string' ? JSON.parse(movie.tags || '[]') : []);
+
+const dynamicKeywords = Array.from(new Set([
+  movie.title,
+  `${movie.title}在线观看`,
+  `${movie.title}高清完整版`,
+  `${movie.title}免费下载`,
+  `${movie.title}4K原盘`,
+  `${movie.title}夸克网盘`,
+  `${movie.title}UC网盘`,
+  `${movie.title}迅雷下载`,
+  `${movie.title}大结局`,
+  movie.category || '电影',
+  movie.year ? `${movie.year}${movie.category || '电影'}` : '',
+  ...cleanActors,
+  ...genreTags.map(t => `${t}${movie.category || '电影'}`),
+  '星光影库'
+])).filter(Boolean).join(',');
+
+const actorsSnippet = cleanActors.length > 0 ? `由${cleanActors.join('、')}等主演，` : '';
+const genresSnippet = genreTags.length > 0 ? `类型涵盖${genreTags.slice(0, 4).join('/')}，` : '';
+const introSnippet = movie.intro ? movie.intro.replace(/\s+/g, ' ').slice(0, 140) + '...' : '精彩剧作不容错过。';
+
+const pageDesc = `星光影库为您提供《${movie.title}》${movie.year ? `(${movie.year})` : ''}超高清4K原画在线观看与无损原盘转存下载服务。本片${actorsSnippet}${genresSnippet}豆瓣高分口碑力作。剧情简介：${introSnippet}`;
+
+// Schema.org 结构化数据
+const movieSchema = {
+  "@context": "https://schema.org",
+  "@type": isTvShow ? "TVSeries" : "Movie",
+  "name": movie.title,
+  "alternateName": movie.original_title || undefined,
+  "image": movie.poster_url || "https://xkykmovie.com/favicon.svg",
+  "description": movie.intro || pageDesc,
+  "datePublished": movie.release_date || (movie.year ? `${movie.year}-01-01` : undefined),
+  "genre": genreTags,
+  "actor": cleanActors.map(name => ({ "@type": "Person", "name": name })),
+  "aggregateRating": movie.score ? {
+    "@type": "AggregateRating",
+    "ratingValue": String(movie.score),
+    "bestRating": "10",
+    "worstRating": "1",
+    "ratingCount": "100"
+  } : undefined
+};
+
+const breadcrumbSchema = {
+  "@context": "https://schema.org",
+  "@type": "BreadcrumbList",
+  "itemListElement": [
+    {
+      "@type": "ListItem",
+      "position": 1,
+      "name": "首页",
+      "item": "https://xkykmovie.com/"
+    },
+    {
+      "@type": "ListItem",
+      "position": 2,
+      "name": movie.category || "电影",
+      "item": `https://xkykmovie.com/tag/${encodeURIComponent(movie.category || '电影')}`
+    },
+    {
+      "@type": "ListItem",
+      "position": 3,
+      "name": movie.title,
+      "item": `https://xkykmovie.com/movie/${movie.id}`
+    }
+  ]
+};
 
 // 解析剧照与短评
 const stills: string[] = Array.isArray(movie.stills)
@@ -90,7 +171,17 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
   : (typeof movie.play_sources === 'string' ? JSON.parse(movie.play_sources || '[]') : []);
 ---
 
-<Layout title={pageTitle} description={pageDesc} movieId={movie.id} movieTitle={movie.title} hideMobileTabBar={true}>
+<Layout 
+  title={pageTitle} 
+  description={pageDesc} 
+  keywords={dynamicKeywords}
+  image={movie.poster_url}
+  type="video.movie"
+  schemaJsonLd={[movieSchema, breadcrumbSchema]}
+  movieId={movie.id} 
+  movieTitle={movie.title} 
+  hideMobileTabBar={true}
+>
   <div class="max-w-6xl mx-auto px-3 sm:px-6 lg:px-8 py-5 sm:py-12 pb-24 sm:pb-12">
     <!-- 面包屑导航 -->
     <nav class="flex items-center gap-2 text-xs text-slate-400 mb-8">
@@ -844,6 +935,45 @@ const playSources: PlaySource[] = Array.isArray(movie.play_sources)
       </div>
       <p>1. 点击上方【分集按钮】或【全集打包转存】，系统将安全跳转至夸克网盘官方页面，点击【保存到我的网盘】；</p>
       <p>2. 转存后手机端或电脑端打开夸克 App，在【网盘 - 最近转存】中即可享受<strong>免广告 4K/1080P 原画在线播放</strong>，支持倍速、投屏电视及离线缓存。</p>
+    </div>
+
+    <!-- 🌐 SEO 关键词与关联标签蜘蛛内链矩阵 (助力爬虫深度抓取与长尾词排名) -->
+    <div class="mt-8 bg-slate-900/40 rounded-2xl p-5 sm:p-6 border border-slate-800/80 backdrop-blur-xl space-y-3">
+      <div class="flex items-center gap-2 text-xs font-bold text-orange-400 uppercase tracking-wider">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+        </svg>
+        <span>热门关联标签 · 全站影视搜索专题</span>
+      </div>
+      <div class="flex flex-wrap gap-2 text-xs">
+        <a href={`/tag/${encodeURIComponent(movie.category || '电影')}`} class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-orange-500 hover:text-white text-slate-300 border border-slate-700/60 transition-all font-medium">
+          #{movie.category || '电影'}
+        </a>
+        {movie.year && (
+          <a href={`/tag/${encodeURIComponent(String(movie.year))}`} class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-orange-500 hover:text-white text-slate-300 border border-slate-700/60 transition-all font-medium">
+            #{movie.year}年好片
+          </a>
+        )}
+        {genreTags.map(tag => (
+          <a href={`/tag/${encodeURIComponent(tag)}`} class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-orange-500 hover:text-white text-slate-300 border border-slate-700/60 transition-all font-medium">
+            #{tag}片单
+          </a>
+        ))}
+        {cleanActors.map(actor => (
+          <a href={`/tag/${encodeURIComponent(actor)}`} class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-orange-500 hover:text-white text-slate-300 border border-slate-700/60 transition-all font-medium">
+            #{actor}作品
+          </a>
+        ))}
+        <a href="/tag/高分电影" class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-orange-500 hover:text-white text-slate-300 border border-slate-700/60 transition-all font-medium">
+          #高分口碑神作
+        </a>
+        <a href="/tag/4K大片" class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-orange-500 hover:text-white text-slate-300 border border-slate-700/60 transition-all font-medium">
+          #4K超清原盘
+        </a>
+        <a href="/tag/热播好剧" class="px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-orange-500 hover:text-white text-slate-300 border border-slate-700/60 transition-all font-medium">
+          #热播爆款好剧
+        </a>
+      </div>
     </div>
 
     <!-- 底部返回按钮 -->

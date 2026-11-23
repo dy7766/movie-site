@@ -1,5 +1,26 @@
 User-agent: *
 Allow: /
+Disallow: /hub-8f92/
+Disallow: /preview/
+Disallow: /api/
+
+# Baidu Spider
+User-agent: Baiduspider
+Allow: /
+Disallow: /hub-8f92/
+Disallow: /preview/
+
+# Google Bot
+User-agent: Googlebot
+Allow: /
+Disallow: /hub-8f92/
+Disallow: /preview/
+
+# Bing Bot
+User-agent: Bingbot
+Allow: /
+Disallow: /hub-8f92/
+Disallow: /preview/
 
 Sitemap: https://xkykmovie.com/sitemap-index.xml
 Sitemap: https://xkykmovie.com/sitemap-0.xml
