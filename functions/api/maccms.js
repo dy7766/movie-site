@@ -140,16 +140,16 @@ export async function onRequest(context) {
       const fromList = [];
       const urlList = [];
 
-      // 1. 夸克网盘转存专线（推广收益最高，TVBox 原生唤醒夸克转存）
+      // 1. 夸克网盘转存专线（TVBox 原生唤醒 push_agent 扫码弹窗与自动转存）
       if (item.share_link) {
         fromList.push('夸克网盘');
-        urlList.push(`4K原画·点击转存播放$${item.share_link}`);
+        urlList.push(`4K原画·点击扫码转存$push://${item.share_link}`);
       }
 
-      // 2. UC网盘转存专线（推广收益，TVBox 原生唤醒UC转存）
+      // 2. UC网盘转存专线（TVBox 原生唤醒 push_agent 扫码弹窗与自动转存）
       if (item.share_link_uc) {
         fromList.push('UC网盘');
-        urlList.push(`4K极速·点击转存播放$${item.share_link_uc}`);
+        urlList.push(`4K极速·点击扫码转存$push://${item.share_link_uc}`);
       }
 
       // 3. 直链秒播专线 (M3U8) - 兜底普通播放器无网盘账号用户
