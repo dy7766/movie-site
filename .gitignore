@@ -24,4 +24,6 @@ Thumbs.db
 
 # Generated covers
 public/xhs-covers/
+xhs_*.json
+
 
