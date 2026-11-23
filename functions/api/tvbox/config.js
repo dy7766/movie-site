@@ -19,19 +19,20 @@ export async function onRequestGet(context) {
   const host = url.origin || 'https://xkykmovie.com';
 
   const config = {
-    // 采用摸鱼同款成熟稳定的 Spider 核心，内置完整的 Quark/UC/Ali/115 扫码弹窗组件
-    spider: `${host}/spider.jar;md5;efdb2c1d9a2e8c26e5a74ba5f53dfc56`,
+    // 采用集成 Xkyk 专线驱动内核的 Spider，原生支持夸克/UC/阿里扫码弹窗登录与4K硬解
+    spider: `https://cdn.jsdelivr.net/gh/dy7766/movie-site@main/public/spider.jar;md5;40a712a164761bf48c0a4e72556a20ae`,
     wallpaper: 'https://bing.img.run/rand_uhd.php',
     logo: 'https://modelscope-resouces.oss-cn-zhangjiakou.aliyuncs.com/avatar%2Ff5309172-1af6-4c4f-a1c5-a4773a1cc718.gif',
     sites: [
       {
-        key: 'xkyk_vod',
+        key: 'xkyk_csp',
         name: '星光',
-        type: 1,
-        api: `${host}/api.php/provide/vod/`,
+        type: 3,
+        api: 'csp_Xkyk',
         searchable: 1,
         quickSearch: 1,
-        changeable: 1
+        changeable: 1,
+        ext: host
       },
       {
         key: 'Config',

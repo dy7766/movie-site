@@ -48,7 +48,7 @@ async function getOrInitIdMaps(apiKey) {
   }
 
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/resources?select=id&has_metadata=eq.true&order=created_at.asc&limit=2000`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/resources?select=id&has_metadata=eq.true&or=(share_link.not.is.null,share_link_uc.not.is.null)&order=created_at.asc&limit=2000`, {
       headers: {
         'apikey': apiKey,
         'Authorization': `Bearer ${apiKey}`
