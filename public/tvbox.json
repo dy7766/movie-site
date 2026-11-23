@@ -22,22 +22,6 @@
       "changeable": 0
     },
     {
-      "key": "Wogg",
-      "name": "玩偶",
-      "type": 3,
-      "api": "csp_Wogg",
-      "searchable": 1,
-      "changeable": 1,
-      "filterable": 1,
-      "ext": {
-        "site": [
-          "https://wogg.xxooo.cf",
-          "https://woggpan.888484.xyz",
-          "https://www.wogg.live"
-        ]
-      }
-    },
-    {
       "key": "push_agent",
       "name": "推送",
       "type": 3,

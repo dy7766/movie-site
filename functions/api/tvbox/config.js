@@ -42,22 +42,6 @@ export async function onRequestGet(context) {
         indexs: 0,
         changeable: 0
       },
-      {
-        key: 'Wogg',
-        name: '玩偶',
-        type: 3,
-        api: 'csp_Wogg',
-        searchable: 1,
-        changeable: 1,
-        filterable: 1,
-        ext: {
-          site: [
-            'https://wogg.xxooo.cf',
-            'https://woggpan.888484.xyz',
-            'https://www.wogg.live'
-          ]
-        }
-      },
       // 核心网盘推送与扫码弹窗驱动：当遇到夸克/UC链接时，负责弹窗引导扫码并转存
       {
         key: 'push_agent',
