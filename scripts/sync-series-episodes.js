@@ -12,6 +12,7 @@ import {
   inspectAndFilterQuarkShare,
   saveAndShareQuark
 } from './auto-harvester.js';
+import { searchCmsStream } from './online-play-monitor.js';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || 'fc3786eb5ea9d4b8c8b09cc89df373b4';
 
@@ -192,13 +193,13 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
 
   const query = all ? `
     SELECT id, title, category, year, current_episode, total_episodes, is_finished, is_released, share_link_uc, share_link,
-           source_pwd_id, uc_fid, last_episode_updated_at
+           online_play_url, source_pwd_id, uc_fid, last_episode_updated_at
     FROM resources
     WHERE (category = '电视剧' OR category = '综艺' OR category = '动漫')
     ORDER BY year DESC, id DESC
   ` : `
     SELECT id, title, category, year, current_episode, total_episodes, is_finished, is_released, share_link_uc, share_link,
-           source_pwd_id, uc_fid, last_episode_updated_at
+           online_play_url, source_pwd_id, uc_fid, last_episode_updated_at
     FROM resources
     WHERE (category = '电视剧' OR category = '综艺' OR category = '动漫')
       AND (is_finished = false OR current_episode < total_episodes OR (current_episode = 1 AND total_episodes > 1))
@@ -398,6 +399,20 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
         }
       }
 
+      // 如果尚未挂载免广告在线切片播放源，自动尝试检索并挂载
+      let newStreamUrl = null;
+      let newPlaySources = null;
+      if (!s.online_play_url) {
+        try {
+          const stream = await searchCmsStream(s.title, s.year);
+          if (stream && stream.primaryUrl) {
+            newStreamUrl = stream.primaryUrl;
+            newPlaySources = JSON.stringify(stream.sources);
+            console.log(`  📺 [在线切片挂载] 成功为《${s.title}》挂载极速播放源 (${stream.sources[0]?.episodes?.length || 0} 集)`);
+          }
+        } catch {}
+      }
+
       // 如果有效集数达到总集数，确认为完结
       if (newTotal && effectiveCur >= newTotal) {
         isFinished = true;
@@ -411,6 +426,7 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
         (isReleased !== null && isReleased !== s.is_released) ||
         newUcLink !== null ||
         newQuarkLink !== null ||
+        newStreamUrl !== null ||
         newUcFid !== s.uc_fid;
 
       if (hasChanged) {
@@ -424,9 +440,11 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
               share_link = COALESCE($6, share_link),
               uc_fid = COALESCE($7, uc_fid),
               source_pwd_id = COALESCE($8, source_pwd_id),
-              last_episode_updated_at = CASE WHEN $9 = true THEN NOW() ELSE last_episode_updated_at END
-          WHERE id = $10
-        `, [effectiveCur, newTotal, isFinished, isReleased, newUcLink, newQuarkLink, newUcFid, newSourcePwdId, episodeUpdated, s.id]);
+              last_episode_updated_at = CASE WHEN $9 = true THEN NOW() ELSE last_episode_updated_at END,
+              online_play_url = COALESCE($10, online_play_url),
+              play_sources = COALESCE($11, play_sources)
+          WHERE id = $12
+        `, [effectiveCur, newTotal, isFinished, isReleased, newUcLink, newQuarkLink, newUcFid, newSourcePwdId, episodeUpdated, newStreamUrl, newPlaySources, s.id]);
 
         updatedItems.push({
           title: s.title,

@@ -3,7 +3,9 @@ import { getDbPool } from '../src/lib/db.js';
 const CMS_APIS = [
   'https://api.ffzyapi.com/api.php/provide/vod/?ac=detail&wd=',    // 非凡
   'https://api.guangsuapi.com/api.php/provide/vod/?ac=detail&wd=', // 光速
-  'https://api.lzzyapi.com/api.php/provide/vod/?ac=detail&wd='     // 量子
+  'https://api.lzzyapi.com/api.php/provide/vod/?ac=detail&wd=',    // 量子
+  'https://api.wujinapi.me/api.php/provide/vod/?ac=detail&wd=',    // 无尽
+  'https://cj.lziapi.com/api.php/provide/vod/?ac=detail&wd='      // 亮子
 ];
 
 // 1. 快速探活 M3U8 链接 (超时 4 秒)
@@ -85,10 +87,7 @@ export async function searchCmsStream(title, year = null) {
 
       const parsed = parseVodSources(matched);
       if (parsed && parsed.primaryUrl) {
-        const alive = await isStreamAlive(parsed.primaryUrl);
-        if (alive) {
-          return parsed;
-        }
+        return parsed;
       }
     } catch {}
   }
