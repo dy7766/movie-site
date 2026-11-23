@@ -152,6 +152,12 @@ export async function onRequest(context) {
         urlList.push(`正片$${item.share_link_uc}`);
       }
 
+      // 封面地址加速与白名单处理（解决大陆电视/手机直连TMDB图片被墙或加载极慢导致空白）
+      let poster = item.poster_url || '';
+      if (poster && poster.includes('image.tmdb.org')) {
+        poster = `https://wsrv.nl/?url=${encodeURIComponent(poster)}`;
+      }
+
       const vodItem = {
         vod_id: item.id,
         vod_name: item.title,
@@ -160,12 +166,12 @@ export async function onRequest(context) {
         vod_en: '',
         vod_time: formattedTime,
         vod_remarks: remarks,
-        vod_play_from: fromList.join('$$$')
+        vod_play_from: fromList.join('$$$'),
+        vod_pic: poster
       };
 
       // 详情模式补充全量属性
       if (isDetail) {
-        vodItem.vod_pic = item.poster_url || '';
         vodItem.vod_actor = item.actors || '';
         vodItem.vod_director = '';
         vodItem.vod_content = item.intro || '';
