@@ -28,7 +28,7 @@ export async function onRequestGet(context) {
         key: 'xkyk_4k_pan',
         name: '星光',
         type: 1,
-        api: `${host}/api/maccms`,
+        api: `${host}/api.php/provide/vod`,
         searchable: 1,
         quickSearch: 1,
         filterable: 1

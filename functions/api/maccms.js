@@ -37,6 +37,42 @@ const CATEGORY_REVERSE_MAP = {
   '纪录片': 5
 };
 
+let CACHED_ID_MAP = null;
+let CACHED_UUID_MAP = null;
+let LAST_MAP_FETCH = 0;
+
+async function getOrInitIdMaps(apiKey) {
+  const now = Date.now();
+  if (CACHED_ID_MAP && CACHED_UUID_MAP && (now - LAST_MAP_FETCH < 3600000)) {
+    return { idToUuid: CACHED_ID_MAP, uuidToId: CACHED_UUID_MAP };
+  }
+
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/resources?select=id&has_metadata=eq.true&order=created_at.asc&limit=2000`, {
+      headers: {
+        'apikey': apiKey,
+        'Authorization': `Bearer ${apiKey}`
+      }
+    });
+    if (res.ok) {
+      const rows = await res.json();
+      const idToUuid = {};
+      const uuidToId = {};
+      rows.forEach((r, idx) => {
+        const numId = idx + 1;
+        idToUuid[numId] = r.id;
+        uuidToId[r.id] = numId;
+      });
+      CACHED_ID_MAP = idToUuid;
+      CACHED_UUID_MAP = uuidToId;
+      LAST_MAP_FETCH = now;
+      return { idToUuid, uuidToId };
+    }
+  } catch (_) {}
+
+  return { idToUuid: CACHED_ID_MAP || {}, uuidToId: CACHED_UUID_MAP || {} };
+}
+
 export async function onRequestOptions() {
   return new Response(null, { headers: CORS_HEADERS });
 }
@@ -55,7 +91,6 @@ export async function onRequest(context) {
     const pg = Math.max(1, parseInt(searchParams.get('pg') || '1') || 1);
     const wd = (searchParams.get('wd') || '').trim();
     const ids = (searchParams.get('ids') || '').trim();
-    const h = parseInt(searchParams.get('h') || '0') || 0;
 
     // 当有具体搜索词或详情 ID 时，强制走 detail 模式
     const isDetail = ac === 'detail' || !!wd || !!ids;
@@ -63,16 +98,24 @@ export async function onRequest(context) {
     const offset = (pg - 1) * limit;
 
     const apiKey = context.env?.SUPABASE_ANON_KEY || SUPABASE_KEY;
+    const { idToUuid, uuidToId } = await getOrInitIdMaps(apiKey);
 
     // 基础查询字段
     let queryUrl = `${SUPABASE_URL}/rest/v1/resources?select=id,title,category,poster_url,year,score,actors,intro,country,is_finished,current_episode,total_episodes,share_link,share_link_uc,online_play_url,play_sources,created_at&has_metadata=eq.true`;
 
     if (ids) {
       const idList = ids.split(',').map(s => s.trim()).filter(Boolean);
-      if (idList.length === 1) {
-        queryUrl += `&id=eq.${idList[0]}`;
-      } else if (idList.length > 1) {
-        queryUrl += `&id=in.(${idList.join(',')})`;
+      const uuidList = idList.map(item => {
+        if (/^\d+$/.test(item)) {
+          return idToUuid[parseInt(item, 10)] || null;
+        }
+        return item;
+      }).filter(Boolean);
+
+      if (uuidList.length === 1) {
+        queryUrl += `&id=eq.${uuidList[0]}`;
+      } else if (uuidList.length > 1) {
+        queryUrl += `&id=in.(${uuidList.join(',')})`;
       }
     } else if (wd) {
       queryUrl += `&or=(title.ilike.*${encodeURIComponent(wd)}*,actors.ilike.*${encodeURIComponent(wd)}*)`;
@@ -156,7 +199,7 @@ export async function onRequest(context) {
       }
 
       return {
-        vod_id: item.id,
+        vod_id: uuidToId[item.id] || 1,
         vod_name: item.title,
         type_id: typeId,
         type_name: typeName,

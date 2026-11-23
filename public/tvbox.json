@@ -7,7 +7,7 @@
       "key": "xkyk_4k_pan",
       "name": "星光",
       "type": 1,
-      "api": "https://xkykmovie.com/api/maccms",
+      "api": "https://xkykmovie.com/api.php/provide/vod",
       "searchable": 1,
       "quickSearch": 1,
       "filterable": 1
