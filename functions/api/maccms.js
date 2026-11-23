@@ -140,19 +140,7 @@ export async function onRequest(context) {
       const fromList = [];
       const urlList = [];
 
-      // 1. 夸克网盘专线（纯净谐音命名：夸父）
-      if (item.share_link) {
-        fromList.push('夸父');
-        urlList.push(`正片$${item.share_link}`);
-      }
-
-      // 2. UC网盘专线（纯净谐音命名：U盘）
-      if (item.share_link_uc) {
-        fromList.push('U盘');
-        urlList.push(`正片$${item.share_link_uc}`);
-      }
-
-      // 3. 直链秒播专线 (M3U8) - 兜底普通播放器无网盘账号用户
+      // 1. 直链秒播专线 (M3U8) - 作为第一默认线路，保障点开即播，绝不黑屏报错
       let sources = item.play_sources;
       if (typeof sources === 'string') {
         try { sources = JSON.parse(sources); } catch (_) { sources = []; }
@@ -170,6 +158,18 @@ export async function onRequest(context) {
       } else if (item.online_play_url) {
         fromList.push('秒播');
         urlList.push(`正片$${item.online_play_url}`);
+      }
+
+      // 2. 夸克网盘专线（纯净谐音：夸父，供授权用户享受4K原画并触发转存分成）
+      if (item.share_link) {
+        fromList.push('夸父');
+        urlList.push(`正片$${item.share_link}`);
+      }
+
+      // 3. UC网盘专线（纯净谐音：U盘，供授权用户享受4K原画并触发转存分成）
+      if (item.share_link_uc) {
+        fromList.push('U盘');
+        urlList.push(`正片$${item.share_link_uc}`);
       }
 
       const vodItem = {

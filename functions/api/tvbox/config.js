@@ -25,6 +25,15 @@ export async function onRequestGet(context) {
     logo: 'https://modelscope-resouces.oss-cn-zhangjiakou.aliyuncs.com/avatar%2Ff5309172-1af6-4c4f-a1c5-a4773a1cc718.gif',
     sites: [
       {
+        key: 'FishConfig',
+        name: '配置中心',
+        type: 3,
+        api: 'csp_FishConfig',
+        searchable: 0,
+        indexs: 0,
+        changeable: 0
+      },
+      {
         key: 'xkyk_4k_pan',
         name: '星光',
         type: 1,
