@@ -7,7 +7,7 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': '*',
-  'Cache-Control': 'public, max-age=180, s-maxage=300'
+  'Cache-Control': 'no-cache, no-store, must-revalidate'
 };
 
 export async function onRequestOptions() {
