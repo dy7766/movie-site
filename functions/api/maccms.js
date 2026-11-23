@@ -14,11 +14,11 @@ const CORS_HEADERS = {
 };
 
 const CATEGORIES = [
-  { type_id: 1, type_name: '电影' },
-  { type_id: 2, type_name: '电视剧' },
-  { type_id: 3, type_name: '动漫' },
-  { type_id: 4, type_name: '综艺' },
-  { type_id: 5, type_name: '纪录片' }
+  { type_id: 1, type_pid: 0, type_name: '电影' },
+  { type_id: 2, type_pid: 0, type_name: '电视剧' },
+  { type_id: 3, type_pid: 0, type_name: '动漫' },
+  { type_id: 4, type_pid: 0, type_name: '综艺' },
+  { type_id: 5, type_pid: 0, type_name: '纪录片' }
 ];
 
 const CATEGORY_MAP = {
@@ -76,8 +76,11 @@ export async function onRequest(context) {
       }
     } else if (wd) {
       queryUrl += `&or=(title.ilike.*${encodeURIComponent(wd)}*,actors.ilike.*${encodeURIComponent(wd)}*)`;
-    } else if (t && CATEGORY_MAP[t]) {
-      queryUrl += `&category=eq.${encodeURIComponent(CATEGORY_MAP[t])}`;
+    } else if (t) {
+      const catName = CATEGORY_MAP[t] || (CATEGORY_REVERSE_MAP[t] ? t : null);
+      if (catName) {
+        queryUrl += `&category=eq.${encodeURIComponent(catName)}`;
+      }
     }
 
     // 过滤有可用网盘转存链接的资源（仅保留夸克与UC网盘资产）
@@ -140,16 +143,10 @@ export async function onRequest(context) {
       const fromList = [];
       const urlList = [];
 
-      // 1. 夸克网盘专线（挂接自动转存与4K推流引擎，点播即存即播）
+      // 1. 夸克网盘专线（纯净谐音：夸父）
       if (item.share_link) {
-        const quarkMatch = item.share_link.match(/pan\.quark\.cn\/s\/([a-zA-Z0-9]+)/);
-        const pwdId = quarkMatch ? quarkMatch[1] : '';
         fromList.push('夸父');
-        if (pwdId) {
-          urlList.push(`正片$https://xkykmovie.com/api/pan/play?redirect=1&pwd_id=${pwdId}`);
-        } else {
-          urlList.push(`正片$${item.share_link}`);
-        }
+        urlList.push(`正片$${item.share_link}`);
       }
 
       // 2. UC网盘专线（纯净谐音：U盘）
@@ -164,7 +161,7 @@ export async function onRequest(context) {
         poster = `https://wsrv.nl/?url=${encodeURIComponent(poster)}`;
       }
 
-      const vodItem = {
+      return {
         vod_id: item.id,
         vod_name: item.title,
         type_id: typeId,
@@ -173,22 +170,16 @@ export async function onRequest(context) {
         vod_time: formattedTime,
         vod_remarks: remarks,
         vod_play_from: fromList.join('$$$'),
-        vod_pic: poster
+        vod_play_url: urlList.join('$$$'),
+        vod_pic: poster,
+        vod_actor: item.actors || '',
+        vod_director: '',
+        vod_content: item.intro || '',
+        vod_year: item.year ? String(item.year) : '',
+        vod_area: item.country || '华语',
+        vod_lang: '国语/原声',
+        vod_score: item.score ? String(item.score) : '0.0'
       };
-
-      // 详情模式补充全量属性
-      if (isDetail) {
-        vodItem.vod_actor = item.actors || '';
-        vodItem.vod_director = '';
-        vodItem.vod_content = item.intro || '';
-        vodItem.vod_play_url = urlList.join('$$$');
-        vodItem.vod_year = item.year ? String(item.year) : '';
-        vodItem.vod_area = item.country || '华语';
-        vodItem.vod_lang = '国语/原声';
-        vodItem.vod_score = item.score ? String(item.score) : '0.0';
-      }
-
-      return vodItem;
     });
 
     const result = {
@@ -196,7 +187,7 @@ export async function onRequest(context) {
       msg: '数据列表',
       page: pg,
       pagecount: pagecount,
-      limit: String(limit),
+      limit: limit,
       total: total,
       list: list,
       class: CATEGORIES

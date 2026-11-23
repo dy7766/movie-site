@@ -4,13 +4,20 @@
   "logo": "https://modelscope-resouces.oss-cn-zhangjiakou.aliyuncs.com/avatar%2Ff5309172-1af6-4c4f-a1c5-a4773a1cc718.gif",
   "sites": [
     {
-      "key": "xkyk_drpy",
+      "key": "xkyk_4k_pan",
       "name": "星光",
-      "type": 3,
-      "api": "https://cdn.jsdelivr.net/gh/dy7766/movie-site@main/public/spider/xkyk.js",
+      "type": 1,
+      "api": "https://xkykmovie.com/api/maccms",
       "searchable": 1,
       "quickSearch": 1,
-      "filterable": 1
+      "filterable": 1,
+      "categories": [
+        "电影",
+        "电视剧",
+        "动漫",
+        "综艺",
+        "纪录片"
+      ]
     },
     {
       "key": "FishConfig",
