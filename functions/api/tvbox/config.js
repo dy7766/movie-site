@@ -44,6 +44,15 @@ export async function onRequestGet(context) {
         categories: ['电影', '电视剧', '动漫', '综艺', '纪录片']
       },
       {
+        key: 'xkyk_drpy',
+        name: '星光(网盘)',
+        type: 3,
+        api: `${host}/spider/xkyk.js`,
+        searchable: 1,
+        quickSearch: 1,
+        filterable: 1
+      },
+      {
         key: 'FishPs',
         name: '鱼鱼',
         type: 3,

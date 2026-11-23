@@ -140,10 +140,16 @@ export async function onRequest(context) {
       const fromList = [];
       const urlList = [];
 
-      // 1. 夸克网盘专线（纯净谐音：夸父）
+      // 1. 夸克网盘专线（挂接自动转存与4K推流引擎，点播即存即播）
       if (item.share_link) {
+        const quarkMatch = item.share_link.match(/pan\.quark\.cn\/s\/([a-zA-Z0-9]+)/);
+        const pwdId = quarkMatch ? quarkMatch[1] : '';
         fromList.push('夸父');
-        urlList.push(`正片$${item.share_link}`);
+        if (pwdId) {
+          urlList.push(`正片$https://xkykmovie.com/api/pan/play?redirect=1&pwd_id=${pwdId}`);
+        } else {
+          urlList.push(`正片$${item.share_link}`);
+        }
       }
 
       // 2. UC网盘专线（纯净谐音：U盘）
