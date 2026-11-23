@@ -88,12 +88,6 @@ export async function onRequest(context) {
       queryUrl += `&or=(share_link.not.is.null,share_link_uc.not.is.null)`;
     }
 
-    // 小时筛选（增量采集）
-    if (h > 0) {
-      const pastTime = new Date(Date.now() - h * 3600 * 1000).toISOString();
-      queryUrl += `&created_at=gte.${pastTime}`;
-    }
-
     queryUrl += `&order=year.desc,score.desc,created_at.desc&limit=${limit}&offset=${offset}`;
 
     const resp = await fetch(queryUrl, {
