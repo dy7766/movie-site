@@ -80,9 +80,9 @@ export async function onRequest(context) {
       queryUrl += `&category=eq.${encodeURIComponent(CATEGORY_MAP[t])}`;
     }
 
-    // 过滤有可用播放/转存链接的资源
+    // 过滤有可用网盘转存链接的资源（仅保留夸克与UC网盘资产）
     if (!ids && !wd) {
-      queryUrl += `&or=(share_link.not.is.null,share_link_uc.not.is.null,online_play_url.not.is.null)`;
+      queryUrl += `&or=(share_link.not.is.null,share_link_uc.not.is.null)`;
     }
 
     // 小时筛选（增量采集）
@@ -136,37 +136,17 @@ export async function onRequest(context) {
         ? new Date(item.created_at).toISOString().replace('T', ' ').slice(0, 19)
         : '';
 
-      // 核心播放源与多线路构造
+      // 核心纯网盘专线构造（仅保留夸父与U盘，专注转存获利）
       const fromList = [];
       const urlList = [];
 
-      // 1. 直链秒播专线 (M3U8) - 作为第一默认线路，保障点开即播，绝不黑屏报错
-      let sources = item.play_sources;
-      if (typeof sources === 'string') {
-        try { sources = JSON.parse(sources); } catch (_) { sources = []; }
-      }
-
-      if (Array.isArray(sources) && sources.length > 0) {
-        for (const s of sources) {
-          if (s.episodes && s.episodes.length > 0) {
-            const sName = s.source ? s.source.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '') : '秒播';
-            const epStr = s.episodes.map(e => `${e.name || '正片'}$${e.url}`).join('#');
-            fromList.push(sName);
-            urlList.push(epStr);
-          }
-        }
-      } else if (item.online_play_url) {
-        fromList.push('秒播');
-        urlList.push(`正片$${item.online_play_url}`);
-      }
-
-      // 2. 夸克网盘专线（纯净谐音：夸父，供授权用户享受4K原画并触发转存分成）
+      // 1. 夸克网盘专线（纯净谐音：夸父）
       if (item.share_link) {
         fromList.push('夸父');
         urlList.push(`正片$${item.share_link}`);
       }
 
-      // 3. UC网盘专线（纯净谐音：U盘，供授权用户享受4K原画并触发转存分成）
+      // 2. UC网盘专线（纯净谐音：U盘）
       if (item.share_link_uc) {
         fromList.push('U盘');
         urlList.push(`正片$${item.share_link_uc}`);
