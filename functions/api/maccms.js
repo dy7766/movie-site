@@ -176,20 +176,20 @@ export async function onRequest(context) {
         ? new Date(item.created_at).toISOString().replace('T', ' ').slice(0, 19)
         : '';
 
-      // 核心纯网盘专线构造（仅保留夸父与U盘，专注转存获利）
+      // 核心网盘专线构造（标准驱动标识：夸克、UC，搭配 push:// 协议引导 TVBox 内部网盘驱动接管）
       const fromList = [];
       const urlList = [];
 
-      // 1. 夸克网盘专线（纯净谐音：夸父）
+      // 1. 夸克网盘专线（标准驱动标识：夸克）
       if (item.share_link) {
-        fromList.push('夸父');
-        urlList.push(`正片$${item.share_link}`);
+        fromList.push('夸克');
+        urlList.push(`正片$push://${item.share_link}`);
       }
 
-      // 2. UC网盘专线（纯净谐音：U盘）
+      // 2. UC网盘专线（标准驱动标识：UC）
       if (item.share_link_uc) {
-        fromList.push('U盘');
-        urlList.push(`正片$${item.share_link_uc}`);
+        fromList.push('UC');
+        urlList.push(`正片$push://${item.share_link_uc}`);
       }
 
       // 封面地址加速与白名单处理（解决大陆电视/手机直连TMDB图片被墙或加载极慢导致空白）
