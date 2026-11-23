@@ -20,8 +20,8 @@ export async function onRequestGet(context) {
 
   const config = {
     // 采用摸鱼同款成熟稳定的 Spider 核心，内置完整的 Quark/UC/Ali/115 扫码弹窗组件
-    spider: 'https://qiniu.gongxueyun.com/upload/2371282/2026-11-12/noknow/759250805_1_1794505074145.jar;md5;53b51f8c239b727ce4cd18dc2c3b7a99',
-    wallpaper: 'http://127.0.0.1:9978/proxy?do=wallpaper',
+    spider: `${host}/spider.jar;md5;efdb2c1d9a2e8c26e5a74ba5f53dfc56`,
+    wallpaper: 'https://bing.img.run/rand_uhd.php',
     logo: 'https://modelscope-resouces.oss-cn-zhangjiakou.aliyuncs.com/avatar%2Ff5309172-1af6-4c4f-a1c5-a4773a1cc718.gif',
     sites: [
       {
