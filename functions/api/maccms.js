@@ -224,10 +224,11 @@ export async function onRequest(context) {
       msg: '数据列表',
       page: pg,
       pagecount: pagecount,
-      limit: limit,
+      limit: String(limit),
       total: total,
       list: list,
-      class: CATEGORIES
+      class: CATEGORIES,
+      filters: {}
     };
 
     return new Response(JSON.stringify(result), {
@@ -240,7 +241,8 @@ export async function onRequest(context) {
       code: 0,
       msg: `接口请求异常: ${err.message}`,
       list: [],
-      class: CATEGORIES
+      class: CATEGORIES,
+      filters: {}
     }), {
       status: 500,
       headers: CORS_HEADERS

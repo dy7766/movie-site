@@ -25,13 +25,13 @@ export async function onRequestGet(context) {
     logo: 'https://modelscope-resouces.oss-cn-zhangjiakou.aliyuncs.com/avatar%2Ff5309172-1af6-4c4f-a1c5-a4773a1cc718.gif',
     sites: [
       {
-        key: 'xkyk_4k_pan',
+        key: 'xkyk_vod',
         name: '星光',
         type: 1,
-        api: `${host}/api.php/provide/vod`,
+        api: `${host}/api.php/provide/vod/`,
         searchable: 1,
         quickSearch: 1,
-        filterable: 1
+        changeable: 1
       },
       {
         key: 'Config',
