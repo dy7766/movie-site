@@ -7,7 +7,10 @@ import {
   saveAndShareUcDetail,
   getUcFolderFiles, 
   saveFilesToExistingUcFolder, 
-  deleteUcFiles 
+  deleteUcFiles,
+  searchQuarkShares,
+  inspectAndFilterQuarkShare,
+  saveAndShareQuark
 } from './auto-harvester.js';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || 'fc3786eb5ea9d4b8c8b09cc89df373b4';
@@ -207,7 +210,7 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
 
   // 0. 读取管理员后台转存控制开关
   const transferSettings = await getTransferSettings();
-  console.log(`⚙️ [转存配置] 电视剧自动追更网盘转存: ${transferSettings.uc ? '🟢 开启' : '🔴 已暂停 (仅同步排期状态，不转存物理网盘文件)'}`);
+  console.log(`⚙️ [转存配置] 电视剧自动追更网盘转存: 夸克=${transferSettings.quark ? '🟢 开启' : '🔴 关闭'} | UC=${transferSettings.uc ? '🟢 开启' : '🔴 关闭'}`);
 
   if (candidateList.length === 0) {
     console.log('🟢 当前片库中暂无待同步集数的剧集，全部已完结或处于最新状态。');
@@ -243,6 +246,7 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
 
       let effectiveCur = oldCur;
       let newUcLink = null;
+      let newQuarkLink = null;
       let newUcFid = s.uc_fid;
       let newSourcePwdId = s.source_pwd_id;
       let episodeUpdated = false;
@@ -251,114 +255,146 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
       if (expectedEp > oldCur && !s.is_finished) {
         console.log(`  🎉 发现最新剧集更新！《${s.title}》官方/切片已播出至第 ${expectedEp} 集 (当前库内: 第 ${oldCur} 集)`);
 
-        if (!transferSettings.uc) {
-          console.log(`  ⏸️ [后台控制跳过] 管理员已在后台关闭【UC网盘转存】，跳过《${s.title}》的增量/整包追更转存，保持集数真实性防虚标`);
-        } else {
-        let strategyASucceeded = false;
+        let syncSucceeded = false;
 
         // -------------------------------------------------------------
-        // 【策略 A：增量补采】优先检查原源分享是否有新追加的单集
+        // 【夸克网盘追更】：优先全网检索更全的夸克剧集资源包秒存
         // -------------------------------------------------------------
-        if (s.source_pwd_id && s.uc_fid) {
+        if (transferSettings.quark) {
           try {
-            console.log(`  🔍 [策略A] 正在核验原源分享 [${s.source_pwd_id}] 与个人目录 [${s.uc_fid}]...`);
-            const inspect = await inspectAndFilterUcShare(s.source_pwd_id);
-            if (inspect.pass && inspect.stoken) {
-              // 获取原分享内的视频列表
-              const sourceVideos = inspect.list.filter(f => !f.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(f.file_name));
-              // 获取我方目录已有的文件列表
-              const localFiles = await getUcFolderFiles(s.uc_fid);
-              const localFileNames = new Set(localFiles.map(f => f.file_name));
+            console.log(`  🔍 [夸克追更] 正在全网检索《${s.title}》最新夸克分享...`);
+            const quarkShares = await searchQuarkShares(s.title);
+            let bestQuark = null;
+            let maxQuarkCount = oldCur;
 
-              // 筛选出我方尚不存在的新单集
-              const newEpisodes = sourceVideos.filter(f => !localFileNames.has(f.file_name));
-
-              if (newEpisodes.length > 0) {
-                console.log(`  📦 [策略A] 原源分享发现 ${newEpisodes.length} 个新增剧集，正在增量秒存进原目录...`);
-                const saveResult = await saveFilesToExistingUcFolder(s.uc_fid, s.source_pwd_id, inspect.stoken, newEpisodes);
-                if (saveResult.ok) {
-                  // 转存成功后，再次核验本地目录的实际视频总数
-                  const refreshedFiles = await getUcFolderFiles(s.uc_fid);
-                  const realVideoCount = refreshedFiles.filter(f => !f.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(f.file_name)).length;
-                  if (realVideoCount > oldCur) {
-                    effectiveCur = realVideoCount;
-                    episodeUpdated = true;
-                    strategyASucceeded = true;
-                    console.log(`  ✅ [策略A成功] 《${s.title}》已向原目录追加 ${newEpisodes.length} 集，现拥有 ${realVideoCount} 集！(原分享链接保持不变)`);
-                  }
+            for (const sh of quarkShares) {
+              const inspect = await inspectAndFilterQuarkShare(sh.pwd_id);
+              if (inspect.pass && inspect.stoken) {
+                const videoCount = (inspect.list || []).filter(f => f.dir || /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(f.file_name)).length;
+                if (videoCount > maxQuarkCount) {
+                  maxQuarkCount = videoCount;
+                  bestQuark = { share: sh, inspect, videoCount };
+                  if (videoCount >= expectedEp) break;
                 }
-              } else {
-                console.log(`  ℹ️ [策略A] 原源分享暂无新集追加 (原源共 ${sourceVideos.length} 集，本地已有 ${localFileNames.size} 文件)`);
               }
-            } else {
-              console.log(`  ⚠️ [策略A] 原源分享不可用或已失效: ${inspect.reason}`);
             }
-          } catch (stratAErr) {
-            console.warn(`  ⚠️ [策略A执行异常]:`, stratAErr.message);
+
+            if (bestQuark) {
+              console.log(`  🎯 [夸克追更] 锁定全网更全新包 [${bestQuark.share.pwd_id}] (含 ${bestQuark.videoCount} 集)，正在秒存生成专属链接...`);
+              const qUrl = await saveAndShareQuark(s.title, bestQuark.share.pwd_id, bestQuark.inspect.stoken, bestQuark.inspect.list);
+              if (qUrl) {
+                newQuarkLink = qUrl;
+                effectiveCur = bestQuark.videoCount;
+                episodeUpdated = true;
+                syncSucceeded = true;
+                console.log(`  ✅ [夸克追更成功] 《${s.title}》已置换为第 ${effectiveCur} 集夸克网盘专属链接！`);
+              }
+            }
+          } catch (qErr) {
+            console.warn(`  ⚠️ [夸克追更执行异常]:`, qErr.message);
           }
         }
 
         // -------------------------------------------------------------
-        // 【兜底策略 B：3天原源无新增则全网整包置换】
+        // 【UC网盘追更】：若开启 UC 且夸克未命中，执行 UC 策略 A/B
         // -------------------------------------------------------------
-        if (!strategyASucceeded) {
-          // 判定是否满足兜底条件：
-          // 1. 无原源记录 或
-          // 2. 原源距上次集数更新已超过 3 天 (3 * 24 * 3600 * 1000 ms)
-          const lastUpdate = s.last_episode_updated_at ? new Date(s.last_episode_updated_at).getTime() : 0;
-          const daysSinceUpdate = (Date.now() - lastUpdate) / (1000 * 3600 * 24);
-          const shouldTriggerFallback = !s.source_pwd_id || !s.uc_fid || daysSinceUpdate >= 3;
+        if (transferSettings.uc && !syncSucceeded) {
+          let strategyASucceeded = false;
 
-          if (shouldTriggerFallback) {
-            console.log(`  🚨 [触发兜底策略 B] 原源${daysSinceUpdate >= 3 ? `已停更超过 ${daysSinceUpdate.toFixed(1)} 天` : '未配置/已失效'}，启动全网搜源整包置换！`);
+          // 【策略 A：增量补采】优先检查原源分享是否有新追加的单集
+          if (s.source_pwd_id && s.uc_fid) {
             try {
-              const shares = await searchPublicShares(s.title);
-              let bestCandidate = null;
-              let maxVideoCount = oldCur;
+              console.log(`  🔍 [UC策略A] 正在核验原源分享 [${s.source_pwd_id}] 与个人目录 [${s.uc_fid}]...`);
+              const inspect = await inspectAndFilterUcShare(s.source_pwd_id);
+              if (inspect.pass && inspect.stoken) {
+                const sourceVideos = inspect.list.filter(f => !f.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(f.file_name));
+                const localFiles = await getUcFolderFiles(s.uc_fid);
+                const localFileNames = new Set(localFiles.map(f => f.file_name));
+                const newEpisodes = sourceVideos.filter(f => !localFileNames.has(f.file_name));
 
-              for (const sh of shares) {
-                const inspect = await inspectAndFilterUcShare(sh.pwd_id);
-                if (inspect.pass && inspect.stoken) {
-                  // 穿透统计分享中的真实有效视频数
-                  let videoCount = inspect.list.filter(f => !f.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(f.file_name)).length;
-                  if (videoCount === 0 && inspect.list.length === 1 && inspect.list[0].dir) {
-                    const subRes = curlGetJson(`https://pc-api.uc.cn/1/clouddrive/share/sharepage/detail?pr=UCBrowser&fr=pc&pwd_id=${sh.pwd_id}&stoken=${encodeURIComponent(inspect.stoken)}&pdir_fid=${inspect.list[0].fid}&force=0&_page=1&_size=50`);
-                    videoCount = (subRes?.data?.list || []).filter(f => !f.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(f.file_name)).length;
+                if (newEpisodes.length > 0) {
+                  console.log(`  📦 [UC策略A] 原源分享发现 ${newEpisodes.length} 个新增剧集，正在增量秒存进原目录...`);
+                  const saveResult = await saveFilesToExistingUcFolder(s.uc_fid, s.source_pwd_id, inspect.stoken, newEpisodes);
+                  if (saveResult.ok) {
+                    const refreshedFiles = await getUcFolderFiles(s.uc_fid);
+                    const realVideoCount = refreshedFiles.filter(f => !f.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(f.file_name)).length;
+                    if (realVideoCount > oldCur) {
+                      effectiveCur = realVideoCount;
+                      episodeUpdated = true;
+                      strategyASucceeded = true;
+                      syncSucceeded = true;
+                      console.log(`  ✅ [UC策略A成功] 《${s.title}》已向原目录追加 ${newEpisodes.length} 集，现拥有 ${realVideoCount} 集！`);
+                    }
                   }
-                  if (videoCount > maxVideoCount) {
-                    maxVideoCount = videoCount;
-                    bestCandidate = { share: sh, inspect, videoCount };
-                    if (videoCount >= expectedEp) break;
-                  }
+                } else {
+                  console.log(`  ℹ️ [UC策略A] 原源分享暂无新集追加`);
                 }
               }
-
-              if (bestCandidate) {
-                console.log(`  🎯 [兜底策略 B] 锁定全网更全新包 [${bestCandidate.share.pwd_id}] (含 ${bestCandidate.videoCount} 集，高于旧版 ${oldCur} 集)，正在秒存置换...`);
-                const saveDetail = await saveAndShareUcDetail(s.title, s.year, s.category, bestCandidate.share.pwd_id, bestCandidate.inspect.stoken, bestCandidate.inspect.list);
-                if (saveDetail && saveDetail.shareUrl) {
-                  // 清理旧包释放网盘空间
-                  if (s.uc_fid && s.uc_fid !== saveDetail.fid) {
-                    console.log(`  🧹 [兜底策略 B] 物理清理旧文件夹 [${s.uc_fid}] 释放网盘空间...`);
-                    await deleteUcFiles([s.uc_fid]);
-                  }
-                  newUcLink = saveDetail.shareUrl;
-                  newUcFid = saveDetail.fid;
-                  newSourcePwdId = bestCandidate.share.pwd_id;
-                  effectiveCur = bestCandidate.videoCount;
-                  episodeUpdated = true;
-                  console.log(`  ✅ [兜底策略 B成功] 《${s.title}》整包置换完成！实际集数更新为第 ${effectiveCur} 集，新分享链接已换绑！`);
-                }
-              } else {
-                console.log(`  ⚠️ [兜底策略 B] 全网暂未检索到高于 ${oldCur} 集的有效资源，保持现状，杜绝虚标。`);
-              }
-            } catch (fallbackErr) {
-              console.warn(`  ⚠️ [兜底策略 B执行异常]:`, fallbackErr.message);
+            } catch (stratAErr) {
+              console.warn(`  ⚠️ [UC策略A异常]:`, stratAErr.message);
             }
-          } else {
-            console.log(`  ⏳ [策略A暂缓] 原源距上次更新仅 ${daysSinceUpdate.toFixed(1)} 天 (< 3天)，继续观察原作者更新，未触发兜底置换。`);
+          }
+
+          // 【兜底策略 B：全网搜源整包置换】
+          if (!strategyASucceeded) {
+            const lastUpdate = s.last_episode_updated_at ? new Date(s.last_episode_updated_at).getTime() : 0;
+            const daysSinceUpdate = (Date.now() - lastUpdate) / (1000 * 3600 * 24);
+            const shouldTriggerFallback = !s.source_pwd_id || !s.uc_fid || daysSinceUpdate >= 3;
+
+            if (shouldTriggerFallback) {
+              console.log(`  🚨 [触发UC兜底策略 B] 启动全网搜源整包置换！`);
+              try {
+                const shares = await searchPublicShares(s.title);
+                let bestCandidate = null;
+                let maxVideoCount = oldCur;
+
+                for (const sh of shares) {
+                  const inspect = await inspectAndFilterUcShare(sh.pwd_id);
+                  if (inspect.pass && inspect.stoken) {
+                    let videoCount = inspect.list.filter(f => !f.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(f.file_name)).length;
+                    if (videoCount === 0 && inspect.list.length === 1 && inspect.list[0].dir) {
+                      const subRes = curlGetJson(`https://pc-api.uc.cn/1/clouddrive/share/sharepage/detail?pr=UCBrowser&fr=pc&pwd_id=${sh.pwd_id}&stoken=${encodeURIComponent(inspect.stoken)}&pdir_fid=${inspect.list[0].fid}&force=0&_page=1&_size=50`);
+                      videoCount = (subRes?.data?.list || []).filter(f => !f.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(f.file_name)).length;
+                    }
+                    if (videoCount > maxVideoCount) {
+                      maxVideoCount = videoCount;
+                      bestCandidate = { share: sh, inspect, videoCount };
+                      if (videoCount >= expectedEp) break;
+                    }
+                  }
+                }
+
+                if (bestCandidate) {
+                  console.log(`  🎯 [UC兜底策略 B] 锁定全网更全新包 [${bestCandidate.share.pwd_id}] (含 ${bestCandidate.videoCount} 集)，正在秒存置换...`);
+                  const saveDetail = await saveAndShareUcDetail(s.title, s.year, s.category, bestCandidate.share.pwd_id, bestCandidate.inspect.stoken, bestCandidate.inspect.list);
+                  if (saveDetail && saveDetail.shareUrl) {
+                    if (s.uc_fid && s.uc_fid !== saveDetail.fid) {
+                      await deleteUcFiles([s.uc_fid]);
+                    }
+                    newUcLink = saveDetail.shareUrl;
+                    newUcFid = saveDetail.fid;
+                    newSourcePwdId = bestCandidate.share.pwd_id;
+                    effectiveCur = bestCandidate.videoCount;
+                    episodeUpdated = true;
+                    syncSucceeded = true;
+                    console.log(`  ✅ [UC兜底策略 B成功] 《${s.title}》整包置换完成！集数更新为第 ${effectiveCur} 集！`);
+                  }
+                }
+              } catch (fallbackErr) {
+                console.warn(`  ⚠️ [UC兜底策略 B异常]:`, fallbackErr.message);
+              }
+            }
           }
         }
+
+        // -------------------------------------------------------------
+        // 【官方排期与在线播放集数同步兜底保障】
+        // 无论网盘是否完成物理转存，官方/切片源已播出更新集数时，保持库内集数准时校准
+        // -------------------------------------------------------------
+        if (expectedEp > effectiveCur) {
+          console.log(`  📺 [排期/切片同步] 将《${s.title}》库内集数从第 ${effectiveCur} 集校准至已播第 ${expectedEp} 集`);
+          effectiveCur = expectedEp;
+          episodeUpdated = true;
         }
       }
 
@@ -374,6 +410,7 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
         (newTotal && newTotal !== s.total_episodes) ||
         (isReleased !== null && isReleased !== s.is_released) ||
         newUcLink !== null ||
+        newQuarkLink !== null ||
         newUcFid !== s.uc_fid;
 
       if (hasChanged) {
@@ -384,11 +421,12 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
               is_finished = $3,
               is_released = COALESCE($4, is_released),
               share_link_uc = COALESCE($5, share_link_uc),
-              uc_fid = COALESCE($6, uc_fid),
-              source_pwd_id = COALESCE($7, source_pwd_id),
-              last_episode_updated_at = CASE WHEN $8 = true THEN NOW() ELSE last_episode_updated_at END
-          WHERE id = $9
-        `, [effectiveCur, newTotal, isFinished, isReleased, newUcLink, newUcFid, newSourcePwdId, episodeUpdated, s.id]);
+              share_link = COALESCE($6, share_link),
+              uc_fid = COALESCE($7, uc_fid),
+              source_pwd_id = COALESCE($8, source_pwd_id),
+              last_episode_updated_at = CASE WHEN $9 = true THEN NOW() ELSE last_episode_updated_at END
+          WHERE id = $10
+        `, [effectiveCur, newTotal, isFinished, isReleased, newUcLink, newQuarkLink, newUcFid, newSourcePwdId, episodeUpdated, s.id]);
 
         updatedItems.push({
           title: s.title,
@@ -397,7 +435,8 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
           totalEp: newTotal,
           isFinished,
           isReleased,
-          ucLink: newUcLink || s.share_link_uc
+          ucLink: newUcLink || s.share_link_uc,
+          quarkLink: newQuarkLink || s.share_link
         });
 
         const statusTag = isFinished ? '【全集已完结】' : `【连载至第 ${effectiveCur} 集】`;

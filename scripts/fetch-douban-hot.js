@@ -49,13 +49,18 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
 
   console.log(`📊 历史抓取追踪: 连续零新增次数=${zeroYieldStreak} | 下探基准深度=${deepOffset}`);
 
-  // 1. 基准保障：无论何时，永远抓取 page_start=0 最新/热门数据，确保第一时间捕捉全网最新上映/开播的影视
+  // 1. 基准保障：抓取前多页最新/热门数据，确保第一时间捕捉全网最新上映/开播的影视
   const targets = [
-    { type: 'movie', tag: '最新', category: '电影', limit: 20, page_start: 0 },
+    { type: 'movie', tag: '最新', category: '电影', limit: 25, page_start: 0 },
+    { type: 'movie', tag: '最新', category: '电影', limit: 25, page_start: 25 },
     { type: 'movie', tag: '热门', category: '电影', limit: movieLimit, page_start: 0 },
+    { type: 'movie', tag: '热门', category: '电影', limit: movieLimit, page_start: 25 },
     { type: 'tv', tag: '热门', category: '电视剧', limit: tvLimit, page_start: 0 },
-    { type: 'tv', tag: '国产剧', category: '电视剧', limit: 20, page_start: 0 },
-    { type: 'tv', tag: '综艺', category: '综艺', limit: 15, page_start: 0 }
+    { type: 'tv', tag: '热门', category: '电视剧', limit: tvLimit, page_start: 25 },
+    { type: 'tv', tag: '国产剧', category: '电视剧', limit: 25, page_start: 0 },
+    { type: 'tv', tag: '国产剧', category: '电视剧', limit: 25, page_start: 25 },
+    { type: 'tv', tag: '国产剧', category: '电视剧', limit: 25, page_start: 50 },
+    { type: 'tv', tag: '综艺', category: '综艺', limit: 20, page_start: 0 }
   ];
 
   // 2. 连续 2 次以上未抓取到新内容 -> 触发深度下探模式 (获取更早年份、经典佳作与长尾内容)
@@ -112,6 +117,41 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
     } catch (err) {
       console.warn(`  ⚠️ 豆瓣接口请求受限或网络波动 (${err.message})`);
     }
+  }
+
+  // 2.5 官方在播剧集与最新热播种子补充 (TMDB On-The-Air & Trending)
+  try {
+    const tmdbKey = process.env.TMDB_API_KEY || 'fc3786eb5ea9d4b8c8b09cc89df373b4';
+    const tmdbUrls = [
+      `https://api.themoviedb.org/3/tv/on_the_air?api_key=${tmdbKey}&language=zh-CN&page=1`,
+      `https://api.themoviedb.org/3/trending/tv/day?api_key=${tmdbKey}&language=zh-CN`,
+      `https://api.themoviedb.org/3/discover/tv?api_key=${tmdbKey}&language=zh-CN&sort_by=popularity.desc&with_origin_country=CN&air_date.gte=2025-01-01`
+    ];
+    for (const url of tmdbUrls) {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+        if (res.ok) {
+          const data = await res.json();
+          const items = data.results || [];
+          for (const item of items) {
+            const title = (item.name || item.title || '').trim();
+            if (!title) continue;
+            const year = item.first_air_date ? parseInt(item.first_air_date.slice(0, 4)) : new Date().getFullYear();
+            const score = item.vote_average ? parseFloat(item.vote_average.toFixed(1)) : 8.0;
+            candidates.push({
+              title,
+              category: '电视剧',
+              score,
+              douban_id: null,
+              year
+            });
+          }
+          console.log(`  ✓ 从 TMDB 在播/热门成功补齐 ${items.length} 部剧集种子`);
+        }
+      } catch {}
+    }
+  } catch (tmdbErr) {
+    console.warn('  ⚠️ TMDB 在播种子补充异常:', tmdbErr.message);
   }
 
   // 3. 备用兜底源：WMDB 豆瓣高分与实时口碑榜

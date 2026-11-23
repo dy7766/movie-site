@@ -10,7 +10,7 @@ import { searchCmsStream } from './online-play-monitor.js';
  * 阶段二：根据阶段一入库的影视元数据，精准搜源并挂载转存与在线播放资源
  * @param {number} batchSize 本批次处理数量 (默认 15 部)
  */
-export async function harvestResourceData(batchSize = 15) {
+export async function harvestResourceData(batchSize = 25) {
   console.log('===============================================================');
   console.log(`🚀【阶段二 · 靶向影视资源搜源与转存流水线启动】(批次上限: ${batchSize} 部)`);
   console.log('===============================================================');
@@ -39,7 +39,7 @@ export async function harvestResourceData(batchSize = 15) {
     console.log('  ℹ️ [开关生效] UC网盘转存已被管理员设为暂停，跳过 UC 容量探测与预警');
   }
 
-  // 2. 全库公平轮转优先：优先从未巡检的条目开始，同时倾斜缺失网盘与高分热片
+  // 2. 全库智能轮转优先：优先在播未完结剧集与近年新片，保证热播内容第一时间就绪
   const query = `
     SELECT id, title, category, year, score, share_link, share_link_uc, online_play_url
     FROM resources
@@ -51,12 +51,12 @@ export async function harvestResourceData(batchSize = 15) {
         online_play_url IS NULL
       )
     ORDER BY
-      CASE WHEN (share_link IS NULL AND $2 = TRUE) THEN 1 ELSE 2 END ASC,
-      CASE WHEN (share_link_uc IS NULL AND $3 = TRUE) THEN 1 ELSE 2 END ASC,
+      CASE WHEN is_finished = FALSE THEN 0 ELSE 1 END ASC,
+      CASE WHEN year >= 2025 THEN 0 WHEN year >= 2024 THEN 1 ELSE 2 END ASC,
+      CASE WHEN last_harvest_at IS NULL THEN 0 ELSE 1 END ASC,
+      last_harvest_at ASC NULLS FIRST,
       created_at DESC,
-      year DESC NULLS LAST,
-      score DESC NULLS LAST,
-      last_harvest_at ASC NULLS FIRST
+      score DESC NULLS LAST
     LIMIT $1
   `;
   const res = await pool.query(query, [batchSize, transferSettings.quark, transferSettings.uc]);

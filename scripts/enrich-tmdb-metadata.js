@@ -27,12 +27,15 @@ export async function enrichTmdbMetadata({ batchLimit = 30 } = {}) {
 
   const pool = getDbPool();
 
-  // 1. 扫描库中待补全元数据的条目
+  // 1. 扫描库中待补全元数据的条目 (智能轮转，未探测者优先，避免死循环阻塞队头)
   const pendingRes = await pool.query(`
     SELECT id, title, category, year, score
     FROM resources
     WHERE has_metadata IS NOT TRUE OR poster_url IS NULL OR poster_url = ''
-    ORDER BY created_at DESC
+    ORDER BY
+      CASE WHEN last_harvest_at IS NULL THEN 0 ELSE 1 END ASC,
+      last_harvest_at ASC NULLS FIRST,
+      created_at DESC
     LIMIT $1
   `, [batchLimit]);
 
@@ -88,8 +91,9 @@ export async function enrichTmdbMetadata({ batchLimit = 30 } = {}) {
       console.log(`  ℹ️ TMDB 未匹配到海报，尝试检索备用豆瓣/WMDB 数据源...`);
       const wmdbUrl = `https://api.wmdb.tv/api/v1/movie/search?q=${encodeURIComponent(cleanTitle)}`;
       const wData = curlGetJson(wmdbUrl);
-      if (Array.isArray(wData) && wData.length > 0) {
-        const first = wData[0];
+      const list = Array.isArray(wData) ? wData : (wData?.data || []);
+      if (list.length > 0) {
+        const first = list[0];
         const cn = first.data?.find(d => d.lang === 'Cn') || first.data?.[0] || {};
         if (cn.poster || first.poster) {
           details = {
@@ -204,12 +208,14 @@ export async function enrichTmdbMetadata({ batchLimit = 30 } = {}) {
         console.log(`  ✓ 成功补齐元数据: 《${item.title}》 (${parsedYear} · ${releaseLabel} ${finishLabel})`);
         enrichedCount++;
       } else {
-        console.warn(`  ⚠️ 未能提取到《${item.title}》的有效海报，保留待补状态，暂不生成前台页面`);
+        console.warn(`  ⚠️ 未能提取到《${item.title}》的有效海报，更新巡检时间，轮转至队列后方`);
         failedCount++;
+        await pool.query('UPDATE resources SET last_harvest_at = NOW() WHERE id = $1', [item.id]);
       }
     } else {
-      console.warn(`  ⚠️ 全网暂无《${item.title}》的精确元数据，保持 pending_metadata 状态`);
+      console.warn(`  ⚠️ 全网暂无《${item.title}》的精确元数据，更新巡检时间，轮转至队列后方`);
       failedCount++;
+      await pool.query('UPDATE resources SET last_harvest_at = NOW() WHERE id = $1', [item.id]);
     }
 
     // 适度间隔
