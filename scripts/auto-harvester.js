@@ -5,6 +5,7 @@ import { sendDingTalkCapacityAlert } from './dingtalk-service.js';
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || 'fc3786eb5ea9d4b8c8b09cc89df373b4';
 const TARGET_FOLDER_FID = '8c4fd9e810c643529d1e6fe59b17ea42'; // movie-site
+export const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
 
 function getUcCookie() {
   if (process.env.UC_COOKIE) return process.env.UC_COOKIE.trim();
@@ -30,8 +31,8 @@ async function querySingleShareTitle(keyword) {
   try {
     const isWin = process.platform === 'win32';
     const cmd = isWin 
-      ? `curl.exe -s -H "User-Agent: Mozilla/5.0" -H "Referer: https://gugeso.com/" "${url}"`
-      : `curl -s -H "User-Agent: Mozilla/5.0" -H "Referer: https://gugeso.com/" "${url}"`;
+      ? `curl.exe -s -H "User-Agent: ${BROWSER_UA}" -H "Accept: application/json, text/plain, */*" -H "Referer: https://gugeso.com/" "${url}"`
+      : `curl -s -H "User-Agent: ${BROWSER_UA}" -H "Accept: application/json, text/plain, */*" -H "Referer: https://gugeso.com/" "${url}"`;
     const stdout = execSync(cmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024, timeout: 10000 });
     const items = [];
     for (const l of stdout.split('\n')) {
@@ -109,8 +110,6 @@ export async function searchPublicShares(title) {
   }
   return [];
 }
-
-const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
 
 // 统一的 UC API 网络请求器 (内置 IPv4 降级，彻底解决海外 Linux 节点 IPv6 丢包重置问题)
 async function ucFetch(url, options = {}) {
@@ -568,13 +567,16 @@ export async function searchQuarkShares(title) {
     variants.push(`${base} 第${numMatch[2]}季`, `${base} 第二季`, base);
   }
 
+  // 增加追更常用词与格式拓展
+  variants.push(`${cleanTitle} S01`, `${cleanTitle} 第一季`, `${cleanTitle} 全集`, `${cleanTitle} 4K`);
+
   for (const q of variants) {
     try {
       const url = `https://gugeso.com/api/other/web_search?title=${encodeURIComponent(q)}&is_type=0`;
       const isWin = process.platform === 'win32';
       const cmd = isWin 
-        ? `curl.exe -s -H "User-Agent: Mozilla/5.0" -H "Referer: https://gugeso.com/" "${url}"`
-        : `curl -s -H "User-Agent: Mozilla/5.0" -H "Referer: https://gugeso.com/" "${url}"`;
+        ? `curl.exe -s -H "User-Agent: ${BROWSER_UA}" -H "Accept: application/json, text/plain, */*" -H "Referer: https://gugeso.com/" "${url}"`
+        : `curl -s -H "User-Agent: ${BROWSER_UA}" -H "Accept: application/json, text/plain, */*" -H "Referer: https://gugeso.com/" "${url}"`;
       const stdout = execSync(cmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024, timeout: 10000 });
       const rawItems = [];
       for (const line of stdout.split('\n')) {
@@ -597,7 +599,7 @@ export async function searchQuarkShares(title) {
             headers: {
               'Content-Type': 'application/json',
               'Referer': 'https://gugeso.com/',
-              'User-Agent': 'Mozilla/5.0'
+              'User-Agent': BROWSER_UA
             },
             body: JSON.stringify({ urls: encUrls })
           });
@@ -743,4 +745,88 @@ export async function saveAndShareQuark(title, pwd_id, stoken, list) {
     return match.share_url;
   }
   throw new Error('未能提取到新生成的夸克分享链接');
+}
+
+/**
+ * 深度统计夸克网盘分享中的视频集数（支持最多 2 层嵌套子目录）
+ */
+export async function countQuarkVideosDetailed(pwdId) {
+  try {
+    const inspect = await inspectAndFilterQuarkShare(pwdId);
+    if (!inspect.pass || !inspect.stoken) return { ok: false, count: 0, reason: inspect.reason };
+
+    let totalVideos = 0;
+    const items = inspect.list || [];
+    const cookie = getQuarkCookie();
+
+    for (const it of items) {
+      if (!it.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(it.file_name)) {
+        totalVideos++;
+      } else if (it.dir) {
+        // 第一层子目录
+        const url1 = `https://drive-pc.quark.cn/1/clouddrive/share/sharepage/detail?pr=ucpro&fr=pc&pwd_id=${pwdId}&stoken=${encodeURIComponent(inspect.stoken)}&pdir_fid=${it.fid}&force=0&_page=1&_size=100`;
+        const res1 = await fetch(url1, { headers: { 'Cookie': cookie, 'User-Agent': BROWSER_UA } });
+        const d1 = await res1.json();
+        const l1 = d1.data?.list || [];
+
+        for (const sub of l1) {
+          if (!sub.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(sub.file_name)) {
+            totalVideos++;
+          } else if (sub.dir) {
+            // 第二层子目录 (例如 季/Season 目录)
+            const url2 = `https://drive-pc.quark.cn/1/clouddrive/share/sharepage/detail?pr=ucpro&fr=pc&pwd_id=${pwdId}&stoken=${encodeURIComponent(inspect.stoken)}&pdir_fid=${sub.fid}&force=0&_page=1&_size=100`;
+            const res2 = await fetch(url2, { headers: { 'Cookie': cookie, 'User-Agent': BROWSER_UA } });
+            const d2 = await res2.json();
+            const l2 = d2.data?.list || [];
+            for (const sub2 of l2) {
+              if (!sub2.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(sub2.file_name)) {
+                totalVideos++;
+              }
+            }
+          }
+        }
+      }
+    }
+    return { ok: true, count: totalVideos, inspect };
+  } catch (err) {
+    return { ok: false, count: 0, error: err.message };
+  }
+}
+
+/**
+ * 批量删除夸克网盘指定文件/目录 FID
+ */
+export async function deleteQuarkFiles(fids = []) {
+  if (!fids || fids.length === 0) return { ok: true };
+  try {
+    const headers = getQuarkHeaders();
+    const res = await fetch('https://drive-pc.quark.cn/1/clouddrive/file/delete?pr=ucpro&fr=pc', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ filelist: fids, action_type: 2 })
+    });
+    const data = await res.json();
+    return { ok: data.code === 0 || data.status === 200, data };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+/**
+ * 批量取消/删除夸克个人分享
+ */
+export async function deleteQuarkShares(shareIds = []) {
+  if (!shareIds || shareIds.length === 0) return { ok: true };
+  try {
+    const headers = getQuarkHeaders();
+    const res = await fetch('https://drive-pc.quark.cn/1/clouddrive/share/delete?pr=ucpro&fr=pc', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ share_id_list: shareIds })
+    });
+    const data = await res.json();
+    return { ok: data.code === 0 || data.status === 200, data };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
 }

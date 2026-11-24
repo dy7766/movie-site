@@ -10,7 +10,8 @@ import {
   deleteUcFiles,
   searchQuarkShares,
   inspectAndFilterQuarkShare,
-  saveAndShareQuark
+  saveAndShareQuark,
+  countQuarkVideosDetailed
 } from './auto-harvester.js';
 import { searchCmsStream } from './online-play-monitor.js';
 
@@ -252,9 +253,20 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
       let newSourcePwdId = s.source_pwd_id;
       let episodeUpdated = false;
 
-      // 如果连载剧集发现了更新的集数 (expectedEp > oldCur 且未完结)
-      if (expectedEp > oldCur && !s.is_finished) {
-        console.log(`  🎉 发现最新剧集更新！《${s.title}》官方/切片已播出至第 ${expectedEp} 集 (当前库内: 第 ${oldCur} 集)`);
+      // 检查当前绑定的夸克分享实际物理集数
+      let physicalQuarkCount = oldCur;
+      const curPwdMatch = s.share_link?.match(/\/s\/([a-zA-Z0-9]+)/);
+      if (curPwdMatch && transferSettings.quark) {
+        const curCheck = await countQuarkVideosDetailed(curPwdMatch[1]);
+        if (curCheck.ok) physicalQuarkCount = curCheck.count;
+      }
+
+      const needsQuarkCatchup = transferSettings.quark && (!s.share_link || physicalQuarkCount < expectedEp);
+      const hasNewEpisodes = expectedEp > oldCur;
+
+      // 如果连载剧集发现了新集数或网盘物理资源滞后
+      if ((hasNewEpisodes || needsQuarkCatchup) && !s.is_finished) {
+        console.log(`  🎉 触发连载追踪更新！《${s.title}》官方/切片已播出至第 ${expectedEp} 集 (库内: 第 ${oldCur} 集, 网盘物理文件: ${physicalQuarkCount} 集)`);
 
         let syncSucceeded = false;
 
@@ -266,17 +278,14 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
             console.log(`  🔍 [夸克追更] 正在全网检索《${s.title}》最新夸克分享...`);
             const quarkShares = await searchQuarkShares(s.title);
             let bestQuark = null;
-            let maxQuarkCount = oldCur;
+            let maxQuarkCount = physicalQuarkCount;
 
             for (const sh of quarkShares) {
-              const inspect = await inspectAndFilterQuarkShare(sh.pwd_id);
-              if (inspect.pass && inspect.stoken) {
-                const videoCount = (inspect.list || []).filter(f => f.dir || /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(f.file_name)).length;
-                if (videoCount > maxQuarkCount) {
-                  maxQuarkCount = videoCount;
-                  bestQuark = { share: sh, inspect, videoCount };
-                  if (videoCount >= expectedEp) break;
-                }
+              const check = await countQuarkVideosDetailed(sh.pwd_id);
+              if (check.ok && check.count > maxQuarkCount) {
+                maxQuarkCount = check.count;
+                bestQuark = { share: sh, inspect: check.inspect, videoCount: check.count };
+                if (maxQuarkCount >= expectedEp) break;
               }
             }
 
@@ -285,7 +294,7 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
               const qUrl = await saveAndShareQuark(s.title, bestQuark.share.pwd_id, bestQuark.inspect.stoken, bestQuark.inspect.list);
               if (qUrl) {
                 newQuarkLink = qUrl;
-                effectiveCur = bestQuark.videoCount;
+                effectiveCur = Math.max(bestQuark.videoCount, oldCur);
                 episodeUpdated = true;
                 syncSucceeded = true;
                 console.log(`  ✅ [夸克追更成功] 《${s.title}》已置换为第 ${effectiveCur} 集夸克网盘专属链接！`);
