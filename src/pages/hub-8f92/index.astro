@@ -1,32 +1,7 @@
 ---
-import { getAllMoviesForAdmin, getAnalyticsMetrics, getTransferSettings } from '../../lib/db.js';
-
-// 获取全量影视资源数据、实时转化大盘指标与自动化网盘转存控制配置
-const [allMovies, analyticsMetrics, initialTransferSettings] = await Promise.all([
-  getAllMoviesForAdmin(),
-  getAnalyticsMetrics(),
-  getTransferSettings()
-]);
-
-// 基础统计大盘指标计算
-const totalCount = allMovies.length;
-const readyMetaCount = allMovies.filter(m => m.has_metadata === true).length;
-const pendingMetaCount = allMovies.filter(m => !m.has_metadata).length;
-const ucCount = allMovies.filter(m => !!m.share_link_uc).length;
-const quarkCount = allMovies.filter(m => !!m.share_link).length;
-const playCount = allMovies.filter(m => !!m.online_play_url).length;
-const ongoingSeriesCount = allMovies.filter(m => (m.category === '电视剧' || m.category === '综艺') && m.is_finished === false).length;
-
-// 分类数量汇总
+// 星光影库 · 资产与数据中枢管理后台 (Hub-8f92)
+// 100% 纯动态边缘直连大盘架构：零静态构建数据依赖，所有 KPI 指标、分类统计与全量资源列表均在客户端实时查询 Supabase REST / Edge API
 const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录片'];
-const categoryCounts: Record<string, number> = { 全部: totalCount };
-for (const cat of categories.slice(1)) {
-  categoryCounts[cat] = allMovies.filter(m => m.category === cat).length;
-}
-
-// 格式化数据传递给客户端（避免超长不可序列化数据）
-const serializedMovies = JSON.stringify(allMovies);
-const serializedTransferSettings = JSON.stringify(initialTransferSettings);
 ---
 
 <!doctype html>
@@ -34,7 +9,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>星光影库 · 资产与数据中枢管理后台</title>
+    <title>星光影库 · 资产与数据中枢管理后台 (实时大盘)</title>
     <meta name="robots" content="noindex, nofollow" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- 引入 Hls.js 便于后台直接播放测试 M3U8 视频源 -->
@@ -59,25 +34,34 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
               <span class="text-xs px-2 py-0.5 rounded-full font-mono bg-purple-500/20 text-purple-300 border border-purple-500/30">
                 Data Hub
               </span>
+              <span id="globalLiveBadge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>实时查询模式</span>
+              </span>
             </div>
             <p class="text-[11px] text-slate-400 hidden sm:block">采集资产全景监控 · 资源转存状态 · 门禁就绪大盘</p>
           </div>
         </a>
       </div>
 
-      <div class="flex items-center gap-2.5">
-        <button id="exportCsvBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors shadow-sm">
+      <div class="flex items-center gap-2 sm:gap-2.5">
+        <!-- 名词定义说明按钮 -->
+        <button id="openGlossaryBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 text-indigo-300 border border-indigo-500/40 transition-colors shadow-sm cursor-pointer">
+          <span>💡 数据名词规范</span>
+        </button>
+
+        <button id="exportCsvBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors shadow-sm cursor-pointer">
           <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
-          <span>导出 CSV</span>
+          <span class="hidden sm:inline">导出 CSV</span>
         </button>
 
-        <button id="exportJsonBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors shadow-sm">
+        <button id="exportJsonBtn" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors shadow-sm cursor-pointer">
           <svg class="w-3.5 h-3.5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
-          <span>导出 JSON</span>
+          <span class="hidden sm:inline">导出 JSON</span>
         </button>
 
         <a href="/" target="_blank" class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 border border-orange-500/40 transition-colors shadow-sm">
@@ -91,9 +75,9 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
 
     <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       
-      <!-- 顶部统计 KPI 指标卡片矩阵 -->
+      <!-- 顶部统计 KPI 指标卡片矩阵 (全动态实时计算) -->
       <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
-        <!-- 1. 全库收录 -->
+        <!-- 1. 全库总收录 -->
         <div class="bg-slate-900/80 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-between shadow-sm hover:border-slate-700 transition">
           <div class="flex items-center justify-between">
             <span class="text-xs text-slate-400 font-medium">全库总收录</span>
@@ -104,7 +88,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             </span>
           </div>
           <div class="mt-2 flex items-baseline gap-1.5">
-            <span class="text-2xl font-bold tracking-tight text-white">{totalCount}</span>
+            <span id="kpiTotalCount" class="text-2xl font-bold tracking-tight text-white font-mono animate-pulse">...</span>
             <span class="text-[11px] text-slate-400">部</span>
           </div>
           <span class="text-[10px] text-slate-400 mt-1">豆瓣+TMDB双源汇聚</span>
@@ -121,8 +105,8 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             </span>
           </div>
           <div class="mt-2 flex items-baseline gap-1.5">
-            <span class="text-2xl font-bold tracking-tight text-emerald-300">{readyMetaCount}</span>
-            <span class="text-[11px] text-emerald-500 font-mono">({Math.round(readyMetaCount / (totalCount || 1) * 100)}%)</span>
+            <span id="kpiReadyMetaCount" class="text-2xl font-bold tracking-tight text-emerald-300 font-mono animate-pulse">...</span>
+            <span id="kpiReadyMetaPct" class="text-[11px] text-emerald-500 font-mono">(--%)</span>
           </div>
           <span class="text-[10px] text-emerald-500/80 mt-1">前台可独立访问页面</span>
         </div>
@@ -138,7 +122,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             </span>
           </div>
           <div class="mt-2 flex items-baseline gap-1.5">
-            <span class="text-2xl font-bold tracking-tight text-amber-300">{pendingMetaCount}</span>
+            <span id="kpiPendingMetaCount" class="text-2xl font-bold tracking-tight text-amber-300 font-mono animate-pulse">...</span>
             <span class="text-[11px] text-amber-500">部</span>
           </div>
           <span class="text-[10px] text-amber-500/80 mt-1">门禁隔离 · 待TMDB补齐</span>
@@ -156,7 +140,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             </span>
           </div>
           <div class="mt-2 flex items-baseline gap-1.5">
-            <span class="text-2xl font-bold tracking-tight text-rose-300">{playCount}</span>
+            <span id="kpiPlayCount" class="text-2xl font-bold tracking-tight text-rose-300 font-mono animate-pulse">...</span>
             <span class="text-[11px] text-slate-400">部</span>
           </div>
           <span class="text-[10px] text-rose-400/80 mt-1">免广告 M3U8 秒播流</span>
@@ -171,7 +155,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             </span>
           </div>
           <div class="mt-2 flex items-baseline gap-1.5">
-            <span class="text-2xl font-bold tracking-tight text-cyan-300">{ucCount}</span>
+            <span id="kpiUcCount" class="text-2xl font-bold tracking-tight text-cyan-300 font-mono animate-pulse">...</span>
             <span class="text-[11px] text-cyan-500">部</span>
           </div>
           <span class="text-[10px] text-cyan-400/80 mt-1">带个人 PID 推广返佣</span>
@@ -186,7 +170,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             </span>
           </div>
           <div class="mt-2 flex items-baseline gap-1.5">
-            <span class="text-2xl font-bold tracking-tight text-purple-300">{quarkCount}</span>
+            <span id="kpiQuarkCount" class="text-2xl font-bold tracking-tight text-purple-300 font-mono animate-pulse">...</span>
             <span class="text-[11px] text-purple-500">部</span>
           </div>
           <span class="text-[10px] text-purple-400/80 mt-1">带个人 PID 专属收益</span>
@@ -203,7 +187,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             </span>
           </div>
           <div class="mt-2 flex items-baseline gap-1.5">
-            <span class="text-2xl font-bold tracking-tight text-orange-300">{ongoingSeriesCount}</span>
+            <span id="kpiOngoingSeriesCount" class="text-2xl font-bold tracking-tight text-orange-300 font-mono animate-pulse">...</span>
             <span class="text-[11px] text-orange-500">部</span>
           </div>
           <span class="text-[10px] text-orange-400/80 mt-1">每日定时巡检更新集数</span>
@@ -236,7 +220,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           </div>
 
           <div class="flex items-center gap-2 self-start sm:self-auto text-xs text-slate-400 font-mono" id="transferSettingsUpdatedTime">
-            {initialTransferSettings.updated_at ? `上次变更: ${new Date(initialTransferSettings.updated_at).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}` : ''}
+            正在读取...
           </div>
         </div>
 
@@ -251,9 +235,9 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
               <div class="space-y-1">
                 <div class="flex items-center gap-2">
                   <h4 class="text-sm font-semibold text-slate-100">UC 网盘自动转存</h4>
-                  <span id="ucStatusBadge" class={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${initialTransferSettings.uc ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/10 text-rose-300 border-rose-500/30'}`}>
-                    <span id="ucStatusDot" class={`w-1.5 h-1.5 rounded-full ${initialTransferSettings.uc ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
-                    <span id="ucStatusLabel">{initialTransferSettings.uc ? '运行中 (允许转存)' : '已暂停 (跳过转存)'}</span>
+                  <span id="ucStatusBadge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border bg-slate-800 text-slate-400 border-slate-700">
+                    <span id="ucStatusDot" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                    <span id="ucStatusLabel">检查中...</span>
                   </span>
                 </div>
                 <p class="text-xs text-slate-400 leading-relaxed">
@@ -265,9 +249,8 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
               </div>
             </div>
 
-            <!-- iOS / Tailwind Tactile Toggle (大尺寸高辨识度开关) -->
             <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 select-none">
-              <input type="checkbox" id="ucToggleInput" checked={initialTransferSettings.uc} class="sr-only peer" />
+              <input type="checkbox" id="ucToggleInput" class="sr-only peer" />
               <div class="w-16 h-8 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:bg-gradient-to-r peer-checked:from-cyan-500 peer-checked:to-blue-600 peer-checked:shadow-lg peer-checked:shadow-cyan-500/30 border-2 border-slate-700 peer-checked:border-cyan-400 transition-all duration-300"></div>
               <div class="absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform duration-300 transform peer-checked:translate-x-8 shadow-md pointer-events-none flex items-center justify-center">
                 <span class="w-1.5 h-1.5 rounded-full bg-slate-400 transition-colors"></span>
@@ -284,23 +267,22 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
               <div class="space-y-1">
                 <div class="flex items-center gap-2">
                   <h4 class="text-sm font-semibold text-slate-100">夸克网盘自动转存</h4>
-                  <span id="quarkStatusBadge" class={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border ${initialTransferSettings.quark ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/10 text-rose-300 border-rose-500/30'}`}>
-                    <span id="quarkStatusDot" class={`w-1.5 h-1.5 rounded-full ${initialTransferSettings.quark ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
-                    <span id="quarkStatusLabel">{initialTransferSettings.quark ? '运行中 (允许转存)' : '已暂停 (跳过转存)'}</span>
+                  <span id="quarkStatusBadge" class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border bg-slate-800 text-slate-400 border-slate-700">
+                    <span id="quarkStatusDot" class="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                    <span id="quarkStatusLabel">检查中...</span>
                   </span>
                 </div>
                 <p class="text-xs text-slate-400 leading-relaxed">
                   开启后，流水线将自动将院线大片与热门剧集秒存至 6TB 夸克个人盘并生成专属分佣链接；关闭时跳过夸克转存。
                 </p>
                 <div class="text-[11px] text-purple-400/80 font-mono">
-                  个人空间: 6TB (新扩容) · 推广UID: 100061001997
+                  个人空间: 6TB · 推广UID: 100061001997
                 </div>
               </div>
             </div>
 
-            <!-- iOS / Tailwind Tactile Toggle (大尺寸高辨识度开关) -->
             <label class="relative inline-flex items-center cursor-pointer flex-shrink-0 select-none">
-              <input type="checkbox" id="quarkToggleInput" checked={initialTransferSettings.quark} class="sr-only peer" />
+              <input type="checkbox" id="quarkToggleInput" class="sr-only peer" />
               <div class="w-16 h-8 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:bg-gradient-to-r peer-checked:from-purple-500 peer-checked:to-indigo-600 peer-checked:shadow-lg peer-checked:shadow-purple-500/30 border-2 border-slate-700 peer-checked:border-purple-400 transition-all duration-300"></div>
               <div class="absolute left-1 top-1 bg-white w-6 h-6 rounded-full transition-transform duration-300 transform peer-checked:translate-x-8 shadow-md pointer-events-none flex items-center justify-center">
                 <span class="w-1.5 h-1.5 rounded-full bg-slate-400 transition-colors"></span>
@@ -328,7 +310,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
                 </span>
                 <span id="lastUpdatedTime" class="text-[10px] text-slate-500 font-mono hidden sm:inline"></span>
               </div>
-              <p class="text-[11px] text-slate-400 mt-0.5">全站 PV 访问无感上报 · 夸克与 UC 转存点击归因 · 客户端秒级实时拉取最新转化</p>
+              <p class="text-[11px] text-slate-400 mt-0.5">全站 PV 访问无感上报 · 夸克与 UC 转存点击归因 · 客户端实时拉取最新转化</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
@@ -336,7 +318,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
               <svg id="refreshSpinner" class="w-3.5 h-3.5 text-emerald-400 transition-transform duration-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
-              <span>实时刷新</span>
+              <span>实时全量刷新</span>
             </button>
             <a href="/" target="_blank" class="text-xs px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition">
               前台验证点击 ↗
@@ -353,12 +335,12 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
               <span class="text-xs text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded">Views</span>
             </div>
             <div class="my-2 flex items-baseline gap-2">
-              <span id="metricTotalPv" class="text-2xl font-bold text-white font-mono">{analyticsMetrics.totalPv.toLocaleString()}</span>
+              <span id="metricTotalPv" class="text-2xl font-bold text-white font-mono">--</span>
               <span class="text-[11px] text-slate-400">次浏览</span>
             </div>
             <div class="text-[11px] text-slate-400 flex items-center justify-between">
-              <span id="metricMobilePv">📱 移动端 {analyticsMetrics.deviceBreakdown.mobile}</span>
-              <span id="metricDesktopPv">💻 电脑端 {analyticsMetrics.deviceBreakdown.desktop}</span>
+              <span id="metricMobilePv">📱 移动端 --</span>
+              <span id="metricDesktopPv">💻 电脑端 --</span>
             </div>
           </div>
 
@@ -369,12 +351,12 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
               <span class="text-xs text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">Saves</span>
             </div>
             <div class="my-2 flex items-baseline gap-2">
-              <span id="metricTotalSaves" class="text-2xl font-bold text-amber-300 font-mono">{analyticsMetrics.totalSaves.toLocaleString()}</span>
+              <span id="metricTotalSaves" class="text-2xl font-bold text-amber-300 font-mono">--</span>
               <span class="text-[11px] text-slate-400">次点击</span>
             </div>
             <div class="text-[11px] text-slate-400 flex items-center justify-between">
-              <span id="metricQuarkSaves" class="text-purple-300">夸克: {analyticsMetrics.totalQuark}</span>
-              <span id="metricUcSaves" class="text-cyan-300">UC: {analyticsMetrics.totalUc}</span>
+              <span id="metricQuarkSaves" class="text-purple-300">夸克: --</span>
+              <span id="metricUcSaves" class="text-cyan-300">UC: --</span>
             </div>
           </div>
 
@@ -385,10 +367,10 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
               <span class="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded font-mono">CVR</span>
             </div>
             <div class="my-2 flex items-baseline gap-1.5">
-              <span id="metricSaveRate" class="text-3xl font-extrabold text-orange-400 font-mono">{analyticsMetrics.overallSaveRate}%</span>
+              <span id="metricSaveRate" class="text-3xl font-extrabold text-orange-400 font-mono">--%</span>
             </div>
             <div class="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
-              <div id="metricSaveRateBar" class="bg-gradient-to-r from-orange-500 to-amber-400 h-1.5 rounded-full transition-all duration-500" style={`width: ${Math.min(100, Math.max(0, parseFloat(analyticsMetrics.overallSaveRate)))}%`}></div>
+              <div id="metricSaveRateBar" class="bg-gradient-to-r from-orange-500 to-amber-400 h-1.5 rounded-full transition-all duration-500" style="width: 0%"></div>
             </div>
           </div>
 
@@ -399,11 +381,11 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
               <span class="text-xs text-rose-400 bg-rose-500/10 px-1.5 py-0.5 rounded">Plays</span>
             </div>
             <div class="my-2 flex items-baseline gap-2">
-              <span id="metricTotalPlays" class="text-2xl font-bold text-rose-300 font-mono">{analyticsMetrics.totalPlay.toLocaleString()}</span>
+              <span id="metricTotalPlays" class="text-2xl font-bold text-rose-300 font-mono">--</span>
               <span class="text-[11px] text-slate-400">次播放</span>
             </div>
             <div class="text-[11px] text-slate-400">
-              播放转化率: <span id="metricPlayRate" class="text-rose-400 font-mono font-medium">{analyticsMetrics.overallPlayRate}%</span>
+              播放转化率: <span id="metricPlayRate" class="text-rose-400 font-mono font-medium">--%</span>
             </div>
           </div>
         </div>
@@ -417,7 +399,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
                 <span class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
                   🏆 转存转化率排行榜 (TOP 10)
                 </span>
-                <span class="text-[10px] text-slate-500">按网盘保存量与转化效率排行</span>
+                <span class="text-[10px] text-slate-500">按网盘保存量与转化效率实时排行</span>
               </div>
             </div>
 
@@ -436,48 +418,11 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
                   </tr>
                 </thead>
                 <tbody id="topConvertingTableBody" class="divide-y divide-slate-800/40">
-                  {analyticsMetrics.topConverting.map((item, idx) => (
-                    <tr class="hover:bg-slate-900/50 transition">
-                      <td class="py-2 px-2 text-center font-mono text-slate-500">
-                        {idx < 3 ? (
-                          <span class={`inline-block w-5 h-5 rounded-full text-center leading-5 text-[10px] font-bold ${
-                            idx === 0 ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' :
-                            idx === 1 ? 'bg-slate-300/20 text-slate-200 border border-slate-300/30' :
-                            'bg-orange-500/20 text-orange-300 border border-orange-500/30'
-                          }`}>
-                            {idx + 1}
-                          </span>
-                        ) : (
-                          <span>{idx + 1}</span>
-                        )}
-                      </td>
-                      <td class="py-2 px-3 text-slate-200 font-medium">
-                        <a href={`/movie/${item.id}`} target="_blank" class="hover:text-orange-400 transition hover:underline">
-                          {item.title}
-                        </a>
-                        {item.year && <span class="text-slate-500 font-normal ml-1">({item.year})</span>}
-                      </td>
-                      <td class="py-2 px-2 text-center text-slate-400">
-                        <span class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px]">{item.category}</span>
-                      </td>
-                      <td class="py-2 px-2 text-center font-mono text-slate-300">{item.views || 0}</td>
-                      <td class="py-2 px-2 text-center font-mono text-purple-300">{item.clicks_quark || 0}</td>
-                      <td class="py-2 px-2 text-center font-mono text-cyan-300">{item.clicks_uc || 0}</td>
-                      <td class="py-2 px-2 text-center font-mono text-amber-300 font-bold">{item.total_saves || 0}</td>
-                      <td class="py-2 px-3 text-right">
-                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/30">
-                          {item.save_rate_pct}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  {analyticsMetrics.topConverting.length === 0 && (
-                    <tr>
-                      <td colspan="8" class="text-center py-6 text-slate-500">
-                        暂无转存数据，用户点击转存后此处将自动生成转化排行榜
-                      </td>
-                    </tr>
-                  )}
+                  <tr>
+                    <td colspan="8" class="text-center py-6 text-slate-500 font-mono">
+                      正在实时拉取转化数据...
+                    </td>
+                  </tr>
                 </tbody>
               </table>
             </div>
@@ -490,62 +435,28 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
                 <span class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
                   ⚡ 实时埋点事件流水
                 </span>
-                <span class="text-[10px] text-slate-500">最近上报</span>
+                <span class="text-[10px] text-slate-500">秒级直连 Supabase 流水表</span>
               </div>
 
               <div id="recentEventsList" class="space-y-2 max-h-[320px] overflow-y-auto pr-1">
-                {analyticsMetrics.recentEvents.map((ev) => {
-                  const evLabels = {
-                    page_view: { text: 'PV 浏览', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
-                    click_quark: { text: '夸克保存', color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
-                    click_uc: { text: 'UC保存', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
-                    click_play: { text: '在线播放', color: 'bg-rose-500/20 text-rose-300 border-rose-500/30' }
-                  };
-                  const badge = evLabels[ev.event_type] || { text: ev.event_type, color: 'bg-slate-800 text-slate-400 border-slate-700' };
-                  const timeStr = new Date(ev.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                  return (
-                    <div class="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-900/60 border border-slate-800/50">
-                      <div class="flex items-center gap-2 overflow-hidden">
-                        <span class={`px-1.5 py-0.5 rounded text-[10px] font-medium border flex-shrink-0 ${badge.color}`}>
-                          {badge.text}
-                        </span>
-                        <span class="text-slate-200 truncate text-[11px]" title={ev.resource_title || ev.page_url}>
-                          {ev.resource_title || '星光影库页面'}
-                        </span>
-                      </div>
-                      <div class="flex items-center gap-2 flex-shrink-0 text-[10px] font-mono text-slate-400">
-                        {ev.ip && (
-                          <span class="px-1.5 py-0.5 rounded bg-slate-800/80 text-slate-300 border border-slate-700/60" title={ev.location || ''}>
-                            📍 {ev.ip}{ev.location ? ` (${ev.location.split(',')[0]})` : ''}
-                          </span>
-                        )}
-                        <span>{ev.device === 'mobile' ? '📱' : '💻'}</span>
-                        <span class="text-slate-500">{timeStr}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-                {analyticsMetrics.recentEvents.length === 0 && (
-                  <div class="text-center py-10 text-slate-500 text-xs">
-                    <p>等待第一条埋点上报...</p>
-                    <p class="text-[11px] text-slate-600 mt-1">访客浏览或点击转存时自动上报并实时写入流水</p>
-                  </div>
-                )}
+                <div class="text-center py-10 text-slate-500 text-xs">
+                  <p>正在读取最近上报事件...</p>
+                </div>
               </div>
             </div>
 
             <div class="pt-3 border-t border-slate-800/60 mt-3 text-[11px] text-slate-400 flex items-center justify-between">
               <span>实时客户端直连通道</span>
-              <span class="text-emerald-400 font-mono">Supabase REST (秒级)</span>
+              <span class="text-emerald-400 font-mono">Supabase REST / Cloudflare Functions</span>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- 搜索、分类与多维过滤控制器 -->
-      <section class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 space-y-4">
+      <!-- 搜索、分类与全属性多维组合检索控制器 -->
+      <section class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
         <!-- 分类快速标签切换 -->
-        <div class="flex flex-wrap items-center gap-2 border-b border-slate-800/80 pb-3">
+        <div class="flex flex-wrap items-center gap-2 border-b border-slate-800/80 pb-3.5">
           <span class="text-xs font-semibold text-slate-400 mr-2 flex items-center gap-1">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
@@ -556,20 +467,20 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             <button 
               type="button" 
               data-cat-btn={cat}
-              class={`cat-filter-btn px-3 py-1 rounded-lg text-xs font-medium transition-all duration-200 border ${
+              class={`cat-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border cursor-pointer ${
                 cat === '全部' 
                   ? 'bg-orange-500/20 text-orange-300 border-orange-500/40 shadow-sm' 
                   : 'bg-slate-800/60 text-slate-300 border-slate-700/60 hover:bg-slate-800 hover:text-white'
               }`}
             >
-              {cat} <span class="text-[10px] opacity-75 font-mono ml-1">({categoryCounts[cat]})</span>
+              {cat} <span id={`catCount_${cat}`} class="text-[10px] opacity-75 font-mono ml-1">(--)</span>
             </button>
           ))}
         </div>
 
-        <!-- 详细条件过滤栏 -->
+        <!-- 主检索栏：全属性通用搜索 + 快捷状态 + 排序 + 高级面板开关 -->
         <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          <!-- 实时关键词搜索 -->
+          <!-- 实时关键词全属性搜索 -->
           <div class="md:col-span-5 relative">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -579,7 +490,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             <input 
               type="text" 
               id="searchInput" 
-              placeholder="快速搜索片名、演员、年份、国家或原始译名..." 
+              placeholder="全属性搜索：片名 / 英文原名 / 主演 / 简介 / 国家 / 年份 / UUID / 链接 / 上游ID..." 
               class="w-full pl-9 pr-9 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-orange-500/70 focus:ring-1 focus:ring-orange-500/50 transition-all"
             />
             <button id="clearSearchBtn" class="hidden absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300">
@@ -589,48 +500,60 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             </button>
           </div>
 
-          <!-- 状态筛选 -->
+          <!-- 快捷状态筛选 -->
           <div class="md:col-span-3">
-            <select id="statusFilter" class="w-full py-2 px-3 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-orange-500/70">
-              <option value="all">资产状态: 全部 ({totalCount})</option>
-              <option value="ready">✅ 元数据已就绪 (已发布 {readyMetaCount})</option>
-              <option value="pending">⏳ 待补元数据 (种子池 {pendingMetaCount})</option>
-              <option value="has_play">🎬 有在线播放源 ({playCount})</option>
-              <option value="has_uc">📦 有 UC 网盘转存 ({ucCount})</option>
-              <option value="has_quark">⚡ 有夸克网盘转存 ({quarkCount})</option>
-              <option value="ongoing">📺 连载更新中 ({ongoingSeriesCount})</option>
+            <select id="statusFilter" class="w-full py-2 px-3 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-orange-500/70 cursor-pointer">
+              <option value="all">核心状态: 全部</option>
+              <option value="ready">✅ 元数据已就绪 (已发布)</option>
+              <option value="pending">⏳ 待补元数据 (种子池)</option>
+              <option value="has_play">🎬 有在线播放源</option>
+              <option value="has_quark">⚡ 有夸克网盘转存</option>
+              <option value="has_uc">📦 有 UC 网盘转存</option>
+              <option value="ongoing">📺 连载更新中</option>
+              <option value="finished">🏁 已完结完整版</option>
               <option value="missing_res">⚠️ 暂无任何资源</option>
             </select>
           </div>
 
-          <!-- 排序依据 -->
+          <!-- 排序规则 -->
           <div class="md:col-span-2">
-            <select id="sortBy" class="w-full py-2 px-3 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-orange-500/70">
-              <option value="year_score_created" selected>发布年份+评分+更新 ↓ (最新优先)</option>
-              <option value="saves_desc">🔥 网盘转存转化: 从高到低</option>
-              <option value="views_desc">浏览热度: 从高到低</option>
-              <option value="created_desc">入库时间: 最新优先</option>
-              <option value="score_desc">口碑评分: 从高到低</option>
-              <option value="year_desc">上映年份: 最新优先</option>
+            <select id="sortBy" class="w-full py-2 px-3 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-orange-500/70 cursor-pointer">
+              <option value="year_score_created" selected>发布排序: 年份+评分+入库 ↓</option>
+              <option value="saves_desc">🔥 网盘转存量: 从高到低</option>
+              <option value="views_desc">👁️ 浏览热度: 从高到低</option>
+              <option value="created_desc">⏱️ 入库时间: 最新优先</option>
+              <option value="created_asc">⏱️ 入库时间: 最早优先</option>
+              <option value="updated_desc">🔄 追更时间: 最近更新</option>
+              <option value="score_desc">🌟 口碑评分: 从高到低</option>
+              <option value="year_desc">📅 上映年份: 最新优先</option>
+              <option value="episodes_desc">📺 连载集数: 从多到少</option>
             </select>
           </div>
 
-          <!-- 视图模式切换与每页条数 -->
+          <!-- 高级属性组合筛选开关与视图切换 -->
           <div class="md:col-span-2 flex items-center justify-end gap-2">
+            <button id="toggleAdvancedFilterBtn" type="button" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
+              <svg class="w-3.5 h-3.5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              <span>属性筛选</span>
+              <span id="activeFilterBadge" class="hidden px-1.5 py-0.2 rounded-full bg-orange-500 text-white font-mono text-[10px]">0</span>
+            </button>
+
             <div class="flex items-center rounded-lg bg-slate-950 border border-slate-800 p-0.5">
-              <button id="viewTableBtn" title="表格紧凑视图" class="px-2 py-1 rounded text-xs transition bg-orange-500 text-white">
+              <button id="viewTableBtn" title="表格紧凑视图" class="px-2 py-1 rounded text-xs transition bg-orange-500 text-white cursor-pointer">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                 </svg>
               </button>
-              <button id="viewGridBtn" title="视觉卡片视图" class="px-2 py-1 rounded text-xs transition text-slate-400 hover:text-white">
+              <button id="viewGridBtn" title="视觉卡片视图" class="px-2 py-1 rounded text-xs transition text-slate-400 hover:text-white cursor-pointer">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                 </svg>
               </button>
             </div>
             
-            <select id="pageSizeSelect" class="py-1.5 px-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300">
+            <select id="pageSizeSelect" class="py-1.5 px-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300 cursor-pointer">
               <option value="20">20 条/页</option>
               <option value="50" selected>50 条/页</option>
               <option value="100">100 条/页</option>
@@ -638,15 +561,115 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             </select>
           </div>
         </div>
+
+        <!-- 可折叠的【全部属性高阶组合检索器】 -->
+        <div id="advancedFilterPanel" class="hidden pt-3 border-t border-slate-800/80 space-y-3">
+          <div class="flex items-center justify-between text-xs text-slate-400">
+            <span class="font-bold text-slate-200 flex items-center gap-1.5">
+              <span>🎯 全属性高级组合过滤器</span>
+              <span class="text-[11px] text-slate-500 font-normal">支持按系统任一属性进行交叉匹配</span>
+            </span>
+            <button id="resetFiltersBtn" class="text-orange-400 hover:text-orange-300 flex items-center gap-1 text-xs cursor-pointer">
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+              <span>重置所有筛选</span>
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 text-xs">
+            <!-- 1. 门禁状态 -->
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-400 font-medium">门禁/元数据</label>
+              <select id="advFilterMeta" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
+                <option value="all">全部</option>
+                <option value="ready">✅ 已过审就绪</option>
+                <option value="pending">⏳ 待补元数据</option>
+              </select>
+            </div>
+
+            <!-- 2. 上映公映状态 -->
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-400 font-medium">上映状态</label>
+              <select id="advFilterReleased" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
+                <option value="all">全部</option>
+                <option value="released">🎬 已上映公映</option>
+                <option value="unreleased">⏳ 待上映预告</option>
+              </select>
+            </div>
+
+            <!-- 3. 完结状态 -->
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-400 font-medium">连载完结</label>
+              <select id="advFilterFinished" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
+                <option value="all">全部</option>
+                <option value="ongoing">🔥 连载追更中</option>
+                <option value="finished">🏁 已完结</option>
+              </select>
+            </div>
+
+            <!-- 4. 夸克网盘 -->
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-400 font-medium">夸克网盘</label>
+              <select id="advFilterQuark" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
+                <option value="all">全部</option>
+                <option value="has">⚡ 已挂载夸克</option>
+                <option value="none">❌ 未挂载夸克</option>
+              </select>
+            </div>
+
+            <!-- 5. UC 网盘 -->
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-400 font-medium">UC 网盘</label>
+              <select id="advFilterUc" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
+                <option value="all">全部</option>
+                <option value="has">📦 已挂载 UC</option>
+                <option value="none">❌ 未挂载 UC</option>
+              </select>
+            </div>
+
+            <!-- 6. 在线切片流 -->
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-400 font-medium">在线播放源</label>
+              <select id="advFilterPlay" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
+                <option value="all">全部</option>
+                <option value="has">▶️ 有切片流</option>
+                <option value="none">❌ 无切片流</option>
+              </select>
+            </div>
+
+            <!-- 7. 上游搜源溯源 -->
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-400 font-medium">上游采集源</label>
+              <select id="advFilterSource" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
+                <option value="all">全部</option>
+                <option value="has">🔍 有 source_pwd_id</option>
+                <option value="none">❌ 无采集源记录</option>
+              </select>
+            </div>
+
+            <!-- 8. 评分区间 -->
+            <div class="space-y-1">
+              <label class="text-[11px] text-slate-400 font-medium">口碑评分</label>
+              <select id="advFilterScore" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
+                <option value="all">全部评分</option>
+                <option value="9">🌟 9.0 分以上</option>
+                <option value="8">⭐ 8.0 ~ 8.9 分</option>
+                <option value="7">📈 7.0 ~ 7.9 分</option>
+                <option value="6">📉 6.0 ~ 6.9 分</option>
+                <option value="under6">🔻 6.0 分以下</option>
+                <option value="none">⚪ 暂无评分</option>
+              </select>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- 结果状态统计条 -->
       <div class="flex items-center justify-between text-xs text-slate-400 px-1">
         <div id="filterResultSummary">
-          正在展示全部 <span class="text-orange-400 font-bold font-mono">{totalCount}</span> 部影视数据
+          正在加载实时数据...
         </div>
         <div class="text-[11px] text-slate-500">
-          💡 点击任意行可打开详情抽屉查看 M3U8 在线点播测试与原始 JSON
+          💡 点击任意行可打开抽屉查看【库内元数据】、【个人盘资产】与【上游采集源】详情
         </div>
       </div>
 
@@ -668,7 +691,16 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
               </tr>
             </thead>
             <tbody id="tableBody" class="divide-y divide-slate-800/60 font-normal">
-              <!-- 由客户端 JavaScript 动态高效渲染 -->
+              <tr>
+                <td colspan="9" class="text-center py-16 text-slate-500">
+                  <div class="flex flex-col items-center gap-3">
+                    <svg class="w-6 h-6 text-orange-400 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span>正在实时直连数据库检索全量资源...</span>
+                  </div>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
@@ -676,20 +708,83 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
 
       <!-- 数据主容器：卡片网格视图 (默认隐藏) -->
       <section id="gridViewWrapper" class="hidden grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3.5">
-        <!-- 由客户端 JavaScript 动态渲染 -->
       </section>
 
       <!-- 分页导航栏 -->
       <section id="paginationWrapper" class="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2 pb-8 border-t border-slate-800/80">
         <div id="paginationInfo" class="text-xs text-slate-400">
-          显示第 1 到 50 条，共 320 条
+          正在计算实时分页...
         </div>
         <div id="paginationButtons" class="flex items-center gap-1.5">
-          <!-- 动态注入分页按钮 -->
         </div>
       </section>
 
     </main>
+
+    <!-- 💡 数据架构名词规范弹窗 (Glossary Modal) -->
+    <div id="glossaryModal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+      <div class="bg-slate-900 border border-slate-700/80 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl relative my-auto animate-in fade-in duration-200">
+        <div class="px-6 py-4 bg-slate-950/90 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="text-base">💡</span>
+            <h3 class="text-base font-bold text-white">星光影库 · 数据架构名词释义与分层规范</h3>
+          </div>
+          <button id="closeGlossaryBtn" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        </div>
+
+        <div class="p-6 space-y-4 text-xs leading-relaxed max-h-[75vh] overflow-y-auto">
+          <!-- 概念 1 -->
+          <div class="p-4 rounded-xl bg-slate-950/70 border border-indigo-500/30 space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-bold font-mono">1. 库内影视元数据 (Catalog Metadata)</span>
+            </div>
+            <p class="text-slate-300">
+              <strong>定义：</strong>保存在系统 Supabase 数据库 <code class="text-amber-300">resources</code> 表中的影视本体全量信息。
+            </p>
+            <p class="text-slate-400">
+              <strong>包含字段：</strong>片名 (title)、原名 (original_title)、分类 (category)、年份 (year)、评分 (score)、公映状态 (is_released)、完结状态 (is_finished)、连载集数 (current_episode/total_episodes)、简介、海报海量剧照及门禁过审标识 (has_metadata)。
+            </p>
+            <p class="text-slate-400">
+              <strong>职责：</strong>描述影视本体客观属性，是前台展现、检索、SEO 渲染的唯一基石。
+            </p>
+          </div>
+
+          <!-- 概念 2 -->
+          <div class="p-4 rounded-xl bg-slate-950/70 border border-emerald-500/30 space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold font-mono">2. 自有网盘转存资产 (Personal Drive Assets)</span>
+            </div>
+            <p class="text-slate-300">
+              <strong>定义：</strong>由自动化流水线秒存并实际持久化保存在站长/官方个人网盘（夸克/UC）目录内的物理目录与视频文件实体。
+            </p>
+            <p class="text-slate-400">
+              <strong>包含字段：</strong>夸克专属分佣链接 (<code class="text-purple-300">share_link</code>)、UC 专属分佣链接 (<code class="text-cyan-300">share_link_uc</code>)、UC 个人目录 FID (<code class="text-cyan-300">uc_fid</code>)、夸克物理文件集数。
+            </p>
+            <p class="text-slate-400">
+              <strong>职责：</strong>资源完全受自身掌控，带官方推广分佣 PID，用户点击转存即是保存此资产。
+            </p>
+          </div>
+
+          <!-- 概念 3 -->
+          <div class="p-4 rounded-xl bg-slate-950/70 border border-amber-500/30 space-y-2">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold font-mono">3. 上游公开分享源 (Upstream Public Sources)</span>
+            </div>
+            <p class="text-slate-300">
+              <strong>定义：</strong>全网第三方用户、压制组发布在公网上的原始网盘分享（如通过搜源接口抓取的链接）。
+            </p>
+            <p class="text-slate-400">
+              <strong>包含字段：</strong>原始提取码 ID (<code class="text-amber-300">source_pwd_id</code>)。
+            </p>
+            <p class="text-slate-400">
+              <strong>职责：</strong>仅作为自动秒存流水线的“输入原料”。因其存在随时失效、广告篡改风险，<strong>严禁直接向前台普通用户展示</strong>，仅在后台用于溯源与比对。
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- 影视详情与探活诊断抽屉 (Modal) -->
     <div id="detailModal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
@@ -705,7 +800,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             </h3>
             <span class="text-xs text-slate-400" id="modalYear">2026</span>
           </div>
-          <button id="closeModalBtn" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition">
+          <button id="closeModalBtn" class="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 transition cursor-pointer">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -714,163 +809,225 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
 
         <!-- 弹窗主体内容 -->
         <div class="p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-          <!-- 核心信息卡 -->
-          <div class="flex flex-col sm:flex-row gap-5">
-            <img id="modalPoster" src="" alt="海报" class="w-32 h-48 rounded-xl object-cover bg-slate-800 border border-slate-700 shadow-md flex-shrink-0" />
-            
-            <div class="flex-1 space-y-2 text-xs">
-              <div class="flex items-center gap-2">
-                <span class="text-slate-400">UUID:</span>
-                <span id="modalId" class="font-mono text-slate-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 select-all"></span>
-                <button class="copy-btn text-orange-400 hover:text-orange-300" data-copy-target="modalId" title="复制 ID">📋</button>
-              </div>
+          <!-- 概念分层板块 1：库内影视元数据 -->
+          <div class="space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+              <span class="text-xs font-bold text-indigo-400 flex items-center gap-1.5">
+                <span>🏷️ 【1. 库内影视元数据】(Catalog Metadata)</span>
+              </span>
+              <span id="modalMetaBadge"></span>
+            </div>
 
-              <div class="flex items-center gap-2">
-                <span class="text-slate-400">原始片名:</span>
-                <span id="modalOriginalTitle" class="text-slate-200"></span>
-              </div>
+            <div class="flex flex-col sm:flex-row gap-4">
+              <img id="modalPoster" src="" alt="海报" class="w-28 h-40 rounded-xl object-cover bg-slate-800 border border-slate-700 shadow-md flex-shrink-0" />
+              
+              <div class="flex-1 space-y-1.5 text-xs">
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400">UUID:</span>
+                  <span id="modalId" class="font-mono text-slate-300 bg-slate-950 px-2 py-0.5 rounded border border-slate-800 select-all"></span>
+                  <button class="copy-btn text-orange-400 hover:text-orange-300 cursor-pointer" data-copy-target="modalId" title="复制 ID">📋</button>
+                </div>
 
-              <div class="flex items-center gap-2">
-                <span class="text-slate-400">豆瓣/TMDB评分:</span>
-                <span id="modalScore" class="text-amber-400 font-bold text-sm"></span>
-              </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400">原始片名:</span>
+                  <span id="modalOriginalTitle" class="text-slate-200"></span>
+                </div>
 
-              <div class="flex items-center gap-2">
-                <span class="text-slate-400">门禁状态:</span>
-                <span id="modalMetaBadge"></span>
-              </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400">综合评分:</span>
+                  <span id="modalScore" class="text-amber-400 font-bold text-sm"></span>
+                  <span class="text-slate-500 ml-2">地区:</span>
+                  <span id="modalCountry" class="text-slate-300"></span>
+                </div>
 
-              <div>
-                <span class="text-slate-400">主演阵容:</span>
-                <span id="modalActors" class="text-slate-300 ml-1"></span>
-              </div>
+                <div class="flex items-center gap-2">
+                  <span class="text-slate-400">排期进度:</span>
+                  <span id="modalSeriesStatus" class="text-slate-200 font-mono"></span>
+                </div>
 
-              <div>
-                <span class="text-slate-400">剧情简介:</span>
-                <p id="modalIntro" class="text-slate-300 line-clamp-3 mt-0.5 bg-slate-950/50 p-2 rounded-lg border border-slate-800/60 leading-relaxed"></p>
+                <div>
+                  <span class="text-slate-400">主演阵容:</span>
+                  <span id="modalActors" class="text-slate-300 ml-1"></span>
+                </div>
+
+                <div>
+                  <span class="text-slate-400">剧情简介:</span>
+                  <p id="modalIntro" class="text-slate-300 line-clamp-2 mt-0.5 bg-slate-950/50 p-2 rounded-lg border border-slate-800/60 leading-relaxed"></p>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- 资源与播放探活控制台 -->
+          <!-- 概念分层板块 2：自有网盘转存资产 -->
           <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-3">
-            <h4 class="text-xs font-semibold text-slate-300 flex items-center gap-1.5 uppercase tracking-wide">
-              <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-              </svg>
-              <span>资源与播放源探活直达</span>
-            </h4>
+            <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <span class="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                <span>💾 【2. 自有网盘转存资产】(Personal Drive Assets)</span>
+              </span>
+              <span class="text-[10px] text-slate-500">带站长专属推广返佣 PID · 个人盘稳定直链</span>
+            </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <!-- UC 转存 -->
-              <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between space-y-2">
-                <div class="flex items-center justify-between">
-                  <span class="text-xs font-medium text-cyan-400">UC 网盘</span>
-                  <span id="modalUcStatus" class="text-[10px]"></span>
-                </div>
-                <div class="flex items-center gap-1.5">
-                  <a id="modalUcLink" href="#" target="_blank" class="flex-1 text-center py-1 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 text-xs rounded border border-cyan-500/30 transition">
-                    打开链接
-                  </a>
-                  <button id="modalUcCopy" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-700" title="复制链接">
-                    复制
-                  </button>
-                </div>
-              </div>
-
               <!-- 夸克转存 -->
               <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between space-y-2">
                 <div class="flex items-center justify-between">
-                  <span class="text-xs font-medium text-purple-400">夸克网盘</span>
+                  <span class="text-xs font-medium text-purple-400">夸克专属转存</span>
                   <span id="modalQuarkStatus" class="text-[10px]"></span>
                 </div>
                 <div class="flex items-center gap-1.5">
                   <a id="modalQuarkLink" href="#" target="_blank" class="flex-1 text-center py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 text-xs rounded border border-purple-500/30 transition">
                     打开链接
                   </a>
-                  <button id="modalQuarkCopy" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-700" title="复制链接">
+                  <button id="modalQuarkCopy" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-700 cursor-pointer" title="复制链接">
                     复制
                   </button>
                 </div>
               </div>
 
-              <!-- 在线播放源 -->
+              <!-- UC 转存 -->
+              <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between space-y-2">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-medium text-cyan-400">UC 专属转存</span>
+                  <span id="modalUcStatus" class="text-[10px]"></span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                  <a id="modalUcLink" href="#" target="_blank" class="flex-1 text-center py-1 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 text-xs rounded border border-cyan-500/30 transition">
+                    打开链接
+                  </a>
+                  <button id="modalUcCopy" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-700 cursor-pointer" title="复制链接">
+                    复制
+                  </button>
+                </div>
+              </div>
+
+              <!-- 在线播放切片 -->
               <div class="bg-slate-900 border border-slate-800 rounded-lg p-2.5 flex flex-col justify-between space-y-2">
                 <div class="flex items-center justify-between">
                   <span class="text-xs font-medium text-rose-400">M3U8 在线切片</span>
                   <span id="modalPlayStatus" class="text-[10px]"></span>
                 </div>
                 <div class="flex items-center gap-1.5">
-                  <button id="modalPlayTestBtn" class="flex-1 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 text-xs rounded border border-rose-500/30 transition">
-                    ▶️ 测试点播
+                  <button id="modalPlayTestBtn" class="flex-1 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 text-xs rounded border border-rose-500/30 transition cursor-pointer">
+                    点播测试 ▶
                   </button>
-                  <button id="modalPlayCopy" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-700" title="复制 M3U8 流地址">
+                  <button id="modalPlayCopy" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs rounded border border-slate-700 cursor-pointer" title="复制链接">
                     复制
                   </button>
                 </div>
               </div>
             </div>
 
-            <!-- 内嵌 HLS 播放器容器 (点击测试点播时展开) -->
-            <div id="playerSection" class="hidden space-y-2 pt-2 border-t border-slate-800">
-              <div class="flex items-center justify-between">
-                <span class="text-[11px] text-slate-400 font-mono" id="currentStreamUrl"></span>
-                <button id="closePlayerBtn" class="text-[11px] text-rose-400 hover:text-rose-300">关闭播放</button>
-              </div>
-              <video id="hlsVideo" controls class="w-full h-56 bg-black rounded-lg border border-slate-800"></video>
+            <!-- 转化数据指标 -->
+            <div class="flex items-center gap-4 text-[11px] text-slate-400 font-mono pt-1">
+              <span>👁️ 浏览: <strong id="modalViews" class="text-slate-200">0</strong></span>
+              <span>⚡ 夸克保存: <strong id="modalClicksQuark" class="text-purple-300">0</strong></span>
+              <span>💾 UC保存: <strong id="modalClicksUc" class="text-cyan-300">0</strong></span>
+              <span>▶️ 点播: <strong id="modalClicksPlay" class="text-rose-300">0</strong></span>
             </div>
           </div>
 
-          <!-- 剧照画廊缩略图 (如果有) -->
+          <!-- 概念分层板块 3：上游公开分享源溯源 -->
+          <div class="bg-slate-950/70 border border-slate-800 rounded-xl p-4 space-y-2.5">
+            <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <span class="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+                <span>🔍 【3. 上游公开分享源】(Upstream Public Sources)</span>
+              </span>
+              <span class="text-[10px] text-slate-500">仅供溯源核验 · 绝不向前台暴露</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div class="flex items-center gap-2">
+                <span class="text-slate-400">原始采集 pwd_id:</span>
+                <span id="modalSourcePwdId" class="font-mono text-slate-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 select-all">无记录</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-slate-400">UC 个人目录 FID:</span>
+                <span id="modalUcFid" class="font-mono text-slate-300 bg-slate-900 px-2 py-0.5 rounded border border-slate-800 select-all">无</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-slate-400">最近搜源秒存时间:</span>
+                <span id="modalHarvestTime" class="font-mono text-slate-400">-</span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-slate-400">最近剧集更新时间:</span>
+                <span id="modalEpUpdateTime" class="font-mono text-slate-400">-</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 嵌入式 HLS 播放器 -->
+          <div id="playerSection" class="hidden bg-black/90 rounded-xl p-3 border border-rose-500/30 space-y-2">
+            <div class="flex items-center justify-between text-xs pb-1 border-b border-slate-800">
+              <span class="text-rose-400 font-bold flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+                <span>HLS 切片流秒播测试 (前台画质直检)</span>
+              </span>
+              <button id="closePlayerBtn" class="text-slate-400 hover:text-white px-2 py-0.5 rounded hover:bg-slate-800 cursor-pointer">关闭播放</button>
+            </div>
+            <video id="hlsVideo" controls class="w-full aspect-video rounded-lg bg-black"></video>
+            <div class="text-[10px] font-mono text-slate-500 truncate" id="currentStreamUrl"></div>
+          </div>
+
+          <!-- 剧照画廊 -->
           <div id="modalStillsSection" class="hidden space-y-2">
-            <h4 class="text-xs font-semibold text-slate-300">官方高清剧照画廊</h4>
+            <h4 class="text-xs font-semibold text-slate-400">剧照物料</h4>
             <div id="modalStillsGrid" class="flex gap-2 overflow-x-auto pb-2"></div>
           </div>
 
-          <!-- 原始 JSON 调试视窗 -->
-          <details class="bg-slate-950/80 border border-slate-800 rounded-xl p-3 text-xs">
-            <summary class="cursor-pointer text-slate-400 hover:text-slate-200 font-mono">
-              查看数据库原始 JSON 结构体 (Raw Record)
-            </summary>
-            <pre id="modalRawJson" class="mt-3 p-3 bg-slate-900 rounded-lg text-slate-300 font-mono text-[11px] overflow-x-auto max-h-52 select-all"></pre>
+          <!-- 原始 JSON 查看折叠 -->
+          <details class="text-xs bg-slate-950 rounded-xl p-3 border border-slate-800">
+            <summary class="cursor-pointer text-slate-400 hover:text-slate-200 font-mono">展开查看原始完整数据 JSON</summary>
+            <pre id="modalRawJson" class="mt-3 p-3 bg-slate-900 rounded-lg overflow-x-auto text-[11px] font-mono text-emerald-400/90 leading-tight max-h-60"></pre>
           </details>
         </div>
 
-        <!-- 弹窗底栏 -->
-        <div class="px-6 py-3 bg-slate-950/90 border-t border-slate-800 flex items-center justify-between">
-          <div class="text-[11px] text-slate-500" id="modalCreatedAt">入库时间: -</div>
-          <div class="flex items-center gap-2">
-            <a id="modalFrontLink" href="#" target="_blank" class="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition shadow">
-              在前台网页中查看 ↗
-            </a>
-          </div>
+        <div class="px-6 py-3 bg-slate-950/80 border-t border-slate-800 flex items-center justify-between">
+          <a id="modalFrontLink" href="#" target="_blank" class="text-xs text-orange-400 hover:underline flex items-center gap-1">
+            <span>在前台打开该影视页面</span>
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          </a>
+          <button id="closeModalBottomBtn" class="px-4 py-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg transition cursor-pointer">
+            关闭
+          </button>
         </div>
       </div>
     </div>
 
-    <!-- 浮动提示 Toast -->
-    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-10 opacity-0 pointer-events-none transition-all duration-300 px-4 py-2.5 rounded-xl bg-slate-800/95 border border-slate-700 text-slate-100 text-xs shadow-xl flex items-center gap-2">
-      <span id="toastIcon">📋</span>
-      <span id="toastMsg">已复制到剪贴板</span>
+    <!-- 简易 Toast 提示组件 -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-10 opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900/95 border border-slate-700 text-slate-100 text-xs shadow-2xl backdrop-blur-md">
+      <span id="toastIcon">✅</span>
+      <span id="toastMsg">操作已执行</span>
     </div>
 
-    <!-- 原始全量数据安全存放在客户端供即时秒级检索 -->
-    <script id="allMoviesData" type="application/json" set:html={serializedMovies}></script>
-    <script id="transferSettingsData" type="application/json" set:html={serializedTransferSettings}></script>
-
+    <!-- 客户端核心逻辑：100% 实时查询与全属性多维检索 -->
     <script is:inline>
-      // 客户端管理面板核心逻辑
-      const rawMovies = JSON.parse(document.getElementById('allMoviesData').textContent);
+      const SUPABASE_BASE_URL = 'https://oncktqesgpjsilngtcok.supabase.co/rest/v1';
+      const SUPABASE_PUB_KEY = 'sb_publishable_pQLb1OOxod2ibn_i1QqoJg_lt9FZPTH';
+
+      // 实时全量数据存储 (在客户端内存中，毫秒级响应全部属性筛选)
+      let rawMovies = [];
       
       let state = {
-        movies: [...rawMovies],
+        movies: [],
         currentCategory: '全部',
-        currentStatus: 'all',
+        quickStatus: 'all',
         searchTerm: '',
         sortBy: 'year_score_created',
         pageSize: 50,
         currentPage: 1,
         viewMode: 'table', // 'table' or 'grid'
+        // 全属性高级过滤器
+        filters: {
+          meta: 'all',
+          released: 'all',
+          finished: 'all',
+          quark: 'all',
+          uc: 'all',
+          play: 'all',
+          source: 'all',
+          score: 'all',
+          year: 'all'
+        }
       };
 
       let hlsInstance = null;
@@ -889,6 +1046,9 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
       const pageSizeSelect = document.getElementById('pageSizeSelect');
       const viewTableBtn = document.getElementById('viewTableBtn');
       const viewGridBtn = document.getElementById('viewGridBtn');
+      const toggleAdvancedFilterBtn = document.getElementById('toggleAdvancedFilterBtn');
+      const advancedFilterPanel = document.getElementById('advancedFilterPanel');
+      const activeFilterBadge = document.getElementById('activeFilterBadge');
 
       // Toast 提醒函数
       function showToast(msg, icon = '✅') {
@@ -901,7 +1061,6 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
         }, 2200);
       }
 
-      // 复制工具函数
       function copyToClipboard(text, successMsg = '已复制到剪贴板') {
         navigator.clipboard.writeText(text).then(() => {
           showToast(successMsg, '📋');
@@ -910,7 +1069,109 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
         });
       }
 
-      // 数据筛选与排序核心函数
+      // ==========================================
+      // 1. 核心实时数据拉取引擎 (从不走静态缓存)
+      // ==========================================
+      async function fetchLiveResources() {
+        const statusSummary = document.getElementById('filterResultSummary');
+        if (statusSummary) {
+          statusSummary.innerHTML = '<span class="text-orange-400 animate-pulse font-mono">正在实时拉取数据库全量影视资产...</span>';
+        }
+
+        try {
+          let fetchedItems = null;
+
+          // 优先尝试 Cloudflare Pages 边缘专用接口 /api/admin/resources
+          try {
+            const edgeRes = await fetch('/api/admin/resources?limit=4000', { cache: 'no-store' });
+            if (edgeRes.ok) {
+              const edgeData = await edgeRes.json();
+              if (edgeData.success && Array.isArray(edgeData.resources)) {
+                fetchedItems = edgeData.resources;
+              }
+            }
+          } catch (_) {}
+
+          // 降级兜底：直连 Supabase REST API (全球 CDN 毫秒级)
+          if (!fetchedItems) {
+            const selectCols = [
+              'id', 'title', 'original_title', 'poster_url', 'category', 'tags',
+              'year', 'score', 'actors', 'intro', 'drive_type', 'share_link',
+              'views', 'saves', 'created_at', 'country', 'stills',
+              'online_play_url', 'play_sources', 'share_link_uc', 'is_finished',
+              'current_episode', 'total_episodes', 'has_metadata', 'status',
+              'is_released', 'release_date', 'clicks_quark', 'clicks_uc', 'clicks_play',
+              'source_pwd_id', 'uc_fid', 'last_episode_updated_at'
+            ].join(',');
+
+            const res = await fetch(`${SUPABASE_BASE_URL}/resources?select=${selectCols}&order=is_released.asc.nullslast,year.desc.nullslast,score.desc.nullslast,created_at.desc&limit=4000`, {
+              headers: {
+                'apikey': SUPABASE_PUB_KEY,
+                'Authorization': `Bearer ${SUPABASE_PUB_KEY}`
+              },
+              cache: 'no-store'
+            });
+
+            if (!res.ok) throw new Error('Supabase 直连拉取失败');
+            fetchedItems = await res.json();
+          }
+
+          rawMovies = fetchedItems || [];
+          console.log(`[Data Hub] 实时拉取完成，共载入 ${rawMovies.length} 部影视数据`);
+
+          // 实时重新计算大盘顶部 KPI 指标
+          recalculateTopKpi();
+
+          // 触发筛选与渲染
+          filterAndSortMovies();
+        } catch (err) {
+          console.error('[Data Hub] 实时数据拉取异常:', err);
+          if (statusSummary) {
+            statusSummary.innerHTML = '<span class="text-rose-400 font-mono">⚠️ 实时数据拉取异常，请检查网络连接</span>';
+          }
+        }
+      }
+
+      // 实时计算顶部 7 大 KPI 指标与频道分布
+      function recalculateTopKpi() {
+        const total = rawMovies.length;
+        const ready = rawMovies.filter(m => m.has_metadata === true).length;
+        const pending = rawMovies.filter(m => !m.has_metadata).length;
+        const uc = rawMovies.filter(m => !!m.share_link_uc).length;
+        const qk = rawMovies.filter(m => !!m.share_link).length;
+        const play = rawMovies.filter(m => !!m.online_play_url).length;
+        const ongoing = rawMovies.filter(m => (m.category === '电视剧' || m.category === '综艺' || m.category === '动漫') && m.is_finished === false).length;
+
+        const elTotal = document.getElementById('kpiTotalCount');
+        const elReady = document.getElementById('kpiReadyMetaCount');
+        const elReadyPct = document.getElementById('kpiReadyMetaPct');
+        const elPending = document.getElementById('kpiPendingMetaCount');
+        const elUc = document.getElementById('kpiUcCount');
+        const elQk = document.getElementById('kpiQuarkCount');
+        const elPlay = document.getElementById('kpiPlayCount');
+        const elOngoing = document.getElementById('kpiOngoingSeriesCount');
+
+        if (elTotal) { elTotal.textContent = total; elTotal.classList.remove('animate-pulse'); }
+        if (elReady) { elReady.textContent = ready; elReady.classList.remove('animate-pulse'); }
+        if (elReadyPct) elReadyPct.textContent = `(${Math.round(ready / (total || 1) * 100)}%)`;
+        if (elPending) { elPending.textContent = pending; elPending.classList.remove('animate-pulse'); }
+        if (elUc) { elUc.textContent = uc; elUc.classList.remove('animate-pulse'); }
+        if (elQk) { elQk.textContent = qk; elQk.classList.remove('animate-pulse'); }
+        if (elPlay) { elPlay.textContent = play; elPlay.classList.remove('animate-pulse'); }
+        if (elOngoing) { elOngoing.textContent = ongoing; elOngoing.classList.remove('animate-pulse'); }
+
+        // 计算频道分类
+        const cats = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录片'];
+        cats.forEach(c => {
+          const count = c === '全部' ? total : rawMovies.filter(m => m.category === c).length;
+          const el = document.getElementById(`catCount_${c}`);
+          if (el) el.textContent = `(${count})`;
+        });
+      }
+
+      // ==========================================
+      // 2. 全属性多维数据过滤与检索核心引擎
+      // ==========================================
       function filterAndSortMovies() {
         let list = [...rawMovies];
 
@@ -919,136 +1180,237 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           list = list.filter(m => m.category === state.currentCategory);
         }
 
-        // 2. 状态维度过滤
-        if (state.currentStatus === 'ready') {
+        // 2. 快捷状态维度过滤
+        if (state.quickStatus === 'ready') {
           list = list.filter(m => m.has_metadata === true);
-        } else if (state.currentStatus === 'pending') {
+        } else if (state.quickStatus === 'pending') {
           list = list.filter(m => !m.has_metadata);
-        } else if (state.currentStatus === 'has_play') {
+        } else if (state.quickStatus === 'has_play') {
           list = list.filter(m => !!m.online_play_url);
-        } else if (state.currentStatus === 'has_uc') {
+        } else if (state.quickStatus === 'has_uc') {
           list = list.filter(m => !!m.share_link_uc);
-        } else if (state.currentStatus === 'has_quark') {
+        } else if (state.quickStatus === 'has_quark') {
           list = list.filter(m => !!m.share_link);
-        } else if (state.currentStatus === 'ongoing') {
-          list = list.filter(m => (m.category === '电视剧' || m.category === '综艺') && m.is_finished === false);
-        } else if (state.currentStatus === 'missing_res') {
+        } else if (state.quickStatus === 'ongoing') {
+          list = list.filter(m => (m.category === '电视剧' || m.category === '综艺' || m.category === '动漫') && m.is_finished === false);
+        } else if (state.quickStatus === 'finished') {
+          list = list.filter(m => m.is_finished === true);
+        } else if (state.quickStatus === 'missing_res') {
           list = list.filter(m => !m.share_link_uc && !m.share_link && !m.online_play_url);
         }
 
-        // 3. 搜索关键词模糊匹配
+        // 3. 高级多维属性组合过滤
+        const f = state.filters;
+        
+        // 门禁状态
+        if (f.meta === 'ready') list = list.filter(m => m.has_metadata === true);
+        else if (f.meta === 'pending') list = list.filter(m => !m.has_metadata);
+
+        // 上映公映状态
+        if (f.released === 'released') list = list.filter(m => m.is_released !== false);
+        else if (f.released === 'unreleased') list = list.filter(m => m.is_released === false);
+
+        // 连载完结状态
+        if (f.finished === 'ongoing') list = list.filter(m => m.is_finished === false);
+        else if (f.finished === 'finished') list = list.filter(m => m.is_finished === true);
+
+        // 夸克网盘
+        if (f.quark === 'has') list = list.filter(m => !!m.share_link);
+        else if (f.quark === 'none') list = list.filter(m => !m.share_link);
+
+        // UC 网盘
+        if (f.uc === 'has') list = list.filter(m => !!m.share_link_uc);
+        else if (f.uc === 'none') list = list.filter(m => !m.share_link_uc);
+
+        // 在线播放源
+        if (f.play === 'has') list = list.filter(m => !!m.online_play_url);
+        else if (f.play === 'none') list = list.filter(m => !m.online_play_url);
+
+        // 上游采集源
+        if (f.source === 'has') list = list.filter(m => !!m.source_pwd_id);
+        else if (f.source === 'none') list = list.filter(m => !m.source_pwd_id);
+
+        // 口碑评分
+        if (f.score === '9') list = list.filter(m => Number(m.score) >= 9.0);
+        else if (f.score === '8') list = list.filter(m => Number(m.score) >= 8.0 && Number(m.score) < 9.0);
+        else if (f.score === '7') list = list.filter(m => Number(m.score) >= 7.0 && Number(m.score) < 8.0);
+        else if (f.score === '6') list = list.filter(m => Number(m.score) >= 6.0 && Number(m.score) < 7.0);
+        else if (f.score === 'under6') list = list.filter(m => m.score && Number(m.score) < 6.0);
+        else if (f.score === 'none') list = list.filter(m => !m.score || Number(m.score) === 0);
+
+        // 4. 关键词全属性穿透模糊搜索 (匹配任何可能包含该关键词的属性)
         if (state.searchTerm) {
           const q = state.searchTerm.toLowerCase();
           list = list.filter(m => 
             (m.title && m.title.toLowerCase().includes(q)) ||
             (m.original_title && m.original_title.toLowerCase().includes(q)) ||
             (m.actors && m.actors.toLowerCase().includes(q)) ||
+            (m.intro && m.intro.toLowerCase().includes(q)) ||
             (m.country && m.country.toLowerCase().includes(q)) ||
             (m.id && m.id.toLowerCase().includes(q)) ||
-            (String(m.year).includes(q))
+            (String(m.year).includes(q)) ||
+            (m.share_link && m.share_link.toLowerCase().includes(q)) ||
+            (m.share_link_uc && m.share_link_uc.toLowerCase().includes(q)) ||
+            (m.source_pwd_id && m.source_pwd_id.toLowerCase().includes(q)) ||
+            (m.uc_fid && m.uc_fid.toLowerCase().includes(q)) ||
+            (m.online_play_url && m.online_play_url.toLowerCase().includes(q)) ||
+            (Array.isArray(m.tags) && m.tags.some(t => String(t).toLowerCase().includes(q)))
           );
         }
 
-        // 4. 排序
-        if (state.sortBy === 'year_score_created') {
-          list.sort((a, b) => {
-            const yDiff = (b.year || 0) - (a.year || 0);
-            if (yDiff !== 0) return yDiff;
-            const sDiff = (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0);
-            if (sDiff !== 0) return sDiff;
+        // 5. 排序引擎
+        list.sort((a, b) => {
+          if (state.sortBy === 'saves_desc') {
+            const savesA = (a.clicks_quark || 0) + (a.clicks_uc || 0);
+            const savesB = (b.clicks_quark || 0) + (b.clicks_uc || 0);
+            return savesB - savesA;
+          } else if (state.sortBy === 'views_desc') {
+            return (b.views || 0) - (a.views || 0);
+          } else if (state.sortBy === 'created_desc') {
             return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-          });
-        } else if (state.sortBy === 'created_desc') {
-          list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        } else if (state.sortBy === 'score_desc') {
-          list.sort((a, b) => (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0));
-        } else if (state.sortBy === 'year_desc') {
-          list.sort((a, b) => (b.year || 0) - (a.year || 0));
-        } else if (state.sortBy === 'saves_desc') {
-          list.sort((a, b) => ((b.clicks_quark || 0) + (b.clicks_uc || 0)) - ((a.clicks_quark || 0) + (a.clicks_uc || 0)));
-        } else if (state.sortBy === 'views_desc') {
-          list.sort((a, b) => (b.views || 0) - (a.views || 0));
-        }
+          } else if (state.sortBy === 'created_asc') {
+            return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+          } else if (state.sortBy === 'updated_desc') {
+            const upA = a.last_episode_updated_at ? new Date(a.last_episode_updated_at).getTime() : 0;
+            const upB = b.last_episode_updated_at ? new Date(b.last_episode_updated_at).getTime() : 0;
+            return upB - upA;
+          } else if (state.sortBy === 'score_desc') {
+            return (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0);
+          } else if (state.sortBy === 'year_desc') {
+            return (b.year || 0) - (a.year || 0);
+          } else if (state.sortBy === 'episodes_desc') {
+            return (b.current_episode || 0) - (a.current_episode || 0);
+          } else {
+            // 默认：综合最新（未上映置后，按上映年份倒序、评分倒序、入库时间倒序）
+            const relA = a.is_released === false ? 1 : 0;
+            const relB = b.is_released === false ? 1 : 0;
+            if (relA !== relB) return relA - relB;
+            const yA = a.year || 0;
+            const yB = b.year || 0;
+            if (yA !== yB) return yB - yA;
+            const sA = parseFloat(a.score) || 0;
+            const sB = parseFloat(b.score) || 0;
+            if (sA !== sB) return sB - sA;
+            return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+          }
+        });
 
         state.movies = list;
         state.currentPage = 1;
         render();
+        updateActiveFilterBadge();
       }
 
-      // 主渲染函数
+      function updateActiveFilterBadge() {
+        let count = 0;
+        const f = state.filters;
+        Object.keys(f).forEach(k => {
+          if (f[k] !== 'all') count++;
+        });
+        if (state.quickStatus !== 'all') count++;
+        if (state.currentCategory !== '全部') count++;
+        if (state.searchTerm) count++;
+
+        if (activeFilterBadge) {
+          if (count > 0) {
+            activeFilterBadge.textContent = count;
+            activeFilterBadge.classList.remove('hidden');
+          } else {
+            activeFilterBadge.classList.add('hidden');
+          }
+        }
+      }
+
+      // ==========================================
+      // 3. 渲染视图与分页
+      // ==========================================
       function render() {
         const total = state.movies.length;
         const totalPages = Math.ceil(total / state.pageSize) || 1;
+        
         if (state.currentPage > totalPages) state.currentPage = totalPages;
+        if (state.currentPage < 1) state.currentPage = 1;
 
-        const startIndex = (state.currentPage - 1) * state.pageSize;
-        const endIndex = Math.min(startIndex + state.pageSize, total);
-        const currentSlice = state.movies.slice(startIndex, endIndex);
+        const startIdx = (state.currentPage - 1) * state.pageSize;
+        const endIdx = Math.min(startIdx + state.pageSize, total);
+        const pagedList = state.movies.slice(startIdx, endIdx);
 
-        // 更新统计文本
-        filterResultSummary.innerHTML = `展示筛选结果 <span class="text-orange-400 font-bold font-mono">${total}</span> 部 (第 ${state.currentPage}/${totalPages} 页)`;
-        paginationInfo.textContent = total > 0 
-          ? `显示第 ${startIndex + 1} 到 ${endIndex} 条，共 ${total} 条`
-          : '暂无匹配的影视资产';
+        // 渲染顶部结果摘要
+        filterResultSummary.innerHTML = `
+          已检索到 <strong class="text-orange-400 font-bold font-mono">${total}</strong> 部影视
+          <span class="text-slate-500 ml-1">(${rawMovies.length} 全库实时)</span>
+          ${state.searchTerm ? `<span class="ml-2 px-2 py-0.5 rounded bg-slate-800 text-[11px] text-slate-300">关键词: "${state.searchTerm}"</span>` : ''}
+        `;
 
-        // 渲染表格或网格
         if (state.viewMode === 'table') {
           tableViewWrapper.classList.remove('hidden');
           gridWrapper.classList.add('hidden');
-          renderTable(currentSlice);
+          renderTable(pagedList);
         } else {
           tableViewWrapper.classList.add('hidden');
           gridWrapper.classList.remove('hidden');
-          renderGrid(currentSlice);
+          renderGrid(pagedList);
         }
 
-        // 渲染分页按钮
+        paginationInfo.textContent = total > 0 
+          ? `显示第 ${startIdx + 1} 到 ${endIdx} 条，共 ${total} 条` 
+          : '暂无匹配的影视数据';
+
         renderPagination(totalPages);
       }
 
-      // 渲染表格视图
       function renderTable(list) {
         if (list.length === 0) {
-          tableBody.innerHTML = `<tr><td colspan="9" class="text-center py-12 text-slate-500">没有找到符合条件的影视记录</td></tr>`;
+          tableBody.innerHTML = `
+            <tr>
+              <td colspan="9" class="text-center py-12 text-slate-500">
+                <p>没有找到符合条件的影视记录</p>
+                <p class="text-[11px] text-slate-600 mt-1">请尝试放宽检索关键词或点击“重置所有筛选”</p>
+              </td>
+            </tr>
+          `;
           return;
         }
 
         let html = '';
         for (const m of list) {
-          const dateStr = m.created_at ? new Date(m.created_at).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-';
-          const hasMeta = m.has_metadata === true;
           const score = m.score ? parseFloat(m.score).toFixed(1) : '-';
-          
-          // 资源状态胶囊
-          const ucBadge = m.share_link_uc 
-            ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" title="已转存个人 UC 盘">UC</span>` 
-            : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-500">无UC</span>`;
-          
-          const quarkBadge = m.share_link 
-            ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30" title="已转存夸克盘">夸克</span>` 
-            : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-500">无夸克</span>`;
-          
-          const playBadge = m.online_play_url 
-            ? `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-300 border border-rose-500/30" title="已切片在线播">在线播</span>` 
-            : `<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-500">无切片</span>`;
+          const hasMeta = m.has_metadata === true;
+          const isTv = m.category === '电视剧' || m.category === '综艺' || m.category === '动漫';
 
-          // 连载进度
+          const ucBadge = m.share_link_uc 
+            ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30" title="已转存至个人 UC 网盘">UC</span>`
+            : `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-600 bg-slate-900 border border-slate-800/80">UC-</span>`;
+
+          const quarkBadge = m.share_link 
+            ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30" title="已转存至个人夸克网盘">QK</span>`
+            : `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-600 bg-slate-900 border border-slate-800/80">QK-</span>`;
+
+          const playBadge = m.online_play_url 
+            ? `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30" title="有免流 M3U8 在线点播切片">播</span>`
+            : `<span class="px-1.5 py-0.5 rounded text-[10px] font-mono text-slate-600 bg-slate-900 border border-slate-800/80">播-</span>`;
+
           let seriesStatus = '-';
-          if (m.category === '电视剧' || m.category === '综艺') {
+          if (isTv) {
             if (m.is_finished) {
-              seriesStatus = `<span class="text-slate-400">已完结 (${m.total_episodes || m.current_episode || '-'}集)</span>`;
+              seriesStatus = `<span class="text-emerald-400 font-mono">完结 (${m.total_episodes || m.current_episode}集)</span>`;
             } else {
-              seriesStatus = `<span class="text-orange-400 font-medium">连载至 ${m.current_episode || 1} 集</span>`;
+              seriesStatus = `<span class="text-orange-400 font-mono font-bold">连载 ${m.current_episode || 1}/${m.total_episodes || '?'}集</span>`;
             }
           }
 
+          const dateStr = m.created_at ? new Date(m.created_at).toISOString().slice(0, 10) : '-';
+
           html += `
-            <tr class="hover:bg-slate-800/40 transition-colors group cursor-pointer" onclick="openDetailModal('${m.id}')">
+            <tr class="hover:bg-slate-800/40 transition group cursor-pointer" onclick="openDetailModal('${m.id}')">
               <td class="py-2.5 px-3 text-center">
-                <img src="${m.poster_url || '/favicon.svg'}" alt="${m.title}" loading="lazy" class="w-9 h-13 object-cover rounded bg-slate-800 border border-slate-700/60 mx-auto group-hover:scale-105 transition-transform" />
+                <img src="${m.poster_url || '/favicon.svg'}" alt="${m.title}" loading="lazy" class="w-10 h-14 rounded object-cover mx-auto bg-slate-950 border border-slate-800 shadow" />
               </td>
               <td class="py-2.5 px-4">
-                <div class="font-bold text-slate-100 group-hover:text-orange-400 transition-colors text-sm">${m.title}</div>
+                <div class="font-bold text-slate-100 group-hover:text-orange-400 transition-colors text-sm flex items-center gap-1.5">
+                  <span>${m.title}</span>
+                  ${m.is_released === false ? `<span class="px-1.5 py-0.2 rounded text-[9px] bg-purple-500/20 text-purple-300 border border-purple-500/30">待公映</span>` : ''}
+                </div>
                 <div class="text-[11px] text-slate-400 truncate max-w-xs">${m.original_title || m.actors || '暂无译名'}</div>
                 <div class="text-[10px] text-slate-500 font-mono mt-0.5">${m.year || '-'} · ${m.country || '华语'} · 👁️ ${m.views || 0} · 💾 ${(m.clicks_quark || 0) + (m.clicks_uc || 0)}</div>
               </td>
@@ -1074,8 +1436,8 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
               </td>
               <td class="py-2.5 px-3 text-center">
                 <div class="flex items-center justify-center gap-1">
-                  ${ucBadge}
                   ${quarkBadge}
+                  ${ucBadge}
                   ${playBadge}
                 </div>
               </td>
@@ -1095,7 +1457,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
                          门禁拦截
                        </span>`
                   }
-                  <button onclick="openDetailModal('${m.id}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] border border-slate-700 transition">
+                  <button onclick="openDetailModal('${m.id}')" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px] border border-slate-700 transition cursor-pointer">
                     详情
                   </button>
                 </div>
@@ -1106,7 +1468,6 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
         tableBody.innerHTML = html;
       }
 
-      // 渲染网格卡片视图
       function renderGrid(list) {
         if (list.length === 0) {
           gridWrapper.innerHTML = `<div class="col-span-full text-center py-12 text-slate-500">没有找到符合条件的影视记录</div>`;
@@ -1134,8 +1495,8 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
                   }
                 </div>
                 <div class="absolute bottom-2 left-2 right-2 flex items-center gap-1 justify-end">
-                  ${m.share_link_uc ? `<span class="px-1 bg-cyan-600/80 text-white text-[9px] rounded font-bold">UC</span>` : ''}
                   ${m.share_link ? `<span class="px-1 bg-purple-600/80 text-white text-[9px] rounded font-bold">QK</span>` : ''}
+                  ${m.share_link_uc ? `<span class="px-1 bg-cyan-600/80 text-white text-[9px] rounded font-bold">UC</span>` : ''}
                   ${m.online_play_url ? `<span class="px-1 bg-rose-600/80 text-white text-[9px] rounded font-bold">播</span>` : ''}
                 </div>
               </div>
@@ -1154,7 +1515,6 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
         gridWrapper.innerHTML = html;
       }
 
-      // 渲染分页器
       function renderPagination(totalPages) {
         if (totalPages <= 1) {
           paginationButtons.innerHTML = '';
@@ -1162,25 +1522,23 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
         }
 
         let btns = '';
-        // 上一页
         btns += `
           <button 
             onclick="goToPage(${state.currentPage - 1})" 
-            ${state.currentPage === 1 ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="hover:bg-slate-800 text-slate-300"'}
+            ${state.currentPage === 1 ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="hover:bg-slate-800 text-slate-300 cursor-pointer"'}
             class="px-2.5 py-1 text-xs rounded-lg bg-slate-900 border border-slate-800 transition"
           >
             上一页
           </button>
         `;
 
-        // 简易页码逻辑
         for (let i = 1; i <= totalPages; i++) {
           if (i === 1 || i === totalPages || (i >= state.currentPage - 2 && i <= state.currentPage + 2)) {
             const isActive = i === state.currentPage;
             btns += `
               <button 
                 onclick="goToPage(${i})" 
-                class="px-2.5 py-1 text-xs rounded-lg transition font-mono ${
+                class="px-2.5 py-1 text-xs rounded-lg transition font-mono cursor-pointer ${
                   isActive 
                     ? 'bg-orange-500 text-white font-bold' 
                     : 'bg-slate-900 text-slate-300 border border-slate-800 hover:bg-slate-800'
@@ -1194,11 +1552,10 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           }
         }
 
-        // 下一页
         btns += `
           <button 
             onclick="goToPage(${state.currentPage + 1})" 
-            ${state.currentPage === totalPages ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="hover:bg-slate-800 text-slate-300"'}
+            ${state.currentPage === totalPages ? 'disabled class="opacity-40 cursor-not-allowed"' : 'class="hover:bg-slate-800 text-slate-300 cursor-pointer"'}
             class="px-2.5 py-1 text-xs rounded-lg bg-slate-900 border border-slate-800 transition"
           >
             下一页
@@ -1208,73 +1565,84 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
         paginationButtons.innerHTML = btns;
       }
 
-      window.goToPage = function(page) {
-        state.currentPage = page;
+      window.goToPage = function(p) {
+        state.currentPage = p;
         render();
-        window.scrollTo({ top: 380, behavior: 'smooth' });
+        window.scrollTo({ top: tableViewWrapper.offsetTop - 120, behavior: 'smooth' });
       };
 
-      // 详情弹窗控制
+      // ==========================================
+      // 4. 详情抽屉 (按三大名词清晰归纳)
+      // ==========================================
       window.openDetailModal = function(id) {
-        const m = rawMovies.find(x => x.id === id);
+        const m = rawMovies.find(item => item.id === id);
         if (!m) return;
 
-        document.getElementById('modalTitle').textContent = m.title;
+        // 顶栏
         document.getElementById('modalCategory').textContent = m.category || '电影';
+        document.getElementById('modalTitle').textContent = m.title;
         document.getElementById('modalYear').textContent = m.year ? `${m.year} 年` : '';
+
+        // 1. 库内影视元数据
         document.getElementById('modalPoster').src = m.poster_url || '/favicon.svg';
         document.getElementById('modalId').textContent = m.id;
-        document.getElementById('modalOriginalTitle').textContent = m.original_title || '与中文名同名';
-        document.getElementById('modalScore').textContent = m.score ? `★ ${parseFloat(m.score).toFixed(1)} 分` : '暂无评分';
-        document.getElementById('modalActors').textContent = m.actors || '暂未录入演员列表';
-        document.getElementById('modalIntro').textContent = m.intro || '暂无详细剧情介绍';
-        document.getElementById('modalCreatedAt').textContent = `入库时间: ${m.created_at ? new Date(m.created_at).toLocaleString('zh-CN') : '-'}`;
+        document.getElementById('modalOriginalTitle').textContent = m.original_title || '-';
+        document.getElementById('modalScore').textContent = m.score ? `★ ${parseFloat(m.score).toFixed(1)}` : '暂无评分';
+        document.getElementById('modalCountry').textContent = m.country || '华语';
+        document.getElementById('modalActors').textContent = m.actors || '暂无演职员信息';
+        document.getElementById('modalIntro').textContent = m.intro || '暂无剧情简介。';
 
-        // 门禁状态
         const metaBadge = document.getElementById('modalMetaBadge');
         if (m.has_metadata) {
-          metaBadge.innerHTML = `<span class="px-2 py-0.5 rounded text-[11px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">✅ TMDB官方元数据已就绪 · 已解锁前台发布</span>`;
+          metaBadge.className = 'px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+          metaBadge.textContent = '✅ 已过审发布';
         } else {
-          metaBadge.innerHTML = `<span class="px-2 py-0.5 rounded text-[11px] bg-amber-500/20 text-amber-300 border border-amber-500/30">⏳ 豆瓣热门种子 · 待 TMDB 补齐 (门禁隔离中)</span>`;
+          metaBadge.className = 'px-2 py-0.5 rounded-full text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30';
+          metaBadge.textContent = '⏳ 待补元数据';
         }
 
-        // UC 网盘
+        const isTv = m.category === '电视剧' || m.category === '综艺' || m.category === '动漫';
+        let tvStr = '单部作品';
+        if (isTv) {
+          tvStr = m.is_finished ? `已完结 (全 ${m.total_episodes || m.current_episode} 集)` : `连载追更中 (更新至第 ${m.current_episode || 1} 集 / 全 ${m.total_episodes || '?'} 集)`;
+        }
+        document.getElementById('modalSeriesStatus').textContent = tvStr;
+
+        // 2. 自有网盘转存资产
+        const qkLink = document.getElementById('modalQuarkLink');
+        const qkStatus = document.getElementById('modalQuarkStatus');
+        const qkCopy = document.getElementById('modalQuarkCopy');
+        if (m.share_link) {
+          qkStatus.textContent = '已挂载';
+          qkStatus.className = 'text-[10px] text-purple-400';
+          qkLink.href = m.share_link;
+          qkLink.classList.remove('opacity-40', 'pointer-events-none');
+          qkCopy.onclick = () => copyToClipboard(m.share_link, '已复制夸克转存专属链接');
+        } else {
+          qkStatus.textContent = '未挂载';
+          qkStatus.className = 'text-[10px] text-slate-500';
+          qkLink.href = '#';
+          qkLink.classList.add('opacity-40', 'pointer-events-none');
+          qkCopy.onclick = () => showToast('暂无夸克链接', '⚠️');
+        }
+
         const ucLink = document.getElementById('modalUcLink');
         const ucStatus = document.getElementById('modalUcStatus');
         const ucCopy = document.getElementById('modalUcCopy');
         if (m.share_link_uc) {
-          ucStatus.textContent = '已转存';
+          ucStatus.textContent = '已挂载';
           ucStatus.className = 'text-[10px] text-cyan-400';
           ucLink.href = m.share_link_uc;
           ucLink.classList.remove('opacity-40', 'pointer-events-none');
-          ucCopy.onclick = () => copyToClipboard(m.share_link_uc, '已复制 UC 网盘转存链接');
+          ucCopy.onclick = () => copyToClipboard(m.share_link_uc, '已复制 UC 转存专属链接');
         } else {
-          ucStatus.textContent = '未搜得';
+          ucStatus.textContent = '未挂载';
           ucStatus.className = 'text-[10px] text-slate-500';
           ucLink.href = '#';
           ucLink.classList.add('opacity-40', 'pointer-events-none');
           ucCopy.onclick = () => showToast('暂无 UC 链接', '⚠️');
         }
 
-        // 夸克网盘
-        const quarkLink = document.getElementById('modalQuarkLink');
-        const quarkStatus = document.getElementById('modalQuarkStatus');
-        const quarkCopy = document.getElementById('modalQuarkCopy');
-        if (m.share_link) {
-          quarkStatus.textContent = '已挂载';
-          quarkStatus.className = 'text-[10px] text-purple-400';
-          quarkLink.href = m.share_link;
-          quarkLink.classList.remove('opacity-40', 'pointer-events-none');
-          quarkCopy.onclick = () => copyToClipboard(m.share_link, '已复制夸克转存链接');
-        } else {
-          quarkStatus.textContent = '未挂载';
-          quarkStatus.className = 'text-[10px] text-slate-500';
-          quarkLink.href = '#';
-          quarkLink.classList.add('opacity-40', 'pointer-events-none');
-          quarkCopy.onclick = () => showToast('暂无夸克链接', '⚠️');
-        }
-
-        // 在线播放源
         const playStatus = document.getElementById('modalPlayStatus');
         const playTestBtn = document.getElementById('modalPlayTestBtn');
         const playCopy = document.getElementById('modalPlayCopy');
@@ -1291,7 +1659,18 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           playCopy.onclick = () => showToast('暂无在线切片流', '⚠️');
         }
 
-        // 前台直达链接
+        document.getElementById('modalViews').textContent = m.views || 0;
+        document.getElementById('modalClicksQuark').textContent = m.clicks_quark || 0;
+        document.getElementById('modalClicksUc').textContent = m.clicks_uc || 0;
+        document.getElementById('modalClicksPlay').textContent = m.clicks_play || 0;
+
+        // 3. 上游公开分享源溯源
+        document.getElementById('modalSourcePwdId').textContent = m.source_pwd_id || '无记录';
+        document.getElementById('modalUcFid').textContent = m.uc_fid || '无记录';
+        document.getElementById('modalHarvestTime').textContent = m.last_harvest_at ? new Date(m.last_harvest_at).toLocaleString('zh-CN') : '-';
+        document.getElementById('modalEpUpdateTime').textContent = m.last_episode_updated_at ? new Date(m.last_episode_updated_at).toLocaleString('zh-CN') : '-';
+
+        // 前台直达
         const frontLink = document.getElementById('modalFrontLink');
         if (m.has_metadata) {
           frontLink.href = `/movie/${m.id}`;
@@ -1300,7 +1679,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           frontLink.classList.add('hidden');
         }
 
-        // 剧照画廊
+        // 剧照
         const stillsSection = document.getElementById('modalStillsSection');
         const stillsGrid = document.getElementById('modalStillsGrid');
         if (m.stills && Array.isArray(m.stills) && m.stills.length > 0) {
@@ -1315,11 +1694,10 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
         // 原始 JSON
         document.getElementById('modalRawJson').textContent = JSON.stringify(m, null, 2);
 
-        // 展开弹窗
+        // 展开抽屉
         document.getElementById('detailModal').classList.remove('hidden');
       };
 
-      // 播放 HLS 视频流
       function playHlsStream(url) {
         const playerSection = document.getElementById('playerSection');
         const video = document.getElementById('hlsVideo');
@@ -1337,13 +1715,9 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           hlsInstance = new window.Hls();
           hlsInstance.loadSource(url);
           hlsInstance.attachMedia(video);
-          hlsInstance.on(window.Hls.Events.MANIFEST_PARSED, () => {
-            video.play();
-          });
-          hlsInstance.on(window.Hls.Events.ERROR, (event, data) => {
-            if (data.fatal) {
-              showToast('M3U8 解析失败或跨域受阻', '⚠️');
-            }
+          hlsInstance.on(window.Hls.Events.MANIFEST_PARSED, () => video.play());
+          hlsInstance.on(window.Hls.Events.ERROR, (e, data) => {
+            if (data.fatal) showToast('M3U8 解析失败或跨域受阻', '⚠️');
           });
         } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
           video.src = url;
@@ -1353,26 +1727,33 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
         }
       }
 
-      // 关闭播放器
       document.getElementById('closePlayerBtn').addEventListener('click', () => {
         const video = document.getElementById('hlsVideo');
         video.pause();
-        if (hlsInstance) {
-          hlsInstance.destroy();
-          hlsInstance = null;
-        }
+        if (hlsInstance) { hlsInstance.destroy(); hlsInstance = null; }
         document.getElementById('playerSection').classList.add('hidden');
       });
 
-      // 关闭弹窗
-      document.getElementById('closeModalBtn').addEventListener('click', () => {
+      const closeDetailModal = () => {
         document.getElementById('closePlayerBtn').click();
         document.getElementById('detailModal').classList.add('hidden');
+      };
+      document.getElementById('closeModalBtn').addEventListener('click', closeDetailModal);
+      document.getElementById('closeModalBottomBtn').addEventListener('click', closeDetailModal);
+      document.getElementById('detailModal').addEventListener('click', (e) => {
+        if (e.target.id === 'detailModal') closeDetailModal();
       });
 
-      document.getElementById('detailModal').addEventListener('click', (e) => {
-        if (e.target.id === 'detailModal') {
-          document.getElementById('closeModalBtn').click();
+      // 名词规范 Modal
+      document.getElementById('openGlossaryBtn').addEventListener('click', () => {
+        document.getElementById('glossaryModal').classList.remove('hidden');
+      });
+      document.getElementById('closeGlossaryBtn').addEventListener('click', () => {
+        document.getElementById('glossaryModal').classList.add('hidden');
+      });
+      document.getElementById('glossaryModal').addEventListener('click', (e) => {
+        if (e.target.id === 'glossaryModal') {
+          document.getElementById('glossaryModal').classList.add('hidden');
         }
       });
 
@@ -1382,27 +1763,23 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           const cat = btn.getAttribute('data-cat-btn');
           state.currentCategory = cat;
 
-          // 更新按钮样式
           document.querySelectorAll('[data-cat-btn]').forEach(b => {
-            b.className = 'cat-filter-btn px-3 py-1 rounded-lg text-xs font-medium transition-all duration-200 border bg-slate-800/60 text-slate-300 border-slate-700/60 hover:bg-slate-800 hover:text-white';
+            b.className = 'cat-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border cursor-pointer bg-slate-800/60 text-slate-300 border-slate-700/60 hover:bg-slate-800 hover:text-white';
           });
-          btn.className = 'cat-filter-btn px-3 py-1 rounded-lg text-xs font-medium transition-all duration-200 border bg-orange-500/20 text-orange-300 border-orange-500/40 shadow-sm';
+          btn.className = 'cat-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border cursor-pointer bg-orange-500/20 text-orange-300 border-orange-500/40 shadow-sm';
 
           filterAndSortMovies();
         });
       });
 
-      // 搜索框输入事件（防抖）
+      // 搜索框输入（防抖）
       let searchTimer = null;
       searchInput.addEventListener('input', (e) => {
         const val = e.target.value.trim();
         state.searchTerm = val;
         clearSearchBtn.classList.toggle('hidden', !val);
-
         clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => {
-          filterAndSortMovies();
-        }, 150);
+        searchTimer = setTimeout(() => filterAndSortMovies(), 150);
       });
 
       clearSearchBtn.addEventListener('click', () => {
@@ -1412,19 +1789,19 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
         filterAndSortMovies();
       });
 
-      // 状态筛选下拉
+      // 快捷核心状态
       statusFilter.addEventListener('change', (e) => {
-        state.currentStatus = e.target.value;
+        state.quickStatus = e.target.value;
         filterAndSortMovies();
       });
 
-      // 排序下拉
+      // 排序
       sortBySelect.addEventListener('change', (e) => {
         state.sortBy = e.target.value;
         filterAndSortMovies();
       });
 
-      // 每页条数下拉
+      // 每页条数
       pageSizeSelect.addEventListener('change', (e) => {
         state.pageSize = parseInt(e.target.value, 10);
         state.currentPage = 1;
@@ -1434,16 +1811,79 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
       // 视图切换
       viewTableBtn.addEventListener('click', () => {
         state.viewMode = 'table';
-        viewTableBtn.className = 'px-2 py-1 rounded text-xs transition bg-orange-500 text-white';
-        viewGridBtn.className = 'px-2 py-1 rounded text-xs transition text-slate-400 hover:text-white';
+        viewTableBtn.className = 'px-2 py-1 rounded text-xs transition bg-orange-500 text-white cursor-pointer';
+        viewGridBtn.className = 'px-2 py-1 rounded text-xs transition text-slate-400 hover:text-white cursor-pointer';
         render();
       });
 
       viewGridBtn.addEventListener('click', () => {
         state.viewMode = 'grid';
-        viewGridBtn.className = 'px-2 py-1 rounded text-xs transition bg-orange-500 text-white';
-        viewTableBtn.className = 'px-2 py-1 rounded text-xs transition text-slate-400 hover:text-white';
+        viewGridBtn.className = 'px-2 py-1 rounded text-xs transition bg-orange-500 text-white cursor-pointer';
+        viewTableBtn.className = 'px-2 py-1 rounded text-xs transition text-slate-400 hover:text-white cursor-pointer';
         render();
+      });
+
+      // 高级属性筛选面板切换
+      toggleAdvancedFilterBtn.addEventListener('click', () => {
+        advancedFilterPanel.classList.toggle('hidden');
+      });
+
+      // 绑定各个高级属性下拉
+      const advInputs = [
+        { id: 'advFilterMeta', key: 'meta' },
+        { id: 'advFilterReleased', key: 'released' },
+        { id: 'advFilterFinished', key: 'finished' },
+        { id: 'advFilterQuark', key: 'quark' },
+        { id: 'advFilterUc', key: 'uc' },
+        { id: 'advFilterPlay', key: 'play' },
+        { id: 'advFilterSource', key: 'source' },
+        { id: 'advFilterScore', key: 'score' }
+      ];
+
+      advInputs.forEach(({ id, key }) => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('change', (e) => {
+            state.filters[key] = e.target.value;
+            filterAndSortMovies();
+          });
+        }
+      });
+
+      // 重置所有筛选
+      document.getElementById('resetFiltersBtn').addEventListener('click', () => {
+        state.searchTerm = '';
+        searchInput.value = '';
+        clearSearchBtn.classList.add('hidden');
+        state.currentCategory = '全部';
+        state.quickStatus = 'all';
+        statusFilter.value = 'all';
+        state.sortBy = 'year_score_created';
+        sortBySelect.value = 'year_score_created';
+
+        advInputs.forEach(({ id, key }) => {
+          state.filters[key] = 'all';
+          const el = document.getElementById(id);
+          if (el) el.value = 'all';
+        });
+
+        document.querySelectorAll('[data-cat-btn]').forEach(b => {
+          b.className = 'cat-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border cursor-pointer bg-slate-800/60 text-slate-300 border-slate-700/60 hover:bg-slate-800 hover:text-white';
+        });
+        const allCatBtn = document.querySelector('[data-cat-btn="全部"]');
+        if (allCatBtn) allCatBtn.className = 'cat-filter-btn px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 border cursor-pointer bg-orange-500/20 text-orange-300 border-orange-500/40 shadow-sm';
+
+        filterAndSortMovies();
+        showToast('已重置所有属性筛选条件', '🔄');
+      });
+
+      // 复制 ID 快捷键
+      document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('copy-btn')) {
+          const targetId = e.target.getAttribute('data-copy-target');
+          const el = document.getElementById(targetId);
+          if (el) copyToClipboard(el.textContent, '已复制');
+        }
       });
 
       // 导出 CSV 功能
@@ -1454,7 +1894,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           return;
         }
 
-        const headers = ['ID', '片名', '原始片名', '分类', '年份', '评分', '国家', '元数据就绪', 'UC网盘链接', '夸克网盘链接', '在线播放M3U8', '连载集数', '完结状态', '入库时间'];
+        const headers = ['UUID', '片名', '原始片名', '分类', '年份', '评分', '国家', '元数据就绪', '夸克网盘链接', 'UC网盘链接', '在线播放M3U8', '连载集数', '完结状态', '上游采集ID', '入库时间'];
         const rows = items.map(m => [
           m.id,
           `"${(m.title || '').replace(/"/g, '""')}"`,
@@ -1464,11 +1904,12 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           m.score || '',
           m.country || '',
           m.has_metadata ? '是' : '否',
-          `"${(m.share_link_uc || '').replace(/"/g, '""')}"`,
           `"${(m.share_link || '').replace(/"/g, '""')}"`,
+          `"${(m.share_link_uc || '').replace(/"/g, '""')}"`,
           `"${(m.online_play_url || '').replace(/"/g, '""')}"`,
           m.current_episode || '',
           m.is_finished ? '已完结' : '连载中',
+          m.source_pwd_id || '',
           m.created_at || ''
         ]);
 
@@ -1477,10 +1918,10 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `starlight_movies_${new Date().toISOString().slice(0, 10)}.csv`;
+        a.download = `starlight_movies_realtime_${new Date().toISOString().slice(0, 10)}.csv`;
         a.click();
         URL.revokeObjectURL(url);
-        showToast(`已导出 ${items.length} 部影视数据为 CSV`, '📥');
+        showToast(`已导出当前筛选的 ${items.length} 部影视数据为 CSV`, '📥');
       });
 
       // 导出 JSON 功能
@@ -1490,18 +1931,15 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `starlight_movies_${new Date().toISOString().slice(0, 10)}.json`;
+        a.download = `starlight_movies_realtime_${new Date().toISOString().slice(0, 10)}.json`;
         a.click();
         URL.revokeObjectURL(url);
-        showToast(`已导出 ${items.length} 部影视数据为 JSON`, '📄');
+        showToast(`已导出当前筛选的 ${items.length} 部影视数据为 JSON`, '📄');
       });
 
       // ==========================================
-      // 真实访问与网盘转存大盘：客户端秒级实时拉取逻辑
+      // 5. 真实转化大盘与网盘转存控制开关
       // ==========================================
-      const SUPABASE_BASE_URL = 'https://oncktqesgpjsilngtcok.supabase.co/rest/v1';
-      const SUPABASE_PUB_KEY = 'sb_publishable_pQLb1OOxod2ibn_i1QqoJg_lt9FZPTH';
-
       async function getSupabaseCount(queryPath) {
         try {
           const res = await fetch(`${SUPABASE_BASE_URL}/${queryPath}`, {
@@ -1550,7 +1988,6 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           const cvr = pv > 0 ? ((saves / pv) * 100).toFixed(2) : '0.00';
           const playRate = pv > 0 ? ((play / pv) * 100).toFixed(2) : '0.00';
 
-          // 更新 4 核心指标卡 DOM
           const elPv = document.getElementById('metricTotalPv');
           const elMobile = document.getElementById('metricMobilePv');
           const elDesktop = document.getElementById('metricDesktopPv');
@@ -1573,16 +2010,11 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           if (elPlays) elPlays.textContent = play.toLocaleString();
           if (elPlayRate) elPlayRate.textContent = `${playRate}%`;
 
-          // 更新实时流水事件
+          // 更新流水
           const recentList = document.getElementById('recentEventsList');
           if (recentList && Array.isArray(recentRes)) {
             if (recentRes.length === 0) {
-              recentList.innerHTML = `
-                <div class="text-center py-10 text-slate-500 text-xs">
-                  <p>等待第一条埋点上报...</p>
-                  <p class="text-[11px] text-slate-600 mt-1">访客浏览或点击转存时自动上报并实时写入流水</p>
-                </div>
-              `;
+              recentList.innerHTML = `<div class="text-center py-10 text-slate-500 text-xs">等待第一条埋点上报...</div>`;
             } else {
               const evLabels = {
                 page_view: { text: 'PV 浏览', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
@@ -1593,25 +2025,17 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
               recentList.innerHTML = recentRes.map(ev => {
                 const badge = evLabels[ev.event_type] || { text: ev.event_type, color: 'bg-slate-800 text-slate-400 border-slate-700' };
                 const timeStr = new Date(ev.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                const ipBadge = ev.ip ? `
-                  <span class="px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/60 font-mono text-[9px]" title="${ev.location || ''}">
-                    📍 ${ev.ip}${ev.location ? ` (${ev.location.split(',')[0]})` : ''}
-                  </span>
-                ` : '';
+                const ipBadge = ev.ip ? `<span class="px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/60 font-mono text-[9px]">📍 ${ev.ip}${ev.location ? ` (${ev.location.split(',')[0]})` : ''}</span>` : '';
                 return `
-                  <div class="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-900/60 border border-slate-800/50 hover:border-slate-700 transition">
+                  <div class="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-900/60 border border-slate-800/50">
                     <div class="flex items-center gap-2 overflow-hidden">
-                      <span class="px-1.5 py-0.5 rounded text-[10px] font-medium border flex-shrink-0 ${badge.color}">
-                        ${badge.text}
-                      </span>
-                      <span class="text-slate-200 truncate text-[11px]" title="${ev.resource_title || ev.page_url}">
-                        ${ev.resource_title || '星光影库页面'}
-                      </span>
+                      <span class="px-1.5 py-0.5 rounded text-[10px] font-medium border flex-shrink-0 ${badge.color}">${badge.text}</span>
+                      <span class="text-slate-200 truncate text-[11px]">${ev.resource_title || '星光影库页面'}</span>
                     </div>
-                    <div class="flex items-center gap-1.5 flex-shrink-0 text-[10px] font-mono text-slate-500">
+                    <div class="flex items-center gap-2 flex-shrink-0 text-[10px] font-mono text-slate-400">
                       ${ipBadge}
                       <span>${ev.device === 'mobile' ? '📱' : '💻'}</span>
-                      <span>${timeStr}</span>
+                      <span class="text-slate-500">${timeStr}</span>
                     </div>
                   </div>
                 `;
@@ -1619,51 +2043,35 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             }
           }
 
-          // 动态更新 TOP 10 真实转存转化排行榜
-          const topTableBody = document.getElementById('topConvertingTableBody');
-          if (topTableBody && Array.isArray(topMoviesRes) && topMoviesRes.length > 0) {
-            const sorted = topMoviesRes.map(m => {
-              const saves = (m.clicks_quark || 0) + (m.clicks_uc || 0);
-              const views = m.views || 0;
-              const rate = views > 0 ? ((saves / views) * 100).toFixed(2) : '0.00';
-              return { ...m, total_saves: saves, rate };
-            }).sort((a, b) => (b.total_saves - a.total_saves) || (b.views - a.views));
+          // 更新 TOP 10
+          const topBody = document.getElementById('topConvertingTableBody');
+          if (topBody && Array.isArray(topMoviesRes)) {
+            const ranked = topMoviesRes.map(m => {
+              const savesCount = (m.clicks_quark || 0) + (m.clicks_uc || 0);
+              const viewsCount = m.views || 0;
+              const rate = viewsCount > 0 ? ((savesCount / viewsCount) * 100).toFixed(1) : '0.0';
+              return { ...m, total_saves: savesCount, rate };
+            }).sort((a, b) => b.total_saves - a.total_saves).slice(0, 10);
 
-            topTableBody.innerHTML = sorted.slice(0, 10).map((item, idx) => {
-              const rankBadge = idx < 3 ? `
-                <span class="inline-block w-5 h-5 rounded-full text-center leading-5 text-[10px] font-bold ${
-                  idx === 0 ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30' :
-                  idx === 1 ? 'bg-slate-300/20 text-slate-200 border border-slate-300/30' :
-                  'bg-orange-500/20 text-orange-300 border border-orange-500/30'
-                }">
-                  ${idx + 1}
-                </span>
-              ` : `<span>${idx + 1}</span>`;
-
-              return `
-                <tr class="hover:bg-slate-900/50 transition">
-                  <td class="py-2 px-2 text-center font-mono text-slate-500">${rankBadge}</td>
-                  <td class="py-2 px-3 text-slate-200 font-medium">
-                    <a href="/movie/${item.id}" target="_blank" class="hover:text-orange-400 transition hover:underline">
-                      ${item.title}
-                    </a>
-                    ${item.year ? `<span class="text-slate-500 font-normal ml-1">(${item.year})</span>` : ''}
-                  </td>
-                  <td class="py-2 px-2 text-center text-slate-400">
-                    <span class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px]">${item.category || '电影'}</span>
-                  </td>
-                  <td class="py-2 px-2 text-center font-mono text-slate-300">${item.views || 0}</td>
-                  <td class="py-2 px-2 text-center font-mono text-purple-300">${item.clicks_quark || 0}</td>
-                  <td class="py-2 px-2 text-center font-mono text-cyan-300">${item.clicks_uc || 0}</td>
-                  <td class="py-2 px-2 text-center font-mono text-amber-300 font-bold">${item.total_saves || 0}</td>
-                  <td class="py-2 px-3 text-right">
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/30">
-                      ${item.rate}%
-                    </span>
-                  </td>
-                </tr>
-              `;
-            }).join('');
+            topBody.innerHTML = ranked.map((item, idx) => `
+              <tr class="hover:bg-slate-900/50 transition">
+                <td class="py-2 px-2 text-center font-mono text-slate-500">${idx + 1}</td>
+                <td class="py-2 px-3 text-slate-200 font-medium">
+                  <a href="/movie/${item.id}" target="_blank" class="hover:text-orange-400 transition hover:underline">${item.title}</a>
+                  ${item.year ? `<span class="text-slate-500 font-normal ml-1">(${item.year})</span>` : ''}
+                </td>
+                <td class="py-2 px-2 text-center text-slate-400">
+                  <span class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px]">${item.category || '电影'}</span>
+                </td>
+                <td class="py-2 px-2 text-center font-mono text-slate-300">${item.views || 0}</td>
+                <td class="py-2 px-2 text-center font-mono text-purple-300">${item.clicks_quark || 0}</td>
+                <td class="py-2 px-2 text-center font-mono text-cyan-300">${item.clicks_uc || 0}</td>
+                <td class="py-2 px-2 text-center font-mono text-amber-300 font-bold">${item.total_saves || 0}</td>
+                <td class="py-2 px-3 text-right">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-orange-500/10 text-orange-400 border border-orange-500/30">${item.rate}%</span>
+                </td>
+              </tr>
+            `).join('');
           }
 
           const now = new Date();
@@ -1671,20 +2079,10 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           if (statusText) statusText.textContent = '实时已连接';
           if (lastUpdated) lastUpdated.textContent = `最后刷新: ${timeStr}`;
 
-          // 并行同步最新转存控制开关状态
-          fetch(`${SUPABASE_BASE_URL}/system_settings?key=eq.transfer_settings&select=value,updated_at`, {
-            headers: { 'apikey': SUPABASE_PUB_KEY, 'Authorization': `Bearer ${SUPABASE_PUB_KEY}` }
-          }).then(r => r.json()).then(data => {
-            if (data?.[0]?.value) {
-              updateTransferSwitchUi({
-                uc: data[0].value.uc !== false,
-                quark: data[0].value.quark !== false,
-                updated_at: data[0].updated_at || data[0].value.updated_at
-              });
-            }
-          }).catch(() => {});
+          // 并行拉取转存设置
+          fetchTransferSettings();
 
-          if (manual) showToast('已刷新并同步最新真实转化大盘数据', '⚡');
+          if (manual) showToast('大盘与全量资源已完成实时刷新！', '⚡');
         } catch (err) {
           if (statusText) statusText.textContent = '实时刷新失败';
         } finally {
@@ -1693,22 +2091,33 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
       }
 
       // ==========================================
-      // 网盘转存控制开关事件与持久化逻辑
+      // 6. 转存控制开关管理
       // ==========================================
-      const rawTransferSettings = JSON.parse(document.getElementById('transferSettingsData')?.textContent || '{"uc":true,"quark":true}');
-      let currentTransferState = { ...rawTransferSettings };
-
+      let currentTransferState = { uc: true, quark: true };
       const ucToggle = document.getElementById('ucToggleInput');
       const quarkToggle = document.getElementById('quarkToggleInput');
+
+      async function fetchTransferSettings() {
+        try {
+          const res = await fetch(`${SUPABASE_BASE_URL}/system_settings?key=eq.transfer_settings&select=value,updated_at`, {
+            headers: { 'apikey': SUPABASE_PUB_KEY, 'Authorization': `Bearer ${SUPABASE_PUB_KEY}` }
+          });
+          const data = await res.json();
+          if (data?.[0]?.value) {
+            updateTransferSwitchUi({
+              uc: data[0].value.uc !== false,
+              quark: data[0].value.quark !== false,
+              updated_at: data[0].updated_at || data[0].value.updated_at
+            });
+          }
+        } catch (_) {}
+      }
 
       function updateTransferSwitchUi(settings) {
         if (!settings) return;
         currentTransferState = { ...currentTransferState, ...settings };
 
-        // 1. UC 网盘状态组件更新
-        if (ucToggle && ucToggle.checked !== currentTransferState.uc) {
-          ucToggle.checked = currentTransferState.uc;
-        }
+        if (ucToggle && ucToggle.checked !== currentTransferState.uc) ucToggle.checked = currentTransferState.uc;
         const ucBadge = document.getElementById('ucStatusBadge');
         const ucDot = document.getElementById('ucStatusDot');
         const ucLabel = document.getElementById('ucStatusLabel');
@@ -1724,10 +2133,7 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           }
         }
 
-        // 2. 夸克网盘状态组件更新
-        if (quarkToggle && quarkToggle.checked !== currentTransferState.quark) {
-          quarkToggle.checked = currentTransferState.quark;
-        }
+        if (quarkToggle && quarkToggle.checked !== currentTransferState.quark) quarkToggle.checked = currentTransferState.quark;
         const qkBadge = document.getElementById('quarkStatusBadge');
         const qkDot = document.getElementById('quarkStatusDot');
         const qkLabel = document.getElementById('quarkStatusLabel');
@@ -1743,12 +2149,11 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           }
         }
 
-        // 3. 上次变更时间显示
         const timeEl = document.getElementById('transferSettingsUpdatedTime');
         if (timeEl && currentTransferState.updated_at) {
           try {
             const d = new Date(currentTransferState.updated_at);
-            timeEl.textContent = `上次变更: ${d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+            timeEl.textContent = `上次变更: ${d.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`;
           } catch (_) {}
         }
       }
@@ -1764,12 +2169,10 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
           quark: provider === 'quark' ? enabled : currentTransferState.quark
         };
 
-        // 乐观更新 UI
         updateTransferSwitchUi({ ...newSettings, updated_at: new Date().toISOString() });
 
         try {
           let success = false;
-          // 优先调用 Cloudflare Pages Function 边缘接口
           try {
             const apiRes = await fetch('/api/transfer-settings', {
               method: 'POST',
@@ -1778,85 +2181,57 @@ const serializedTransferSettings = JSON.stringify(initialTransferSettings);
             });
             if (apiRes.ok) {
               const resData = await apiRes.json();
-              if (resData.success) {
-                success = true;
-                if (resData.settings) updateTransferSwitchUi(resData.settings);
-              }
+              if (resData.success) success = true;
             }
           } catch (_) {}
 
-          // 降级兜底：若直连边缘函数受网络或本地开发限制，直连 Supabase REST API
           if (!success) {
             const patchRes = await fetch(`${SUPABASE_BASE_URL}/system_settings?key=eq.transfer_settings`, {
               method: 'PATCH',
               headers: {
                 'apikey': SUPABASE_PUB_KEY,
                 'Authorization': `Bearer ${SUPABASE_PUB_KEY}`,
-                'Content-Type': 'application/json',
-                'Prefer': 'return=representation'
+                'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                value: {
-                  ...newSettings,
-                  updated_at: new Date().toISOString(),
-                  updated_by: 'admin_dashboard'
-                },
+                value: { ...newSettings, updated_at: new Date().toISOString() },
                 updated_at: new Date().toISOString()
               })
             });
-            if (patchRes.ok) {
-              success = true;
-            }
+            if (patchRes.ok) success = true;
           }
 
           if (success) {
             const providerName = provider === 'uc' ? 'UC 网盘' : '夸克网盘';
-            const stateText = enabled ? '已开启自动转存' : '已暂停自动转存';
-            showToast(`${providerName} ${stateText}`, enabled ? '🟢' : '⏸️');
-            if (syncBadge) {
-              syncBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> 实时同步成功';
-            }
-          } else {
-            throw new Error('网络请求未成功');
+            showToast(`${providerName} ${enabled ? '已开启自动转存' : '已暂停自动转存'}`, enabled ? '🟢' : '⏸️');
+            if (syncBadge) syncBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> 实时同步成功';
           }
         } catch (err) {
-          console.error('Failed to save transfer setting:', err);
-          showToast('转存控制开关保存失败，请检查网络', '❌');
-          // 回滚
-          if (provider === 'uc' && ucToggle) ucToggle.checked = !enabled;
-          if (provider === 'quark' && quarkToggle) quarkToggle.checked = !enabled;
-          updateTransferSwitchUi(currentTransferState);
-          if (syncBadge) {
-            syncBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> 保存失败';
-          }
+          showToast('保存失败，请检查网络', '❌');
+          if (syncBadge) syncBadge.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span> 保存失败';
         }
       }
 
-      ucToggle?.addEventListener('change', (e) => {
-        saveTransferSetting('uc', e.target.checked);
-      });
+      ucToggle?.addEventListener('change', (e) => saveTransferSetting('uc', e.target.checked));
+      quarkToggle?.addEventListener('change', (e) => saveTransferSetting('quark', e.target.checked));
 
-      quarkToggle?.addEventListener('change', (e) => {
-        saveTransferSetting('quark', e.target.checked);
-      });
-
-      // 绑定实时刷新按钮
+      // 实时全量刷新按钮
       document.getElementById('refreshLiveMetricsBtn')?.addEventListener('click', () => {
+        fetchLiveResources();
         refreshLiveAnalytics(true);
       });
 
-      // 页面加载完成后立即拉取最新实时数据
+      // 初始化：立即执行实时全量拉取
+      fetchLiveResources();
       refreshLiveAnalytics(false);
 
-      // 开启无感静默轮询（每 20 秒在标签页处于前台时自动刷新）
+      // 开启静默轮询（每 25 秒在标签页处于前台时自动刷新）
       setInterval(() => {
         if (!document.hidden) {
+          fetchLiveResources();
           refreshLiveAnalytics(false);
         }
-      }, 20000);
-
-      // 初始渲染
-      render();
+      }, 25000);
     </script>
   </body>
 </html>
