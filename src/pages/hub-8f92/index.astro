@@ -479,81 +479,87 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
         </div>
 
         <!-- 主检索栏：全属性通用搜索 + 快捷状态 + 排序 + 高级面板开关 -->
-        <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-          <!-- 实时关键词全属性搜索 -->
-          <div class="md:col-span-5 relative">
-            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <!-- 左侧：全属性模糊搜索 + 快捷状态 + 排序规则 (自适应流式排布，不拥挤) -->
+          <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2.5 sm:gap-3 items-center">
+            <!-- 实时关键词全属性穿透搜索 (占 6/12) -->
+            <div class="sm:col-span-2 lg:col-span-6 relative">
+              <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input 
+                type="text" 
+                id="searchInput" 
+                placeholder="全属性搜索：片名 / 英文原名 / 主演 / 简介 / 国家 / 年份 / UUID / 链接 / 上游ID..." 
+                class="w-full pl-9 pr-9 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-orange-500/70 focus:ring-1 focus:ring-orange-500/50 transition-all shadow-inner"
+              />
+              <button id="clearSearchBtn" class="hidden absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
-            <input 
-              type="text" 
-              id="searchInput" 
-              placeholder="全属性搜索：片名 / 英文原名 / 主演 / 简介 / 国家 / 年份 / UUID / 链接 / 上游ID..." 
-              class="w-full pl-9 pr-9 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-orange-500/70 focus:ring-1 focus:ring-orange-500/50 transition-all"
-            />
-            <button id="clearSearchBtn" class="hidden absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+
+            <!-- 快捷状态筛选 (占 3/12) -->
+            <div class="sm:col-span-1 lg:col-span-3">
+              <select id="statusFilter" class="w-full py-2.5 px-3 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-orange-500/70 cursor-pointer">
+                <option value="all">核心状态: 全部</option>
+                <option value="ready">✅ 元数据已就绪 (已发布)</option>
+                <option value="pending">⏳ 待补元数据 (种子池)</option>
+                <option value="has_play">🎬 有在线播放源</option>
+                <option value="has_quark">⚡ 有夸克网盘转存</option>
+                <option value="has_uc">📦 有 UC 网盘转存</option>
+                <option value="ongoing">📺 连载更新中</option>
+                <option value="finished">🏁 已完结完整版</option>
+                <option value="missing_res">⚠️ 暂无任何资源</option>
+              </select>
+            </div>
+
+            <!-- 排序规则 (占 3/12) -->
+            <div class="sm:col-span-1 lg:col-span-3">
+              <select id="sortBy" class="w-full py-2.5 px-3 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-orange-500/70 cursor-pointer">
+                <option value="year_score_created" selected>发布排序: 年份+评分+入库 ↓</option>
+                <option value="saves_desc">🔥 网盘转存量: 从高到低</option>
+                <option value="views_desc">👁️ 浏览热度: 从高到低</option>
+                <option value="created_desc">⏱️ 入库时间: 最新优先</option>
+                <option value="created_asc">⏱️ 入库时间: 最早优先</option>
+                <option value="updated_desc">🔄 追更时间: 最近更新</option>
+                <option value="score_desc">🌟 口碑评分: 从高到低</option>
+                <option value="year_desc">📅 上映年份: 最新优先</option>
+                <option value="episodes_desc">📺 连载集数: 从多到少</option>
+              </select>
+            </div>
           </div>
 
-          <!-- 快捷状态筛选 -->
-          <div class="md:col-span-3">
-            <select id="statusFilter" class="w-full py-2 px-3 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-orange-500/70 cursor-pointer">
-              <option value="all">核心状态: 全部</option>
-              <option value="ready">✅ 元数据已就绪 (已发布)</option>
-              <option value="pending">⏳ 待补元数据 (种子池)</option>
-              <option value="has_play">🎬 有在线播放源</option>
-              <option value="has_quark">⚡ 有夸克网盘转存</option>
-              <option value="has_uc">📦 有 UC 网盘转存</option>
-              <option value="ongoing">📺 连载更新中</option>
-              <option value="finished">🏁 已完结完整版</option>
-              <option value="missing_res">⚠️ 暂无任何资源</option>
-            </select>
-          </div>
-
-          <!-- 排序规则 -->
-          <div class="md:col-span-2">
-            <select id="sortBy" class="w-full py-2 px-3 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 focus:outline-none focus:border-orange-500/70 cursor-pointer">
-              <option value="year_score_created" selected>发布排序: 年份+评分+入库 ↓</option>
-              <option value="saves_desc">🔥 网盘转存量: 从高到低</option>
-              <option value="views_desc">👁️ 浏览热度: 从高到低</option>
-              <option value="created_desc">⏱️ 入库时间: 最新优先</option>
-              <option value="created_asc">⏱️ 入库时间: 最早优先</option>
-              <option value="updated_desc">🔄 追更时间: 最近更新</option>
-              <option value="score_desc">🌟 口碑评分: 从高到低</option>
-              <option value="year_desc">📅 上映年份: 最新优先</option>
-              <option value="episodes_desc">📺 连载集数: 从多到少</option>
-            </select>
-          </div>
-
-          <!-- 高级属性组合筛选开关与视图切换 -->
-          <div class="md:col-span-2 flex items-center justify-end gap-2">
-            <button id="toggleAdvancedFilterBtn" type="button" class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer">
-              <svg class="w-3.5 h-3.5 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <!-- 右侧操作栏：属性多维筛选开关 + 视图切换 + 每页条数 (设置独立容器，绝不挤压) -->
+          <div class="flex items-center justify-between sm:justify-end gap-2.5 flex-shrink-0 pt-1 lg:pt-0 border-t lg:border-t-0 border-slate-800/60">
+            <!-- 高级属性组合筛选开关 -->
+            <button id="toggleAdvancedFilterBtn" type="button" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 border border-slate-700 text-xs font-medium flex items-center gap-1.5 transition cursor-pointer shadow-sm hover:border-slate-600 flex-shrink-0">
+              <svg class="w-4 h-4 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
               </svg>
               <span>属性筛选</span>
               <span id="activeFilterBadge" class="hidden px-1.5 py-0.2 rounded-full bg-orange-500 text-white font-mono text-[10px]">0</span>
             </button>
 
-            <div class="flex items-center rounded-lg bg-slate-950 border border-slate-800 p-0.5">
-              <button id="viewTableBtn" title="表格紧凑视图" class="px-2 py-1 rounded text-xs transition bg-orange-500 text-white cursor-pointer">
+            <!-- 视图模式切换 -->
+            <div class="flex items-center rounded-xl bg-slate-950 border border-slate-800 p-1 flex-shrink-0">
+              <button id="viewTableBtn" title="表格紧凑视图" class="px-2.5 py-1 rounded-lg text-xs transition bg-orange-500 text-white cursor-pointer">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                 </svg>
               </button>
-              <button id="viewGridBtn" title="视觉卡片视图" class="px-2 py-1 rounded text-xs transition text-slate-400 hover:text-white cursor-pointer">
+              <button id="viewGridBtn" title="视觉卡片视图" class="px-2.5 py-1 rounded-lg text-xs transition text-slate-400 hover:text-white cursor-pointer">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                 </svg>
               </button>
             </div>
             
-            <select id="pageSizeSelect" class="py-1.5 px-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300 cursor-pointer">
+            <!-- 每页条数 -->
+            <select id="pageSizeSelect" class="py-2 px-2.5 bg-slate-950 border border-slate-800 rounded-xl text-xs text-slate-300 cursor-pointer focus:outline-none focus:border-slate-700 flex-shrink-0">
               <option value="20">20 条/页</option>
               <option value="50" selected>50 条/页</option>
               <option value="100">100 条/页</option>
@@ -563,100 +569,150 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
         </div>
 
         <!-- 可折叠的【全部属性高阶组合检索器】 -->
-        <div id="advancedFilterPanel" class="hidden pt-3 border-t border-slate-800/80 space-y-3">
+        <div id="advancedFilterPanel" class="hidden pt-4 border-t border-slate-800/80 space-y-3.5">
           <div class="flex items-center justify-between text-xs text-slate-400">
-            <span class="font-bold text-slate-200 flex items-center gap-1.5">
-              <span>🎯 全属性高级组合过滤器</span>
-              <span class="text-[11px] text-slate-500 font-normal">支持按系统任一属性进行交叉匹配</span>
+            <span class="font-bold text-slate-200 flex items-center gap-2">
+              <span class="text-orange-400">🎯</span>
+              <span>全属性多维组合过滤器</span>
+              <span class="text-[11px] text-slate-500 font-normal hidden sm:inline">支持按库内元数据、自有网盘资产与上游采集源进行精准组合交叉匹配</span>
             </span>
-            <button id="resetFiltersBtn" class="text-orange-400 hover:text-orange-300 flex items-center gap-1 text-xs cursor-pointer">
+            <button id="resetFiltersBtn" class="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-orange-400 hover:text-orange-300 flex items-center gap-1.5 text-xs transition cursor-pointer border border-slate-700/60">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
               <span>重置所有筛选</span>
             </button>
           </div>
 
-          <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5 text-xs">
+          <!-- 4列卡片网格 (2行×4列)，每个卡片空间充裕，绝不挤压 -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
             <!-- 1. 门禁状态 -->
-            <div class="space-y-1">
-              <label class="text-[11px] text-slate-400 font-medium">门禁/元数据</label>
-              <select id="advFilterMeta" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
-                <option value="all">全部</option>
-                <option value="ready">✅ 已过审就绪</option>
-                <option value="pending">⏳ 待补元数据</option>
+            <div class="bg-slate-950/60 border border-slate-800/90 hover:border-slate-700 rounded-xl p-3 space-y-1.5 transition">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] text-slate-300 font-medium flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  <span>门禁与元数据</span>
+                </label>
+                <span class="text-[10px] text-slate-500 font-mono">has_metadata</span>
+              </div>
+              <select id="advFilterMeta" class="w-full py-2 px-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-orange-500/70 cursor-pointer">
+                <option value="all">全部状态 (不限)</option>
+                <option value="ready">✅ 已过审就绪 (已发布上线)</option>
+                <option value="pending">⏳ 待补齐元数据 (种子池)</option>
               </select>
             </div>
 
             <!-- 2. 上映公映状态 -->
-            <div class="space-y-1">
-              <label class="text-[11px] text-slate-400 font-medium">上映状态</label>
-              <select id="advFilterReleased" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
-                <option value="all">全部</option>
-                <option value="released">🎬 已上映公映</option>
-                <option value="unreleased">⏳ 待上映预告</option>
+            <div class="bg-slate-950/60 border border-slate-800/90 hover:border-slate-700 rounded-xl p-3 space-y-1.5 transition">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] text-slate-300 font-medium flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+                  <span>上映公映状态</span>
+                </label>
+                <span class="text-[10px] text-slate-500 font-mono">is_released</span>
+              </div>
+              <select id="advFilterReleased" class="w-full py-2 px-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-orange-500/70 cursor-pointer">
+                <option value="all">全部上映状态 (不限)</option>
+                <option value="released">🎬 已上映公映 (正常观看)</option>
+                <option value="unreleased">⏳ 待映预告期 (未上映)</option>
               </select>
             </div>
 
             <!-- 3. 完结状态 -->
-            <div class="space-y-1">
-              <label class="text-[11px] text-slate-400 font-medium">连载完结</label>
-              <select id="advFilterFinished" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
-                <option value="all">全部</option>
-                <option value="ongoing">🔥 连载追更中</option>
-                <option value="finished">🏁 已完结</option>
+            <div class="bg-slate-950/60 border border-slate-800/90 hover:border-slate-700 rounded-xl p-3 space-y-1.5 transition">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] text-slate-300 font-medium flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                  <span>连载与完结</span>
+                </label>
+                <span class="text-[10px] text-slate-500 font-mono">is_finished</span>
+              </div>
+              <select id="advFilterFinished" class="w-full py-2 px-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-orange-500/70 cursor-pointer">
+                <option value="all">全部连载状态 (不限)</option>
+                <option value="ongoing">🔥 连载追更中 (定期更集)</option>
+                <option value="finished">🏁 全集已完结 (完整版)</option>
               </select>
             </div>
 
-            <!-- 4. 夸克网盘 -->
-            <div class="space-y-1">
-              <label class="text-[11px] text-slate-400 font-medium">夸克网盘</label>
-              <select id="advFilterQuark" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
-                <option value="all">全部</option>
-                <option value="has">⚡ 已挂载夸克</option>
-                <option value="none">❌ 未挂载夸克</option>
+            <!-- 4. 口碑评分 -->
+            <div class="bg-slate-950/60 border border-slate-800/90 hover:border-slate-700 rounded-xl p-3 space-y-1.5 transition">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] text-slate-300 font-medium flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-yellow-400"></span>
+                  <span>口碑评分区间</span>
+                </label>
+                <span class="text-[10px] text-slate-500 font-mono">score</span>
+              </div>
+              <select id="advFilterScore" class="w-full py-2 px-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-orange-500/70 cursor-pointer">
+                <option value="all">全部评分区间 (不限)</option>
+                <option value="9">🌟 9.0 分以上 (神作级)</option>
+                <option value="8">⭐ 8.0 ~ 8.9 分 (高分佳作)</option>
+                <option value="7">📈 7.0 ~ 7.9 分 (良好推荐)</option>
+                <option value="6">📉 6.0 ~ 6.9 分 (及格线)</option>
+                <option value="under6">🔻 6.0 分以下 (低分偏门)</option>
+                <option value="none">⚪ 暂无评分条目</option>
               </select>
             </div>
 
-            <!-- 5. UC 网盘 -->
-            <div class="space-y-1">
-              <label class="text-[11px] text-slate-400 font-medium">UC 网盘</label>
-              <select id="advFilterUc" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
-                <option value="all">全部</option>
-                <option value="has">📦 已挂载 UC</option>
-                <option value="none">❌ 未挂载 UC</option>
+            <!-- 5. 夸克网盘资产 (自有网盘资产) -->
+            <div class="bg-slate-950/60 border border-slate-800/90 hover:border-purple-500/40 rounded-xl p-3 space-y-1.5 transition">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] text-purple-300 font-medium flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                  <span>自有夸克网盘转存</span>
+                </label>
+                <span class="text-[10px] text-purple-400/80 font-mono">share_link</span>
+              </div>
+              <select id="advFilterQuark" class="w-full py-2 px-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-purple-500/70 cursor-pointer">
+                <option value="all">夸克转存: 全部 (不限)</option>
+                <option value="has">⚡ 已挂载自有夸克转存</option>
+                <option value="none">❌ 未挂载夸克转存</option>
               </select>
             </div>
 
-            <!-- 6. 在线切片流 -->
-            <div class="space-y-1">
-              <label class="text-[11px] text-slate-400 font-medium">在线播放源</label>
-              <select id="advFilterPlay" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
-                <option value="all">全部</option>
-                <option value="has">▶️ 有切片流</option>
-                <option value="none">❌ 无切片流</option>
+            <!-- 6. UC 网盘资产 (自有网盘资产) -->
+            <div class="bg-slate-950/60 border border-slate-800/90 hover:border-cyan-500/40 rounded-xl p-3 space-y-1.5 transition">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] text-cyan-300 font-medium flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                  <span>自有 UC 网盘转存</span>
+                </label>
+                <span class="text-[10px] text-cyan-400/80 font-mono">share_link_uc</span>
+              </div>
+              <select id="advFilterUc" class="w-full py-2 px-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-cyan-500/70 cursor-pointer">
+                <option value="all">UC 转存: 全部 (不限)</option>
+                <option value="has">📦 已挂载自有 UC 转存</option>
+                <option value="none">❌ 未挂载 UC 转存</option>
               </select>
             </div>
 
-            <!-- 7. 上游搜源溯源 -->
-            <div class="space-y-1">
-              <label class="text-[11px] text-slate-400 font-medium">上游采集源</label>
-              <select id="advFilterSource" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
-                <option value="all">全部</option>
-                <option value="has">🔍 有 source_pwd_id</option>
-                <option value="none">❌ 无采集源记录</option>
+            <!-- 7. 在线切片流 (在线播放源) -->
+            <div class="bg-slate-950/60 border border-slate-800/90 hover:border-rose-500/40 rounded-xl p-3 space-y-1.5 transition">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] text-rose-300 font-medium flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+                  <span>在线播放切片流</span>
+                </label>
+                <span class="text-[10px] text-rose-400/80 font-mono">online_play_url</span>
+              </div>
+              <select id="advFilterPlay" class="w-full py-2 px-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-rose-500/70 cursor-pointer">
+                <option value="all">在线切片: 全部 (不限)</option>
+                <option value="has">▶️ 有高速切片流 (支持直播)</option>
+                <option value="none">❌ 暂无切片流源</option>
               </select>
             </div>
 
-            <!-- 8. 评分区间 -->
-            <div class="space-y-1">
-              <label class="text-[11px] text-slate-400 font-medium">口碑评分</label>
-              <select id="advFilterScore" class="w-full p-2 bg-slate-950 border border-slate-800 rounded-lg text-slate-300">
-                <option value="all">全部评分</option>
-                <option value="9">🌟 9.0 分以上</option>
-                <option value="8">⭐ 8.0 ~ 8.9 分</option>
-                <option value="7">📈 7.0 ~ 7.9 分</option>
-                <option value="6">📉 6.0 ~ 6.9 分</option>
-                <option value="under6">🔻 6.0 分以下</option>
-                <option value="none">⚪ 暂无评分</option>
+            <!-- 8. 上游公开采集源 (上游输入源) -->
+            <div class="bg-slate-950/60 border border-slate-800/90 hover:border-emerald-500/40 rounded-xl p-3 space-y-1.5 transition">
+              <div class="flex items-center justify-between">
+                <label class="text-[11px] text-emerald-300 font-medium flex items-center gap-1.5">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                  <span>上游公开采集源</span>
+                </label>
+                <span class="text-[10px] text-emerald-400/80 font-mono">source_pwd_id</span>
+              </div>
+              <select id="advFilterSource" class="w-full py-2 px-2.5 bg-slate-900 border border-slate-700/80 rounded-lg text-slate-200 text-xs focus:outline-none focus:border-emerald-500/70 cursor-pointer">
+                <option value="all">采集溯源: 全部 (不限)</option>
+                <option value="has">🔍 包含上游采集源记录</option>
+                <option value="none">❌ 无上游溯源记录</option>
               </select>
             </div>
           </div>

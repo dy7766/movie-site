@@ -170,8 +170,13 @@ export async function addHotDramas() {
 
     console.log(`  ✓ 海报来源: ${fetched?.source ? `[${fetched.source}] ${poster_url}` : `[精选物料] ${poster_url}`}`);
 
-    // 2. 检查或插入数据库
-    const exist = await pool.query('SELECT id, share_link_uc, online_play_url FROM resources WHERE title = $1 LIMIT 1', [d.title]);
+    // 2. 检查或插入数据库（精准去重 + 智能前缀/去空格比对）
+    const cleanTitle = d.title.replace(/\s+/g, '');
+    const altTitle = d.title.startsWith('七') ? d.title.slice(1) : ('七' + d.title);
+    const exist = await pool.query(
+      'SELECT id, share_link_uc, online_play_url FROM resources WHERE title = $1 OR title = $2 OR REPLACE(title, \' \', \'\') = $3 LIMIT 1',
+      [d.title, altTitle, cleanTitle]
+    );
     let resourceId = exist.rows[0]?.id;
 
     if (!resourceId) {

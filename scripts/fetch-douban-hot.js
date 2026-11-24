@@ -195,10 +195,12 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
 
   for (const c of candidates) {
     try {
-      // 检查库中是否已存在同名影视（按片名精准去重，防止跨分类重复入库）
+      // 检查库中是否已存在同名影视（精准去重 + 智能前缀/去空格比对，防止字词微小差异导致重复入库）
+      const cleanTitle = c.title.replace(/\s+/g, '');
+      const altTitle = c.title.startsWith('七') ? c.title.slice(1) : ('七' + c.title);
       const existRes = await pool.query(
-        'SELECT id FROM resources WHERE title = $1 LIMIT 1',
-        [c.title]
+        'SELECT id FROM resources WHERE title = $1 OR title = $2 OR REPLACE(title, \' \', \'\') = $3 LIMIT 1',
+        [c.title, altTitle, cleanTitle]
       );
 
       if (existRes.rows.length > 0) {
