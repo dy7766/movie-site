@@ -20,7 +20,7 @@ export async function onRequestGet(context) {
 
   const config = {
     // 采用集成 Xkyk 专线驱动内核的 Spider，原生支持夸克/UC/阿里扫码弹窗登录与4K硬解
-    spider: `${host}/spider.jar;md5;a848b8b12160e12d19c54086f4feebb6`,
+    spider: `${host}/spider.jar;md5;411a323bb8b03de5272e411dcaff7fc9`,
     wallpaper: 'https://bing.img.run/rand_uhd.php',
     logo: 'https://modelscope-resouces.oss-cn-zhangjiakou.aliyuncs.com/avatar%2Ff5309172-1af6-4c4f-a1c5-a4773a1cc718.gif',
     sites: [
