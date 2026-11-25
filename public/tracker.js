@@ -17,6 +17,50 @@
     return 'desktop';
   }
 
+  // 1.5 生成/读取匿名持久化访客 ID（localStorage + Cookie 双重持久化，识别同一用户）
+  function getOrCreateVisitorId() {
+    var KEY = 'xkyk_vid';
+    var vid = '';
+    try {
+      vid = window.localStorage ? (localStorage.getItem(KEY) || '') : '';
+    } catch (_) {}
+
+    if (!vid) {
+      try {
+        var match = document.cookie.match(new RegExp('(?:^|;\\s*)' + KEY + '=([^;]+)'));
+        if (match && match[1]) vid = decodeURIComponent(match[1]);
+      } catch (_) {}
+    }
+
+    if (!vid) {
+      var rand = Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-6);
+      var fp = '';
+      try {
+        var rawFp = [
+          screen.width + 'x' + screen.height,
+          navigator.language || '',
+          new Date().getTimezoneOffset()
+        ].join('|');
+        var hash = 0;
+        for (var i = 0; i < rawFp.length; i++) {
+          hash = ((hash << 5) - hash) + rawFp.charCodeAt(i);
+          hash |= 0;
+        }
+        fp = Math.abs(hash).toString(36).slice(0, 4);
+      } catch (_) {}
+      vid = 'u_' + (fp || 'x') + '_' + rand;
+    }
+
+    try {
+      if (window.localStorage) localStorage.setItem(KEY, vid);
+    } catch (_) {}
+    try {
+      document.cookie = KEY + '=' + encodeURIComponent(vid) + '; path=/; max-age=31536000; SameSite=Lax';
+    } catch (_) {}
+
+    return vid;
+  }
+
   // 2. 发送埋点数据 (双通道高可靠：优先 /api/track，同时支持直连 Supabase REST)
   var SUPABASE_DIRECT_URL = 'https://oncktqesgpjsilngtcok.supabase.co/rest/v1/analytics_events';
   var SUPABASE_PUBLIC_KEY = 'sb_publishable_pQLb1OOxod2ibn_i1QqoJg_lt9FZPTH';
@@ -45,6 +89,7 @@
         resource_id: resourceId ? String(resourceId).trim() : null,
         resource_title: resourceTitle || (eventType === 'page_view' ? document.title : ''),
         device: getDeviceType(),
+        visitor_id: getOrCreateVisitorId(),
         page_url: window.location.href,
         referrer: document.referrer || ''
       };

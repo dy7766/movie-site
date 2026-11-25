@@ -339,6 +339,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
             <div class="my-2 flex items-baseline gap-2">
               <span id="metricTotalPv" class="text-2xl font-bold text-white font-mono">--</span>
               <span class="text-[11px] text-slate-400">次浏览</span>
+              <span id="metricPeriodUv" class="ml-auto text-[11px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">UV --</span>
             </div>
             <div class="text-[11px] text-slate-400 flex items-center justify-between">
               <span id="metricMobilePv">📱 移动端 --</span>
@@ -2105,6 +2106,8 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
               recentList.innerHTML = recentRes.map(ev => {
                 const badge = evLabels[ev.event_type] || { text: ev.event_type, color: 'bg-slate-800 text-slate-400 border-slate-700' };
                 const timeStr = new Date(ev.created_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const uidRaw = ev.visitor_id || (ev.ip ? `ip_${ev.ip}` : '');
+                const uidBadge = uidRaw ? `<span class="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-mono text-[9px]" title="${uidRaw}">👤 ${uidRaw.slice(0, 10)}</span>` : '';
                 const ipBadge = ev.ip ? `<span class="px-1.5 py-0.5 rounded bg-slate-800/90 text-slate-300 border border-slate-700/60 font-mono text-[9px]">📍 ${ev.ip}${ev.location ? ` (${ev.location.split(',')[0]})` : ''}</span>` : '';
                 return `
                   <div class="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-900/60 border border-slate-800/50">
@@ -2113,6 +2116,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
                       <span class="text-slate-200 truncate text-[11px]">${ev.resource_title || '星光影库页面'}</span>
                     </div>
                     <div class="flex items-center gap-2 flex-shrink-0 text-[10px] font-mono text-slate-400">
+                      ${uidBadge}
                       ${ipBadge}
                       <span>${ev.device === 'mobile' ? '📱' : '💻'}</span>
                       <span class="text-slate-500">${timeStr}</span>
@@ -2312,7 +2316,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
         const pageSize = 1000;
         let offset = 0;
         while (offset < 10000) {
-          const url = `${SUPABASE_BASE_URL}/analytics_events?select=event_type,created_at&created_at=gte.${encodeURIComponent(sinceIso)}&event_type=in.(page_view,click_quark,click_uc)&order=created_at.asc&limit=${pageSize}&offset=${offset}`;
+          const url = `${SUPABASE_BASE_URL}/analytics_events?select=event_type,created_at,visitor_id,ip&created_at=gte.${encodeURIComponent(sinceIso)}&event_type=in.(page_view,click_quark,click_uc)&order=created_at.asc&limit=${pageSize}&offset=${offset}`;
           const res = await fetch(url, {
             headers: { 'apikey': SUPABASE_PUB_KEY, 'Authorization': `Bearer ${SUPABASE_PUB_KEY}` }
           });
@@ -2344,7 +2348,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
             const d = new Date(now.getTime() - i * 86400 * 1000);
             const key = formatCstDateKey(d);
             dayKeys.push(key);
-            buckets[key] = { pv: 0, quark: 0, uc: 0 };
+            buckets[key] = { pv: 0, quark: 0, uc: 0, uvSet: new Set() };
           }
 
           // 从窗口第一天东八区 00:00:00 开始拉取
@@ -2353,10 +2357,16 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
 
           let sumPv = 0;
           let sumSaves = 0;
+          const periodUvSet = new Set();
           for (const row of rows) {
             const key = formatCstDateKey(new Date(row.created_at));
             const b = buckets[key];
             if (!b) continue;
+            const uid = row.visitor_id || (row.ip ? `ip_${row.ip}` : '');
+            if (uid) {
+              b.uvSet.add(uid);
+              periodUvSet.add(uid);
+            }
             if (row.event_type === 'page_view') {
               b.pv += 1;
               sumPv += 1;
@@ -2371,13 +2381,17 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
 
           const labels = dayKeys.map(k => k.slice(5)); // MM-DD
           const pvData = dayKeys.map(k => buckets[k].pv);
+          const uvData = dayKeys.map(k => buckets[k].uvSet.size);
           const savesData = dayKeys.map(k => buckets[k].quark + buckets[k].uc);
           const quarkData = dayKeys.map(k => buckets[k].quark);
           const ucData = dayKeys.map(k => buckets[k].uc);
 
+          const elPeriodUv = document.getElementById('metricPeriodUv');
+          if (elPeriodUv) elPeriodUv.textContent = `近${days}天UV ${periodUvSet.size}`;
+
           if (summaryEl) {
             const periodCvr = sumPv > 0 ? ((sumSaves / sumPv) * 100).toFixed(1) : '0.0';
-            summaryEl.textContent = `近${days}天: ${sumPv} PV / ${sumSaves} 转存 (${periodCvr}%)`;
+            summaryEl.textContent = `近${days}天: ${periodUvSet.size} UV / ${sumPv} PV / ${sumSaves} 转存 (${periodCvr}%)`;
           }
 
           if (trafficChartInstance) {
@@ -2406,6 +2420,19 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
                 },
                 {
                   type: 'line',
+                  label: '独立访客 (UV)',
+                  data: uvData,
+                  yAxisID: 'yPv',
+                  borderColor: '#10b981',
+                  borderWidth: 2,
+                  pointBackgroundColor: '#34d399',
+                  pointRadius: 3,
+                  tension: 0.35,
+                  fill: false,
+                  order: 2
+                },
+                {
+                  type: 'line',
                   label: '夸克转存',
                   data: quarkData,
                   yAxisID: 'ySaves',
@@ -2415,7 +2442,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
                   pointRadius: 2,
                   tension: 0.35,
                   fill: false,
-                  order: 2
+                  order: 3
                 },
                 {
                   type: 'line',
@@ -2428,7 +2455,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
                   pointRadius: 2,
                   tension: 0.35,
                   fill: false,
-                  order: 3
+                  order: 4
                 },
                 {
                   type: 'bar',
@@ -2440,7 +2467,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
                   borderWidth: 1,
                   borderRadius: 6,
                   maxBarThickness: 28,
-                  order: 4
+                  order: 5
                 }
               ]
             },

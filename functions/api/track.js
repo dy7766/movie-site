@@ -19,6 +19,7 @@ export async function onRequestPost(context) {
       resource_id = null,
       resource_title = '',
       device = 'mobile',
+      visitor_id = '',
       page_url = '',
       referrer = ''
     } = body;
@@ -46,6 +47,10 @@ export async function onRequestPost(context) {
     const location = [city, region, country].filter(Boolean).join(', ') || '';
 
     // 写入 Supabase 实时埋点事件流水表
+    const safeVisitorId = visitor_id
+      ? String(visitor_id).trim().slice(0, 64)
+      : (clientIp ? `ip_${clientIp}` : '');
+
     const res = await fetch(`${SUPABASE_URL}/rest/v1/analytics_events`, {
       method: 'POST',
       headers: {
@@ -58,6 +63,7 @@ export async function onRequestPost(context) {
         resource_id: resource_id ? String(resource_id).trim() : null,
         resource_title: resource_title || '',
         device,
+        visitor_id: safeVisitorId || null,
         page_url,
         referrer,
         ip: clientIp,
