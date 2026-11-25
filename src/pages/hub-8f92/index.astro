@@ -418,6 +418,24 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
           </div>
         </div>
 
+        <!-- 每日 UV 增量与新老访客结构图表 -->
+        <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-white tracking-wider flex items-center gap-1.5">
+                🚀 每日 UV 增量与新老访客趋势
+              </span>
+              <span id="uvChartSummaryBadge" class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 font-mono">
+                加载中...
+              </span>
+            </div>
+            <span class="text-[10px] text-slate-500">柱状堆叠 = 当日总 UV (新增新客 + 历史回访) · 折线 = 较前日 UV 净增量</span>
+          </div>
+          <div class="relative w-full h-56 sm:h-64">
+            <canvas id="uvIncrementChart"></canvas>
+          </div>
+        </div>
+
         <!-- 垂直堆叠：转存转化率排行榜 (TOP 10) 与 实时埋点事件流水 -->
         <div class="space-y-4">
           <!-- 上栏：TOP 10 转化最高影视 (全宽) -->
@@ -2308,6 +2326,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       // ==========================================
       let currentChartDays = 7;
       let trafficChartInstance = null;
+      let uvIncrementChartInstance = null;
 
       function formatCstDateKey(dateObj) {
         const cst = new Date(dateObj.getTime() + 8 * 3600 * 1000);
@@ -2354,18 +2373,24 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
             buckets[key] = { pv: 0, quark: 0, uc: 0, uvSet: new Set() };
           }
 
-          // 从窗口第一天东八区 00:00:00 开始拉取
-          const startDate = new Date(`${dayKeys[0]}T00:00:00+08:00`);
-          const rows = await fetchAnalyticsWindow(startDate.toISOString());
+          // 从窗口第一天往前多拉 30 天作为历史去重基线，精确区分每日“全新访客”与“老访客回访”
+          const windowStartDate = new Date(`${dayKeys[0]}T00:00:00+08:00`);
+          const baselineStartDate = new Date(windowStartDate.getTime() - 30 * 86400 * 1000);
+          const rows = await fetchAnalyticsWindow(baselineStartDate.toISOString());
 
           let sumPv = 0;
           let sumSaves = 0;
           const periodUvSet = new Set();
+          const historicalSeenSet = new Set();
           for (const row of rows) {
             const key = formatCstDateKey(new Date(row.created_at));
-            const b = buckets[key];
-            if (!b) continue;
             const uid = row.visitor_id || (row.ip ? `ip_${row.ip}` : '');
+            const b = buckets[key];
+            if (!b) {
+              // 早于展示窗口的历史基线数据，只记录出现过的访客ID
+              if (uid && key < dayKeys[0]) historicalSeenSet.add(uid);
+              continue;
+            }
             if (uid) {
               b.uvSet.add(uid);
               periodUvSet.add(uid);
@@ -2389,6 +2414,30 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
           const quarkData = dayKeys.map(k => buckets[k].quark);
           const ucData = dayKeys.map(k => buckets[k].uc);
 
+          // 按天顺序推进计算每日“新增UV”、“回访老UV”及“较前一日UV净增量”
+          const newUvData = [];
+          const returningUvData = [];
+          const uvDeltaData = [];
+          let totalNewUvInPeriod = 0;
+          for (let i = 0; i < dayKeys.length; i++) {
+            const daySet = buckets[dayKeys[i]].uvSet;
+            let dayNew = 0;
+            let dayRet = 0;
+            for (const uid of daySet) {
+              if (historicalSeenSet.has(uid)) {
+                dayRet += 1;
+              } else {
+                dayNew += 1;
+                historicalSeenSet.add(uid);
+              }
+            }
+            newUvData.push(dayNew);
+            returningUvData.push(dayRet);
+            totalNewUvInPeriod += dayNew;
+            const prevDayTotal = i > 0 ? buckets[dayKeys[i - 1]].uvSet.size : daySet.size;
+            uvDeltaData.push(i > 0 ? (daySet.size - prevDayTotal) : 0);
+          }
+
           const elPeriodUv = document.getElementById('metricPeriodUv');
           const elUvDelta = document.getElementById('metricUvDelta');
 
@@ -2397,22 +2446,18 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
           const todayUv = buckets[todayKey].uvSet.size;
           const yesterdayUv = yesterdayKey ? buckets[yesterdayKey].uvSet.size : 0;
           const uvDelta = todayUv - yesterdayUv;
-
-          // 计算今日首次来访的新 UV（在前几天窗口中未出现过的独立访客）
-          const prevUvSet = new Set();
-          for (let i = 0; i < dayKeys.length - 1; i++) {
-            for (const uid of buckets[dayKeys[i]].uvSet) prevUvSet.add(uid);
-          }
-          let newTodayUv = 0;
-          for (const uid of buckets[todayKey].uvSet) {
-            if (!prevUvSet.has(uid)) newTodayUv += 1;
-          }
+          const newTodayUv = newUvData[newUvData.length - 1] || 0;
 
           if (elPeriodUv) elPeriodUv.textContent = `今日UV ${todayUv} (新客 ${newTodayUv})`;
           if (elUvDelta) {
             const deltaText = uvDelta > 0 ? `+${uvDelta}` : `${uvDelta}`;
             elUvDelta.textContent = `较昨日 ${deltaText}`;
             elUvDelta.className = `font-mono text-[10px] ${uvDelta > 0 ? 'text-emerald-400' : (uvDelta < 0 ? 'text-rose-400' : 'text-slate-400')}`;
+          }
+
+          const uvSummaryEl = document.getElementById('uvChartSummaryBadge');
+          if (uvSummaryEl) {
+            uvSummaryEl.textContent = `近${days}天累计新增 ${totalNewUvInPeriod} 位新访客 · 今日 +${newTodayUv}`;
           }
 
           if (summaryEl) {
@@ -2550,6 +2595,120 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
               }
             }
           });
+
+          // 渲染第二张图：每日 UV 增量与新老访客趋势图
+          const uvCanvas = document.getElementById('uvIncrementChart');
+          if (uvCanvas) {
+            if (uvIncrementChartInstance) {
+              uvIncrementChartInstance.destroy();
+            }
+            uvIncrementChartInstance = new window.Chart(uvCanvas.getContext('2d'), {
+              type: 'bar',
+              data: {
+                labels,
+                datasets: [
+                  {
+                    type: 'line',
+                    label: '较前日 UV 净增量',
+                    data: uvDeltaData,
+                    yAxisID: 'yDelta',
+                    borderColor: '#f97316',
+                    backgroundColor: 'rgba(249, 115, 22, 0.2)',
+                    borderWidth: 2,
+                    pointBackgroundColor: (ctx) => {
+                      const val = ctx.raw || 0;
+                      return val >= 0 ? '#34d399' : '#fb7185';
+                    },
+                    pointRadius: 4,
+                    tension: 0.3,
+                    fill: false,
+                    order: 1
+                  },
+                  {
+                    type: 'bar',
+                    label: '当日新增新客 (New UV)',
+                    data: newUvData,
+                    yAxisID: 'yCount',
+                    stack: 'uvStack',
+                    backgroundColor: 'rgba(16, 185, 129, 0.65)',
+                    borderColor: 'rgba(52, 211, 153, 0.9)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    maxBarThickness: 28,
+                    order: 2
+                  },
+                  {
+                    type: 'bar',
+                    label: '老访客回访 (Returning)',
+                    data: returningUvData,
+                    yAxisID: 'yCount',
+                    stack: 'uvStack',
+                    backgroundColor: 'rgba(99, 102, 241, 0.45)',
+                    borderColor: 'rgba(129, 140, 248, 0.8)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                    maxBarThickness: 28,
+                    order: 3
+                  }
+                ]
+              },
+              options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: { mode: 'index', intersect: false },
+                plugins: {
+                  legend: {
+                    labels: { color: '#cbd5e1', font: { size: 11 }, boxWidth: 12, usePointStyle: true }
+                  },
+                  tooltip: {
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                    titleColor: '#f8fafc',
+                    bodyColor: '#cbd5e1',
+                    borderColor: '#334155',
+                    borderWidth: 1,
+                    padding: 10,
+                    callbacks: {
+                      afterBody: (items) => {
+                        const idx = items?.[0]?.dataIndex;
+                        if (idx === undefined) return '';
+                        const tot = (newUvData[idx] || 0) + (returningUvData[idx] || 0);
+                        return `当日总 UV: ${tot} 人`;
+                      }
+                    }
+                  }
+                },
+                scales: {
+                  x: {
+                    stacked: true,
+                    grid: { color: 'rgba(51, 65, 85, 0.25)' },
+                    ticks: { color: '#94a3b8', font: { size: 11 } }
+                  },
+                  yCount: {
+                    type: 'linear',
+                    position: 'left',
+                    stacked: true,
+                    beginAtZero: true,
+                    suggestedMax: 5,
+                    grid: { color: 'rgba(51, 65, 85, 0.35)' },
+                    ticks: { color: '#34d399', font: { size: 11 }, precision: 0 },
+                    title: { display: true, text: '访客数 (人)', color: '#34d399', font: { size: 10 } }
+                  },
+                  yDelta: {
+                    type: 'linear',
+                    position: 'right',
+                    grid: { drawOnChartArea: false },
+                    ticks: {
+                      color: '#fb923c',
+                      font: { size: 11 },
+                      precision: 0,
+                      callback: (v) => (v > 0 ? `+${v}` : v)
+                    },
+                    title: { display: true, text: '日环比净增量', color: '#fb923c', font: { size: 10 } }
+                  }
+                }
+              }
+            });
+          }
         } catch (err) {
           if (summaryEl) summaryEl.textContent = '图表加载失败';
         }
