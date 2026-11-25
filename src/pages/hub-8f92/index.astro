@@ -14,6 +14,8 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <!-- 引入 Hls.js 便于后台直接播放测试 M3U8 视频源 -->
     <script src="https://cdn.jsdelivr.net/npm/hls.js@latest" defer></script>
+    <!-- 引入 Chart.js 渲染访问量与转存量趋势图表 -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js" defer></script>
   </head>
   <body class="bg-[#0b0f19] text-slate-100 min-h-screen antialiased selection:bg-orange-500 selection:text-white flex flex-col font-sans">
     
@@ -387,6 +389,28 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
             <div class="text-[11px] text-slate-400">
               播放转化率: <span id="metricPlayRate" class="text-rose-400 font-mono font-medium">--%</span>
             </div>
+          </div>
+        </div>
+
+        <!-- 访问量与转存量趋势图表 -->
+        <div class="bg-slate-950/70 border border-slate-800/80 rounded-xl p-4">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-white tracking-wider flex items-center gap-1.5">
+                📈 访问量与网盘转存趋势 (PV / Saves)
+              </span>
+              <span id="chartSummaryBadge" class="text-[10px] px-2 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
+                加载中...
+              </span>
+            </div>
+            <div class="flex items-center gap-1.5" id="chartRangeBtns">
+              <button type="button" data-days="7" class="chart-range-btn px-2.5 py-1 rounded-lg text-[11px] font-medium bg-orange-500/20 text-orange-300 border border-orange-500/40 cursor-pointer transition">近 7 天</button>
+              <button type="button" data-days="14" class="chart-range-btn px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200 cursor-pointer transition">近 14 天</button>
+              <button type="button" data-days="30" class="chart-range-btn px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200 cursor-pointer transition">近 30 天</button>
+            </div>
+          </div>
+          <div class="relative w-full h-64 sm:h-72">
+            <canvas id="trafficSavesChart"></canvas>
           </div>
         </div>
 
@@ -2135,8 +2159,9 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
           if (statusText) statusText.textContent = '实时已连接';
           if (lastUpdated) lastUpdated.textContent = `最后刷新: ${timeStr}`;
 
-          // 并行拉取转存设置
+          // 并行拉取转存设置与趋势图表
           fetchTransferSettings();
+          loadTrafficChart(currentChartDays);
 
           if (manual) showToast('大盘与全量资源已完成实时刷新！', '⚡');
         } catch (err) {
@@ -2270,6 +2295,223 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
 
       ucToggle?.addEventListener('change', (e) => saveTransferSetting('uc', e.target.checked));
       quarkToggle?.addEventListener('change', (e) => saveTransferSetting('quark', e.target.checked));
+
+      // ==========================================
+      // 7. 访问量与转存量趋势图表 (Chart.js)
+      // ==========================================
+      let currentChartDays = 7;
+      let trafficChartInstance = null;
+
+      function formatCstDateKey(dateObj) {
+        const cst = new Date(dateObj.getTime() + 8 * 3600 * 1000);
+        return cst.toISOString().slice(0, 10);
+      }
+
+      async function fetchAnalyticsWindow(sinceIso) {
+        const allRows = [];
+        const pageSize = 1000;
+        let offset = 0;
+        while (offset < 10000) {
+          const url = `${SUPABASE_BASE_URL}/analytics_events?select=event_type,created_at&created_at=gte.${encodeURIComponent(sinceIso)}&event_type=in.(page_view,click_quark,click_uc)&order=created_at.asc&limit=${pageSize}&offset=${offset}`;
+          const res = await fetch(url, {
+            headers: { 'apikey': SUPABASE_PUB_KEY, 'Authorization': `Bearer ${SUPABASE_PUB_KEY}` }
+          });
+          if (!res.ok) break;
+          const batch = await res.json();
+          if (!Array.isArray(batch) || batch.length === 0) break;
+          allRows.push(...batch);
+          if (batch.length < pageSize) break;
+          offset += pageSize;
+        }
+        return allRows;
+      }
+
+      async function loadTrafficChart(days = 7) {
+        currentChartDays = days;
+        const summaryEl = document.getElementById('chartSummaryBadge');
+        const canvas = document.getElementById('trafficSavesChart');
+        if (!canvas || typeof window.Chart === 'undefined') {
+          if (summaryEl) summaryEl.textContent = '图表引擎加载中...';
+          window.addEventListener('DOMContentLoaded', () => loadTrafficChart(currentChartDays), { once: true });
+          return;
+        }
+
+        try {
+          const now = new Date();
+          const dayKeys = [];
+          const buckets = {};
+          for (let i = days - 1; i >= 0; i--) {
+            const d = new Date(now.getTime() - i * 86400 * 1000);
+            const key = formatCstDateKey(d);
+            dayKeys.push(key);
+            buckets[key] = { pv: 0, quark: 0, uc: 0 };
+          }
+
+          // 从窗口第一天东八区 00:00:00 开始拉取
+          const startDate = new Date(`${dayKeys[0]}T00:00:00+08:00`);
+          const rows = await fetchAnalyticsWindow(startDate.toISOString());
+
+          let sumPv = 0;
+          let sumSaves = 0;
+          for (const row of rows) {
+            const key = formatCstDateKey(new Date(row.created_at));
+            const b = buckets[key];
+            if (!b) continue;
+            if (row.event_type === 'page_view') {
+              b.pv += 1;
+              sumPv += 1;
+            } else if (row.event_type === 'click_quark') {
+              b.quark += 1;
+              sumSaves += 1;
+            } else if (row.event_type === 'click_uc') {
+              b.uc += 1;
+              sumSaves += 1;
+            }
+          }
+
+          const labels = dayKeys.map(k => k.slice(5)); // MM-DD
+          const pvData = dayKeys.map(k => buckets[k].pv);
+          const savesData = dayKeys.map(k => buckets[k].quark + buckets[k].uc);
+          const quarkData = dayKeys.map(k => buckets[k].quark);
+          const ucData = dayKeys.map(k => buckets[k].uc);
+
+          if (summaryEl) {
+            const periodCvr = sumPv > 0 ? ((sumSaves / sumPv) * 100).toFixed(1) : '0.0';
+            summaryEl.textContent = `近${days}天: ${sumPv} PV / ${sumSaves} 转存 (${periodCvr}%)`;
+          }
+
+          if (trafficChartInstance) {
+            trafficChartInstance.destroy();
+          }
+
+          trafficChartInstance = new window.Chart(canvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+              labels,
+              datasets: [
+                {
+                  type: 'line',
+                  label: '网盘总转存',
+                  data: savesData,
+                  yAxisID: 'ySaves',
+                  borderColor: '#f59e0b',
+                  backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                  borderWidth: 2.5,
+                  pointBackgroundColor: '#fbbf24',
+                  pointRadius: 3.5,
+                  pointHoverRadius: 5,
+                  tension: 0.35,
+                  fill: true,
+                  order: 1
+                },
+                {
+                  type: 'line',
+                  label: '夸克转存',
+                  data: quarkData,
+                  yAxisID: 'ySaves',
+                  borderColor: '#a855f7',
+                  borderWidth: 1.5,
+                  borderDash: [4, 4],
+                  pointRadius: 2,
+                  tension: 0.35,
+                  fill: false,
+                  order: 2
+                },
+                {
+                  type: 'line',
+                  label: 'UC转存',
+                  data: ucData,
+                  yAxisID: 'ySaves',
+                  borderColor: '#06b6d4',
+                  borderWidth: 1.5,
+                  borderDash: [4, 4],
+                  pointRadius: 2,
+                  tension: 0.35,
+                  fill: false,
+                  order: 3
+                },
+                {
+                  type: 'bar',
+                  label: '访问量 (PV)',
+                  data: pvData,
+                  yAxisID: 'yPv',
+                  backgroundColor: 'rgba(59, 130, 246, 0.35)',
+                  borderColor: 'rgba(96, 165, 250, 0.8)',
+                  borderWidth: 1,
+                  borderRadius: 6,
+                  maxBarThickness: 28,
+                  order: 4
+                }
+              ]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              interaction: { mode: 'index', intersect: false },
+              plugins: {
+                legend: {
+                  labels: { color: '#cbd5e1', font: { size: 11 }, boxWidth: 12, usePointStyle: true }
+                },
+                tooltip: {
+                  backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                  titleColor: '#f8fafc',
+                  bodyColor: '#cbd5e1',
+                  borderColor: '#334155',
+                  borderWidth: 1,
+                  padding: 10,
+                  callbacks: {
+                    afterBody: (items) => {
+                      const idx = items?.[0]?.dataIndex;
+                      if (idx === undefined) return '';
+                      const p = pvData[idx] || 0;
+                      const s = savesData[idx] || 0;
+                      const rate = p > 0 ? ((s / p) * 100).toFixed(1) : '0.0';
+                      return `当日转存转化率: ${rate}%`;
+                    }
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  grid: { color: 'rgba(51, 65, 85, 0.25)' },
+                  ticks: { color: '#94a3b8', font: { size: 11 } }
+                },
+                yPv: {
+                  type: 'linear',
+                  position: 'left',
+                  beginAtZero: true,
+                  suggestedMax: 10,
+                  grid: { color: 'rgba(51, 65, 85, 0.35)' },
+                  ticks: { color: '#60a5fa', font: { size: 11 }, precision: 0 },
+                  title: { display: true, text: '访问量 (PV)', color: '#60a5fa', font: { size: 10 } }
+                },
+                ySaves: {
+                  type: 'linear',
+                  position: 'right',
+                  beginAtZero: true,
+                  suggestedMax: 5,
+                  grid: { drawOnChartArea: false },
+                  ticks: { color: '#fbbf24', font: { size: 11 }, precision: 0 },
+                  title: { display: true, text: '转存量 (次)', color: '#fbbf24', font: { size: 10 } }
+                }
+              }
+            }
+          });
+        } catch (err) {
+          if (summaryEl) summaryEl.textContent = '图表加载失败';
+        }
+      }
+
+      document.querySelectorAll('.chart-range-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const days = parseInt(btn.getAttribute('data-days') || '7', 10);
+          document.querySelectorAll('.chart-range-btn').forEach(b => {
+            b.className = 'chart-range-btn px-2.5 py-1 rounded-lg text-[11px] font-medium bg-slate-900 text-slate-400 border border-slate-800 hover:text-slate-200 cursor-pointer transition';
+          });
+          btn.className = 'chart-range-btn px-2.5 py-1 rounded-lg text-[11px] font-medium bg-orange-500/20 text-orange-300 border border-orange-500/40 cursor-pointer transition';
+          loadTrafficChart(days);
+        });
+      });
 
       // 实时全量刷新按钮
       document.getElementById('refreshLiveMetricsBtn')?.addEventListener('click', () => {
