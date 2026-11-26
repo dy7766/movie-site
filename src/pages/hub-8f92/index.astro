@@ -518,6 +518,12 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
+            <!-- 榜单模式切换: 热门 / 最新 -->
+            <div class="inline-flex rounded-lg bg-slate-950/80 p-1 border border-slate-800 gap-0.5">
+              <button type="button" data-db-mode="hot" class="douban-mode-btn px-2.5 py-1 rounded-md text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30 cursor-pointer transition">🔥 热门</button>
+              <button type="button" data-db-mode="latest" class="douban-mode-btn px-2.5 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white border border-transparent cursor-pointer transition">🆕 最新</button>
+            </div>
+
             <!-- 榜单类型 Tab -->
             <div class="inline-flex flex-wrap rounded-lg bg-slate-950/80 p-1 border border-slate-800 gap-0.5">
               <button type="button" data-db-tab="movie" class="douban-tab-btn px-3 py-1 rounded-md text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-pointer transition">🎬 电影 50</button>
@@ -2824,15 +2830,20 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       // ==========================================
       // 8. 豆瓣热门 Top 50 与库内资产对照
       // ==========================================
-      let doubanHotCache = { movie: [], tv: [], variety: [], anime: [], fetchedAt: '' };
+      let doubanHotCache = {
+        hot: { movie: [], tv: [], variety: [], anime: [] },
+        latest: { movie: [], tv: [], variety: [], anime: [] },
+        fetchedAt: ''
+      };
+      let currentDoubanMode = 'hot';
       let currentDoubanTab = 'movie';
       let currentDoubanStatus = 'all';
 
       const DOUBAN_TAB_LABELS = {
-        movie: '热门电影',
-        tv: '热门剧集',
-        variety: '热门综艺',
-        anime: '热门动漫'
+        movie: '电影',
+        tv: '剧集',
+        variety: '综艺',
+        anime: '动漫'
       };
 
       function normalizeTitleForMatch(str) {
@@ -2883,7 +2894,8 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       }
 
       function renderDoubanHotComparison() {
-        const list = doubanHotCache[currentDoubanTab] || [];
+        const modeBucket = doubanHotCache[currentDoubanMode] || {};
+        const list = modeBucket[currentDoubanTab] || [];
         const tbody = document.getElementById('doubanHotTableBody');
         const badge = document.getElementById('doubanSummaryBadge');
         if (!tbody) return;
@@ -2929,7 +2941,8 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
         const syncTimeStr = doubanHotCache.fetchedAt
           ? ` · 定时同步于 ${new Date(doubanHotCache.fetchedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`
           : '';
-        if (badge) badge.textContent = `${DOUBAN_TAB_LABELS[currentDoubanTab] || '热门'}前${list.length} · 已就绪 ${readyCnt} / 缺失 ${missingCnt}${syncTimeStr}`;
+        const modeLabel = currentDoubanMode === 'latest' ? '最新' : '热门';
+        if (badge) badge.textContent = `${modeLabel}${DOUBAN_TAB_LABELS[currentDoubanTab] || ''}前${list.length} · 已就绪 ${readyCnt} / 缺失 ${missingCnt}${syncTimeStr}`;
 
         const filtered = currentDoubanStatus === 'all'
           ? enriched
@@ -2993,10 +3006,8 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
           const data = await res.json();
           if (data.success) {
             doubanHotCache = {
-              movie: data.movies || [],
-              tv: data.tvs || [],
-              variety: data.varieties || [],
-              anime: data.animes || [],
+              hot: data.hot || { movie: data.movies || [], tv: data.tvs || [], variety: data.varieties || [], anime: data.animes || [] },
+              latest: data.latest || { movie: [], tv: [], variety: [], anime: [] },
               fetchedAt: data.fetchedAt || ''
             };
             renderDoubanHotComparison();
@@ -3007,6 +3018,17 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
           if (badge) badge.textContent = '边缘接口请求失败';
         }
       }
+
+      document.querySelectorAll('.douban-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentDoubanMode = btn.getAttribute('data-db-mode') || 'hot';
+          document.querySelectorAll('.douban-mode-btn').forEach(b => {
+            b.className = 'douban-mode-btn px-2.5 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white border border-transparent cursor-pointer transition';
+          });
+          btn.className = 'douban-mode-btn px-2.5 py-1 rounded-md text-xs font-medium bg-orange-500/20 text-orange-300 border border-orange-500/30 cursor-pointer transition';
+          renderDoubanHotComparison();
+        });
+      });
 
       document.querySelectorAll('.douban-tab-btn').forEach(btn => {
         btn.addEventListener('click', () => {
