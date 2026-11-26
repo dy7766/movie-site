@@ -291,7 +291,7 @@ export async function syncOngoingSeriesEpisodes({ all = false } = {}) {
 
             if (bestQuark) {
               console.log(`  🎯 [夸克追更] 锁定全网更全新包 [${bestQuark.share.pwd_id}] (含 ${bestQuark.videoCount} 集)，正在秒存生成专属链接...`);
-              const qUrl = await saveAndShareQuark(s.title, bestQuark.share.pwd_id, bestQuark.inspect.stoken, bestQuark.inspect.list);
+              const qUrl = await saveAndShareQuark(s.title, bestQuark.share.pwd_id, bestQuark.inspect.stoken, bestQuark.inspect.list, s.year);
               if (qUrl) {
                 newQuarkLink = qUrl;
                 effectiveCur = Math.max(bestQuark.videoCount, oldCur);

@@ -1,18 +1,22 @@
-import fs from 'fs';
 import { execSync } from 'child_process';
-import { getDbPool, getTransferSettings } from '../src/lib/db.js';
-import { sendDingTalkCapacityAlert } from './dingtalk-service.js';
+import { getDbPool } from '../src/lib/db.js';
+import {
+  BROWSER_UA,
+  getDriveCookie,
+  searchDriveShares,
+  inspectDriveShare,
+  checkDriveCapacity,
+  saveAndShareDrive,
+  getDriveFolderFiles,
+  saveFilesToExistingDriveFolder,
+  deleteDriveFiles,
+  deleteDriveShares,
+  countDriveVideosDetailed
+} from './drive-client.js';
+
+export { BROWSER_UA };
 
 const TMDB_API_KEY = process.env.TMDB_API_KEY || 'fc3786eb5ea9d4b8c8b09cc89df373b4';
-const TARGET_FOLDER_FID = '8c4fd9e810c643529d1e6fe59b17ea42'; // movie-site
-export const BROWSER_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
-
-function getUcCookie() {
-  if (process.env.UC_COOKIE) return process.env.UC_COOKIE.trim();
-  const localFile = 'C:/Users/dy776/.gemini/antigravity/brain/fe3e2fd5-ed4e-452e-b677-b0a95e97eddc/scratch/uc_cookie.txt';
-  if (fs.existsSync(localFile)) return fs.readFileSync(localFile, 'utf-8').trim();
-  return '';
-}
 
 function fetchJson(url) {
   try {
@@ -25,343 +29,23 @@ function fetchJson(url) {
   }
 }
 
-// 1. 搜源 (调用公共 UC/夸克 索引接口，多变体清洗搜索)
-async function querySingleShareTitle(keyword) {
-  const url = `https://gugeso.com/api/other/web_search?title=${encodeURIComponent(keyword)}&is_type=3`;
-  try {
-    const isWin = process.platform === 'win32';
-    const cmd = isWin 
-      ? `curl.exe -s -H "User-Agent: ${BROWSER_UA}" -H "Accept: application/json, text/plain, */*" -H "Referer: https://gugeso.com/" "${url}"`
-      : `curl -s -H "User-Agent: ${BROWSER_UA}" -H "Accept: application/json, text/plain, */*" -H "Referer: https://gugeso.com/" "${url}"`;
-    const stdout = execSync(cmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024, timeout: 10000 });
-    const items = [];
-    for (const l of stdout.split('\n')) {
-      if (l.startsWith('data:') && !l.includes('[DONE]')) {
-        try {
-          const it = JSON.parse(l.slice(5).trim());
-          if (it.url && it.url.includes('uc.cn/s/')) {
-            const pwdMatch = it.url.match(/uc\.cn\/s\/([a-zA-Z0-9]+)/);
-            if (pwdMatch) {
-              items.push({ title: it.title, url: it.url, pwd_id: pwdMatch[1] });
-            }
-          }
-        } catch {}
-      }
-    }
-    return items;
-  } catch {
-    return [];
-  }
-}
-
+// ===============================================================
+// UC 网盘兼容导出（委托给公共驱动 drive-client.js）
+// ===============================================================
 export async function searchPublicShares(title) {
-  const rawTitle = (title || '').trim();
-  const variants = [rawTitle];
-
-  // 变体1: 去除括号及其中内容，如《蓝色星球 第二季 (Blue Planet II)》 -> 《蓝色星球 第二季》
-  const cleanParen = rawTitle.replace(/\([^)]*\)/g, '').replace(/（[^）]*）/g, '').trim();
-  if (cleanParen && cleanParen !== rawTitle && !variants.includes(cleanParen)) {
-    variants.push(cleanParen);
-  }
-
-  // 变体2: 阿拉伯数字续集转换，如《庆余年2》 -> 《庆余年 第二季》/《庆余年第二季》/《庆余年》
-  const numMatch = cleanParen.match(/^(.*?)([\d]+)$/);
-  if (numMatch) {
-    const base = numMatch[1].trim();
-    const num = parseInt(numMatch[2]);
-    const cnNums = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
-    const cnNum = cnNums[num] || num;
-    const v1 = `${base} 第${cnNum}季`;
-    const v2 = `${base}第${cnNum}季`;
-    const v3 = `${base} 第${cnNum}部`;
-    const v4 = `${base} ${num}`;
-    const v5 = base; // 纯主标题保底
-    [v1, v2, v3, v4, v5].forEach(v => {
-      if (v && !variants.includes(v)) variants.push(v);
-    });
-  }
-
-  // 变体3: 中文“第X季”转换与剥离，如《老友记 第十季》 -> 《老友记》
-  const cleanSeason = cleanParen.replace(/[:：]/g, ' ').replace(/\s*第[一二三四五六七八九十\d]+[季期部]/g, '').trim();
-  if (cleanSeason && !variants.includes(cleanSeason)) {
-    variants.push(cleanSeason);
-  }
-
-  // 变体4: 去除副标题破折号或冒号，如《死神 千年血战篇 -祸进谭-》 -> 《死神 千年血战篇》
-  const cleanDash = cleanParen.split(/[-——:：]/)[0].trim();
-  if (cleanDash && cleanDash.length >= 2 && !variants.includes(cleanDash)) {
-    variants.push(cleanDash);
-  }
-
-  for (const q of variants) {
-    const list = await querySingleShareTitle(q);
-    if (list.length > 0) {
-      // 优先过滤短剧/纯文本/小说垃圾链接
-      const filtered = list.filter(item => {
-        const t = item.title || '';
-        return !/(短剧|小说|电子书|网文|有声书|广播剧|合辑|总链)/i.test(t);
-      });
-      const resList = filtered.length > 0 ? filtered : list;
-      if (q !== rawTitle) {
-        console.log(`  💡 采用优化关键词《${q}》匹配到 ${resList.length} 个公开分享`);
-      }
-      return resList;
-    }
-  }
-  return [];
+  return searchDriveShares('uc', title);
 }
 
-// 统一的 UC API 网络请求器 (内置 IPv4 降级，彻底解决海外 Linux 节点 IPv6 丢包重置问题)
-async function ucFetch(url, options = {}) {
-  const method = options.method || 'GET';
-  const headers = { 'User-Agent': BROWSER_UA, ...options.headers };
-  const body = options.body;
-
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(url, { ...options, headers, signal: controller.signal });
-    clearTimeout(timer);
-    return res;
-  } catch (err) {
-    // 触发海外节点降级 curl -4 强制走 IPv4
-  }
-
-  try {
-    const isWin = process.platform === 'win32';
-    const headerArgs = Object.entries(headers)
-      .map(([k, v]) => `-H "${k}: ${v.replace(/"/g, '\\"')}"`)
-      .join(' ');
-    let cmd = isWin ? `curl.exe -s -4 -m 12` : `curl -s -4 -m 12`;
-    cmd += ` -X ${method} ${headerArgs}`;
-    if (body) {
-      const escapedBody = body.replace(/"/g, '\\"');
-      cmd += ` -d "${escapedBody}"`;
-    }
-    cmd += ` "${url}"`;
-
-    const stdout = execSync(cmd, { encoding: 'utf-8', timeout: 15000 });
-    return {
-      ok: true,
-      status: 200,
-      json: async () => JSON.parse(stdout),
-      text: async () => stdout
-    };
-  } catch (err) {
-    throw new Error(`UC 请求异常(IPv4降级亦未果): ${err.message}`);
-  }
-}
-
-// 2. 深度质检 (统一 pr=UCBrowser&fr=pc，拦截压缩包与纯文本小说，放宽单次转存至 50)
 export async function inspectAndFilterUcShare(pwd_id) {
-  try {
-    const tokenRes = await ucFetch('https://pc-api.uc.cn/1/clouddrive/share/sharepage/token?pr=UCBrowser&fr=pc', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pwd_id })
-    });
-    const tData = await tokenRes.json();
-    if (tData.code !== 0 || !tData.data?.stoken) return { pass: false, reason: `链接失效或无stoken (${tData.message || 'error'})` };
-    const stoken = tData.data.stoken;
-
-    const detailRes = await ucFetch(`https://pc-api.uc.cn/1/clouddrive/share/sharepage/detail?pr=UCBrowser&fr=pc&pwd_id=${pwd_id}&stoken=${encodeURIComponent(stoken)}&pdir_fid=0&force=0&_page=1&_size=50`, {
-      headers: { 'User-Agent': BROWSER_UA }
-    });
-    const dData = await detailRes.json();
-    const list = dData.data?.list || [];
-    if (list.length === 0) return { pass: false, reason: '分享列表为空' };
-
-    // 必须包含有效视频文件或目录 (过滤纯文本/小说)
-    const isDir = f => (f.dir === true || f.file_type === 0 || f.file_type === 'dir') && !/(txt|小说|电子书|网文)/i.test(f.file_name);
-    const isVideoFile = f => /\.(mp4|mkv|ts|mov|avi|flv|wmv|m3u8|iso)$/i.test(f.file_name);
-    const hasVideoOrDir = list.some(f => isDir(f) || isVideoFile(f));
-    if (!hasVideoOrDir) return { pass: false, reason: '无有效视频或目录(过滤纯文本/空目录)' };
-
-    // 若全部文件均为压缩包或可执行文件（且无任何视频或有效目录），才予以拦截
-    const allZipOrExe = list.every(f => /\.(zip|rar|7z|tar|gz|exe|apk|txt|doc|pdf)$/i.test(f.file_name));
-    if (allZipOrExe) return { pass: false, reason: '纯压缩包或程序安装包' };
-
-    // 单次转存文件数上限防护
-    if (list.length > 50) return { pass: false, reason: `项目数量过多(${list.length})，规避会员等级限制` };
-
-    return {
-      pass: true,
-      stoken,
-      title: tData.data.title,
-      list
-    };
-  } catch (e) {
-    return { pass: false, reason: e.message };
-  }
+  return inspectDriveShare('uc', pwd_id);
 }
 
-// 2.5 检查 UC 网盘容量与安全水位
 export async function checkUcCapacity() {
-  const cookie = getUcCookie();
-  if (!cookie) return { ok: false, error: '未配置 UC Cookie' };
-  try {
-    const res = await ucFetch('https://pc-api.uc.cn/1/clouddrive/member?pr=UCBrowser&fr=pc', {
-      headers: {
-        'cookie': cookie,
-        'referer': 'https://drive.uc.cn/'
-      }
-    });
-    const data = await res.json();
-    if (data.code === 0 && data.data) {
-      const total = Number(data.data.total_capacity) || 0;
-      const used = Number(data.data.use_capacity) || 0;
-      const free = Math.max(0, total - used);
-      const freeGb = parseFloat((free / (1024 * 1024 * 1024)).toFixed(2));
-      const totalTb = parseFloat((total / (1024 * 1024 * 1024 * 1024)).toFixed(2));
-      const usedTb = parseFloat((used / (1024 * 1024 * 1024 * 1024)).toFixed(2));
-      return {
-        ok: true,
-        total,
-        used,
-        free,
-        freeGb,
-        totalTb,
-        usedTb,
-        isFull: free < 15 * 1024 * 1024 * 1024 // 剩余空间少于 15GB 判定为不足触发熔断
-      };
-    }
-    return { ok: false, error: data.message || '获取容量失败' };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
+  return checkDriveCapacity('uc');
 }
 
-// 进程内容量告警防刷屏标记 (保证一次更新运行周期内仅告警一次)
-let hasAlertedCapacityInThisProcess = false;
-
-// 3. 转存入个人盘、重命名并生成带 PID 专属分享链接 (返回完整详情)
 export async function saveAndShareUcDetail(targetTitle, year, category, pwd_id, stoken, list) {
-  // 管理员开关检查：若后台已关闭 UC 转存，立即跳过
-  const transferSettings = await getTransferSettings().catch(() => null);
-  if (transferSettings && !transferSettings.uc) {
-    console.log(`  ℹ️ [后台控制跳过] 管理员已在后台关闭【UC网盘转存】，跳过《${targetTitle}》的转存与容量检查`);
-    return null;
-  }
-
-  const cookie = getUcCookie();
-  if (!cookie) {
-    console.error('未配置 UC Cookie，无法执行个人盘秒存');
-    return null;
-  }
-
-  // 容量前置预检与熔断
-  const cap = await checkUcCapacity();
-  if (cap.ok && cap.isFull) {
-    console.warn(`  🚨 [UC网盘容量不足熔断] 剩余空间仅 ${cap.freeGb} GB (< 15GB)，已暂停转存以防假绑定死链`);
-    if (!hasAlertedCapacityInThisProcess) {
-      hasAlertedCapacityInThisProcess = true;
-      await sendDingTalkCapacityAlert({
-        usedTb: cap.usedTb,
-        totalTb: cap.totalTb,
-        freeGb: cap.freeGb,
-        provider: 'UC'
-      });
-    } else {
-      console.log(`  ℹ️ [单次更新防刷屏] 本轮更新流水线已发送过 UC 网盘容量告警，本次跳过重复通知。`);
-    }
-    return null;
-  }
-
-  const HEADERS = {
-    'cookie': cookie,
-    'content-type': 'application/json',
-    'origin': 'https://drive.uc.cn',
-    'referer': 'https://drive.uc.cn/',
-    'user-agent': BROWSER_UA
-  };
-
-  // 优先选取目录或视频文件作为转存目标项
-  const sortedList = [...list].sort((a, b) => {
-    const aScore = (a.dir || a.file_type === 0 || a.file_type === 'dir') ? 2 : (/\.(mp4|mkv|ts|mov|avi)$/i.test(a.file_name) ? 1 : 0);
-    const bScore = (b.dir || b.file_type === 0 || b.file_type === 'dir') ? 2 : (/\.(mp4|mkv|ts|mov|avi)$/i.test(b.file_name) ? 1 : 0);
-    return bScore - aScore;
-  });
-  const rootItem = sortedList[0] || list[0];
-  const saveRes = await ucFetch('https://pc-api.uc.cn/1/clouddrive/share/sharepage/save?pr=UCBrowser&fr=pc', {
-    method: 'POST',
-    headers: HEADERS,
-    body: JSON.stringify({
-      pwd_id,
-      stoken,
-      fid_list: [rootItem.fid],
-      fid_token_list: [rootItem.share_fid_token],
-      to_pdir_fid: TARGET_FOLDER_FID
-    })
-  });
-  const sData = await saveRes.json();
-  if (sData.code !== 0) {
-    console.log(`  ✗ 转存被拒绝: ${sData.message}`);
-    return null;
-  }
-
-  await new Promise(r => setTimeout(r, 2000));
-
-  // 定位新存入的项（精确匹配文件名，严禁盲目回退到 list[0]）
-  const folderRes = await ucFetch(`https://pc-api.uc.cn/1/clouddrive/file/sort?pr=UCBrowser&fr=pc&pdir_fid=${TARGET_FOLDER_FID}&_page=1&_size=15&_sort=file_type:asc,updated_at:desc`, {
-    headers: HEADERS
-  });
-  const fData = await folderRes.json();
-  const savedItem = fData.data?.list?.find(f => f.file_name === rootItem.file_name);
-  if (!savedItem) {
-    console.log(`  ✗ 未能在目标目录定位到新转存的项: ${rootItem.file_name} (转存可能因空间不足或接口异常失败)`);
-    return null;
-  }
-
-  // 深度质检：严禁转存空文件夹
-  if (savedItem.dir && (savedItem.include_items === 0 || savedItem.include_items === undefined)) {
-    await new Promise(r => setTimeout(r, 1500));
-    const checkRes = await ucFetch(`https://pc-api.uc.cn/1/clouddrive/file/sort?pr=UCBrowser&fr=pc&pdir_fid=${savedItem.fid}&_page=1&_size=5`, { headers: HEADERS });
-    const checkData = await checkRes.json();
-    if (!checkData.data?.list || checkData.data.list.length === 0) {
-      console.log(`  ✗ 转存项为空目录 (0 文件)，判定为失败`);
-      return null;
-    }
-  }
-
-  // 规范重命名
-  const standardName = `${targetTitle}.${year}.4K.高码率.原盘`;
-  await ucFetch('https://pc-api.uc.cn/1/clouddrive/file/rename?pr=UCBrowser&fr=pc', {
-    method: 'POST',
-    headers: HEADERS,
-    body: JSON.stringify({ fid: savedItem.fid, file_name: standardName })
-  });
-
-  // 创建专属永久分享
-  await ucFetch('https://pc-api.uc.cn/1/clouddrive/share?pr=UCBrowser&fr=pc', {
-    method: 'POST',
-    headers: HEADERS,
-    body: JSON.stringify({
-      fid_list: [savedItem.fid],
-      title: standardName,
-      url_type: 1,
-      expired_type: 1,
-      passcode: ''
-    })
-  });
-
-  await new Promise(r => setTimeout(r, 1200));
-
-  // 提取带用户 UID 的专属链接（精确匹配 first_fid 或 title）
-  const myRes = await ucFetch('https://pc-api.uc.cn/1/clouddrive/share/mypage/detail?pr=UCBrowser&fr=pc&_page=1&_size=8', {
-    headers: HEADERS
-  });
-  const myData = await myRes.json();
-  const share = myData.data?.list?.find(s => s.first_fid === savedItem.fid || s.title === standardName);
-  if (!share || !share.share_url) {
-    console.log(`  ✗ 未能获取到新生成的专属分享链接`);
-    return null;
-  }
-  return {
-    shareUrl: share.share_url,
-    fid: savedItem.fid,
-    pwdId: share.share_id,
-    title: standardName
-  };
+  return saveAndShareDrive('uc', { title: targetTitle, year, category, pwdId: pwd_id, stoken, list });
 }
 
 export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken, list) {
@@ -369,79 +53,62 @@ export async function saveAndShareUc(targetTitle, year, category, pwd_id, stoken
   return detail ? detail.shareUrl : null;
 }
 
-// 增量追更：获取我方网盘目录下的文件列表
 export async function getUcFolderFiles(pdir_fid) {
-  const cookie = getUcCookie();
-  if (!cookie) return [];
-  const HEADERS = {
-    'cookie': cookie,
-    'referer': 'https://drive.uc.cn/',
-    'user-agent': BROWSER_UA
-  };
-  try {
-    const res = await ucFetch(`https://pc-api.uc.cn/1/clouddrive/file/sort?pr=UCBrowser&fr=pc&pdir_fid=${pdir_fid}&_page=1&_size=100`, { headers: HEADERS });
-    const data = await res.json();
-    return data.data?.list || [];
-  } catch {
-    return [];
-  }
+  return getDriveFolderFiles('uc', pdir_fid, 100);
 }
 
-// 增量追更：将新单集直接存入已有目录
 export async function saveFilesToExistingUcFolder(pdir_fid, pwd_id, stoken, fileItems) {
-  const cookie = getUcCookie();
-  if (!cookie || !fileItems || fileItems.length === 0) return { ok: false, count: 0 };
-  const HEADERS = {
-    'cookie': cookie,
-    'content-type': 'application/json',
-    'origin': 'https://drive.uc.cn',
-    'referer': 'https://drive.uc.cn/',
-    'user-agent': BROWSER_UA
-  };
-  try {
-    const saveRes = await ucFetch('https://pc-api.uc.cn/1/clouddrive/share/sharepage/save?pr=UCBrowser&fr=pc', {
-      method: 'POST',
-      headers: HEADERS,
-      body: JSON.stringify({
-        pwd_id,
-        stoken,
-        fid_list: fileItems.map(f => f.fid),
-        fid_token_list: fileItems.map(f => f.share_fid_token),
-        to_pdir_fid: pdir_fid
-      })
-    });
-    const sData = await saveRes.json();
-    return { ok: sData.code === 0, count: sData.code === 0 ? fileItems.length : 0, message: sData.message };
-  } catch (err) {
-    return { ok: false, count: 0, error: err.message };
-  }
+  return saveFilesToExistingDriveFolder('uc', pdir_fid, pwd_id, stoken, fileItems);
 }
 
-// 物理删除指定 UC 文件/文件夹
 export async function deleteUcFiles(filelist) {
-  const cookie = getUcCookie();
-  if (!cookie || !filelist || filelist.length === 0) return false;
-  const HEADERS = {
-    'cookie': cookie,
-    'content-type': 'application/json',
-    'origin': 'https://drive.uc.cn',
-    'referer': 'https://drive.uc.cn/',
-    'user-agent': BROWSER_UA
-  };
-  try {
-    const res = await ucFetch('https://pc-api.uc.cn/1/clouddrive/file/delete?pr=UCBrowser&fr=pc', {
-      method: 'POST',
-      headers: HEADERS,
-      body: JSON.stringify({ filelist })
-    });
-    const data = await res.json();
-    return data.code === 0;
-  } catch {
-    return false;
-  }
+  const res = await deleteDriveFiles('uc', filelist);
+  return res.ok;
 }
 
-// 4. TMDB 抓取并同步 Supabase 数据库
+// ===============================================================
+// 夸克网盘兼容导出（委托给公共驱动 drive-client.js）
+// ===============================================================
+export function getQuarkCookie() {
+  return getDriveCookie('quark');
+}
+
+export async function searchQuarkShares(title) {
+  return searchDriveShares('quark', title);
+}
+
+export async function inspectAndFilterQuarkShare(pwd_id) {
+  return inspectDriveShare('quark', pwd_id);
+}
+
+export async function checkQuarkCapacity() {
+  return checkDriveCapacity('quark');
+}
+
+export async function saveAndShareQuarkDetail(title, year, pwd_id, stoken, list) {
+  return saveAndShareDrive('quark', { title, year, pwdId: pwd_id, stoken, list });
+}
+
+export async function saveAndShareQuark(title, pwd_id, stoken, list, year = '') {
+  const detail = await saveAndShareQuarkDetail(title, year, pwd_id, stoken, list);
+  return detail ? detail.shareUrl : null;
+}
+
+export async function countQuarkVideosDetailed(pwdId) {
+  return countDriveVideosDetailed('quark', pwdId);
+}
+
+export async function deleteQuarkFiles(fids = []) {
+  return deleteDriveFiles('quark', fids);
+}
+
+export async function deleteQuarkShares(shareIds = []) {
+  return deleteDriveShares('quark', shareIds);
+}
+
+// ===============================================================
+// TMDB 抓取并同步 Supabase 数据库
+// ===============================================================
 export async function syncMovieToDatabase(pool, title, year, category, ucLink) {
   const existRes = await pool.query(
     'SELECT id, title, share_link_uc FROM resources WHERE title ILIKE $1 LIMIT 1',
@@ -469,7 +136,6 @@ export async function syncMovieToDatabase(pool, title, year, category, ucLink) {
   const score = d.vote_average ? parseFloat(d.vote_average.toFixed(1)) : 8.0;
   const genres = d.genres?.map(g => g.name) || ['剧情', '热门'];
   const poster_url = d.poster_path ? `https://image.tmdb.org/t/p/w500${d.poster_path}` : '';
-  const backdrop_url = d.backdrop_path ? `https://image.tmdb.org/t/p/w1280${d.backdrop_path}` : '';
   const intro = d.overview || '暂无剧情简介';
   const actors = (d.credits?.cast || []).slice(0, 5).map(c => c.name).join(' / ');
   const country = d.production_countries?.[0]?.name || '中国大陆';
@@ -530,303 +196,4 @@ export async function harvestBatchMovies(candidateList) {
   }
 
   return successItems;
-}
-
-// ===============================================================
-// 夸克网盘自动转存与分享生成引擎
-// ===============================================================
-const TARGET_QUARK_FOLDER_FID = 'b1a2edeeac1c48718c0dab99843cb97c'; // movie-site
-const QUARK_BASE_URL = 'https://drive-pc.quark.cn/1/clouddrive';
-
-export function getQuarkCookie() {
-  if (process.env.QUARK_COOKIE) return process.env.QUARK_COOKIE.trim();
-  const localFile = 'C:/Users/dy776/.gemini/antigravity/brain/fe3e2fd5-ed4e-452e-b677-b0a95e97eddc/scratch/quark_cookie.txt';
-  if (fs.existsSync(localFile)) return fs.readFileSync(localFile, 'utf-8').trim();
-  return '';
-}
-
-function getQuarkHeaders() {
-  const cookie = getQuarkCookie();
-  return {
-    'Cookie': cookie,
-    'Content-Type': 'application/json',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-    'Origin': 'https://pan.quark.cn',
-    'Referer': 'https://pan.quark.cn/'
-  };
-}
-
-export async function searchQuarkShares(title) {
-  const cleanTitle = (title || '').replace(/\([^)]*\)/g, '').replace(/（[^）]*）/g, '').trim();
-  const variants = [title];
-  if (cleanTitle && cleanTitle !== title) variants.push(cleanTitle);
-
-  const numMatch = cleanTitle.match(/^(.*?)([\d]+)$/);
-  if (numMatch) {
-    const base = numMatch[1].trim();
-    variants.push(`${base} 第${numMatch[2]}季`, `${base} 第二季`, base);
-  }
-
-  // 增加追更常用词与格式拓展
-  variants.push(`${cleanTitle} S01`, `${cleanTitle} 第一季`, `${cleanTitle} 全集`, `${cleanTitle} 4K`);
-
-  for (const q of variants) {
-    try {
-      const url = `https://gugeso.com/api/other/web_search?title=${encodeURIComponent(q)}&is_type=0`;
-      const isWin = process.platform === 'win32';
-      const cmd = isWin 
-        ? `curl.exe -s -H "User-Agent: ${BROWSER_UA}" -H "Accept: application/json, text/plain, */*" -H "Referer: https://gugeso.com/" "${url}"`
-        : `curl -s -H "User-Agent: ${BROWSER_UA}" -H "Accept: application/json, text/plain, */*" -H "Referer: https://gugeso.com/" "${url}"`;
-      const stdout = execSync(cmd, { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024, timeout: 10000 });
-      const rawItems = [];
-      for (const line of stdout.split('\n')) {
-        if (line.startsWith('data:') && !line.includes('[DONE]')) {
-          try {
-            const item = JSON.parse(line.slice(5).trim());
-            if (item.url) rawItems.push(item);
-          } catch {}
-        }
-      }
-
-      if (rawItems.length === 0) continue;
-
-      const encUrls = rawItems.filter(i => !i.url.startsWith('http')).map(i => i.url);
-      let decryptedMap = {};
-      if (encUrls.length > 0) {
-        try {
-          const decRes = await fetch('https://gugeso.com/api/other/decrypt_urls', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Referer': 'https://gugeso.com/',
-              'User-Agent': BROWSER_UA
-            },
-            body: JSON.stringify({ urls: encUrls })
-          });
-          const decJson = await decRes.json();
-          if (decJson.data?.urls) {
-            encUrls.forEach((enc, idx) => {
-              decryptedMap[enc] = decJson.data.urls[idx];
-            });
-          }
-        } catch (_) {}
-      }
-
-      const results = [];
-      for (const item of rawItems) {
-        const finalUrl = item.url.startsWith('http') ? item.url : decryptedMap[item.url];
-        if (finalUrl && finalUrl.includes('quark.cn/s/')) {
-          const m = finalUrl.match(/quark\.cn\/s\/([a-zA-Z0-9]+)/);
-          if (m) {
-            if (!/(短剧|小说|电子书|网文|有声书|广播剧|合辑|总链)/i.test(item.title || '')) {
-              results.push({
-                title: item.title,
-                url: finalUrl,
-                pwd_id: m[1]
-              });
-            }
-          }
-        }
-      }
-
-      if (results.length > 0) return results;
-    } catch (_) {}
-  }
-  return [];
-}
-
-export async function inspectAndFilterQuarkShare(pwd_id) {
-  try {
-    const headers = getQuarkHeaders();
-    if (!headers.Cookie) return { pass: false, reason: '未配置夸克 Cookie' };
-
-    const tokenRes = await fetch(`${QUARK_BASE_URL}/share/sharepage/token?pr=ucpro&fr=pc`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ pwd_id, passcode: '' })
-    });
-    const tokenData = await tokenRes.json();
-    const stoken = tokenData.data?.stoken;
-    if (!stoken) return { pass: false, reason: '链接失效或需提取码' };
-
-    const detailRes = await fetch(`${QUARK_BASE_URL}/share/sharepage/detail?pr=ucpro&fr=pc&pwd_id=${pwd_id}&stoken=${encodeURIComponent(stoken)}&pdir_fid=0&force=0&_page=1&_size=50`, {
-      headers
-    });
-    const detailData = await detailRes.json();
-    const list = detailData.data?.list || [];
-    if (list.length === 0) return { pass: false, reason: '分享链接中无文件' };
-
-    const hasVideoOrDir = list.some(f => f.dir || /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(f.file_name));
-    if (!hasVideoOrDir) return { pass: false, reason: '未发现有效视频文件或目录' };
-
-    return { pass: true, stoken, list };
-  } catch (err) {
-    return { pass: false, reason: err.message };
-  }
-}
-
-export async function saveAndShareQuark(title, pwd_id, stoken, list) {
-  const headers = getQuarkHeaders();
-  const fid_list = list.map(f => f.fid);
-  const fid_token_list = list.map(f => f.share_fid_token || '');
-
-  const saveRes = await fetch(`${QUARK_BASE_URL}/share/sharepage/save?pr=ucpro&fr=pc`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      pwd_id,
-      stoken,
-      fid_list,
-      fid_token_list,
-      to_pdir_fid: TARGET_QUARK_FOLDER_FID
-    })
-  });
-  const saveData = await saveRes.json();
-  if (saveData.code !== 0 && saveData.status !== 200) {
-    throw new Error('夸克秒存被拒: ' + (saveData.message || ''));
-  }
-
-  let topFids = saveData.data?.task_resp?.data?.save_as?.save_as_top_fids || [];
-  const taskId = saveData.data?.task_id;
-  if (taskId) {
-    for (let attempt = 0; attempt < 20; attempt++) {
-      await new Promise(r => setTimeout(r, 600));
-      const taskRes = await fetch(`${QUARK_BASE_URL}/task?pr=ucpro&fr=pc&task_id=${taskId}`, { headers });
-      const taskData = await taskRes.json();
-      if (taskData.data?.status === 2) {
-        topFids = taskData.data.save_as?.save_as_top_fids || taskData.data.save_as?.save_as_select_top_fids || [];
-        break;
-      }
-      if (taskData.data?.status === 3) {
-        throw new Error('夸克转存任务执行失败: ' + (taskData.data.message || ''));
-      }
-    }
-  }
-
-  if (!topFids || topFids.length === 0) {
-    throw new Error('夸克秒存未返回有效文件ID');
-  }
-
-  // 创建专属分享
-  const shareTitle = `《${title}》4K 高清原盘`;
-  const shareRes = await fetch(`${QUARK_BASE_URL}/share?pr=ucpro&fr=pc`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      fid_list: topFids,
-      title: shareTitle,
-      url_type: 1,
-      expired_type: 1,
-      passcode: ''
-    })
-  });
-  const shareData = await shareRes.json();
-  if (shareData.code !== 0 && shareData.status !== 200) {
-    throw new Error('创建夸克分享被拒: ' + (shareData.message || ''));
-  }
-
-  const shareTaskId = shareData.data?.task_id;
-  if (shareTaskId) {
-    for (let attempt = 0; attempt < 15; attempt++) {
-      await new Promise(r => setTimeout(r, 500));
-      const taskRes = await fetch(`${QUARK_BASE_URL}/task?pr=ucpro&fr=pc&task_id=${shareTaskId}`, { headers });
-      const taskData = await taskRes.json();
-      if (taskData.data?.status === 2) break;
-    }
-  }
-
-  await new Promise(r => setTimeout(r, 400));
-  const mySharesRes = await fetch(`${QUARK_BASE_URL}/share/mypage/detail?pr=ucpro&fr=pc&_page=1&_size=10`, { headers });
-  const mySharesData = await mySharesRes.json();
-  const sharesList = mySharesData.data?.list || [];
-  const targetFid = topFids[0];
-  const match = sharesList.find(s => s.first_file?.fid === targetFid) || sharesList[0];
-  if (match?.share_url) {
-    return match.share_url;
-  }
-  throw new Error('未能提取到新生成的夸克分享链接');
-}
-
-/**
- * 深度统计夸克网盘分享中的视频集数（支持最多 2 层嵌套子目录）
- */
-export async function countQuarkVideosDetailed(pwdId) {
-  try {
-    const inspect = await inspectAndFilterQuarkShare(pwdId);
-    if (!inspect.pass || !inspect.stoken) return { ok: false, count: 0, reason: inspect.reason };
-
-    let totalVideos = 0;
-    const items = inspect.list || [];
-    const cookie = getQuarkCookie();
-
-    for (const it of items) {
-      if (!it.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(it.file_name)) {
-        totalVideos++;
-      } else if (it.dir) {
-        // 第一层子目录
-        const url1 = `https://drive-pc.quark.cn/1/clouddrive/share/sharepage/detail?pr=ucpro&fr=pc&pwd_id=${pwdId}&stoken=${encodeURIComponent(inspect.stoken)}&pdir_fid=${it.fid}&force=0&_page=1&_size=100`;
-        const res1 = await fetch(url1, { headers: { 'Cookie': cookie, 'User-Agent': BROWSER_UA } });
-        const d1 = await res1.json();
-        const l1 = d1.data?.list || [];
-
-        for (const sub of l1) {
-          if (!sub.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(sub.file_name)) {
-            totalVideos++;
-          } else if (sub.dir) {
-            // 第二层子目录 (例如 季/Season 目录)
-            const url2 = `https://drive-pc.quark.cn/1/clouddrive/share/sharepage/detail?pr=ucpro&fr=pc&pwd_id=${pwdId}&stoken=${encodeURIComponent(inspect.stoken)}&pdir_fid=${sub.fid}&force=0&_page=1&_size=100`;
-            const res2 = await fetch(url2, { headers: { 'Cookie': cookie, 'User-Agent': BROWSER_UA } });
-            const d2 = await res2.json();
-            const l2 = d2.data?.list || [];
-            for (const sub2 of l2) {
-              if (!sub2.dir && /\.(mp4|mkv|ts|mov|avi|flv)$/i.test(sub2.file_name)) {
-                totalVideos++;
-              }
-            }
-          }
-        }
-      }
-    }
-    return { ok: true, count: totalVideos, inspect };
-  } catch (err) {
-    return { ok: false, count: 0, error: err.message };
-  }
-}
-
-/**
- * 批量删除夸克网盘指定文件/目录 FID
- */
-export async function deleteQuarkFiles(fids = []) {
-  if (!fids || fids.length === 0) return { ok: true };
-  try {
-    const headers = getQuarkHeaders();
-    const res = await fetch('https://drive-pc.quark.cn/1/clouddrive/file/delete?pr=ucpro&fr=pc', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ filelist: fids, action_type: 2 })
-    });
-    const data = await res.json();
-    return { ok: data.code === 0 || data.status === 200, data };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-}
-
-/**
- * 批量取消/删除夸克个人分享
- */
-export async function deleteQuarkShares(shareIds = []) {
-  if (!shareIds || shareIds.length === 0) return { ok: true };
-  try {
-    const headers = getQuarkHeaders();
-    const res = await fetch('https://drive-pc.quark.cn/1/clouddrive/share/delete?pr=ucpro&fr=pc', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({ share_id_list: shareIds })
-    });
-    const data = await res.json();
-    return { ok: data.code === 0 || data.status === 200, data };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
 }

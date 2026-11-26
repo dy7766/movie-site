@@ -1,14 +1,72 @@
 import { getDbPool, getTransferSettings } from '../src/lib/db.js';
 import {
-  searchPublicShares, inspectAndFilterUcShare, saveAndShareUc, checkUcCapacity,
-  searchQuarkShares, inspectAndFilterQuarkShare, saveAndShareQuark
-} from './auto-harvester.js';
+  DRIVE_CONFIGS,
+  searchDriveShares,
+  inspectDriveShare,
+  saveAndShareDrive,
+  checkDriveCapacity
+} from './drive-client.js';
 import { sendDingTalkCapacityAlert } from './dingtalk-service.js';
 import { searchCmsStream } from './online-play-monitor.js';
 
+const DRIVE_DB_COLUMN = {
+  quark: 'share_link',
+  uc: 'share_link_uc'
+};
+
+/**
+ * 公共网盘补源与转存逻辑（统一处理 夸克 / UC）
+ */
+async function harvestDriveForMovie(pool, movie, driveType, { isEnabled, isCapacityFull }) {
+  const cfg = DRIVE_CONFIGS[driveType];
+  const col = DRIVE_DB_COLUMN[driveType];
+
+  if (!isEnabled) {
+    console.log(`  ⏸️ [后台控制跳过] 管理员已在后台关闭【${cfg.label}转存】，跳过《${movie.title}》的转存`);
+    return false;
+  }
+  if (isCapacityFull) {
+    console.log(`  ⏩ [容量熔断跳过] ${cfg.label}空间不足 (<15GB)，本轮跳过《${movie.title}》的搜存`);
+    return false;
+  }
+
+  console.log(`  🔍 正在检索《${movie.title}》公开 ${cfg.label} 分享...`);
+  try {
+    const shares = await searchDriveShares(driveType, movie.title);
+    for (const s of shares) {
+      const inspect = await inspectDriveShare(driveType, s.pwd_id);
+      if (!inspect.pass) {
+        console.log(`    - ${cfg.label}候选 [${s.pwd_id}] 质检跳过: ${inspect.reason}`);
+        continue;
+      }
+
+      console.log(`  📥 正在执行 ${cfg.label} 秒存规范命名并生成专属分享链接...`);
+      const detail = await saveAndShareDrive(driveType, {
+        title: movie.title,
+        year: movie.year,
+        category: movie.category || '电影',
+        pwdId: s.pwd_id,
+        stoken: inspect.stoken,
+        list: inspect.list
+      });
+      if (detail?.shareUrl) {
+        await pool.query(
+          `UPDATE resources SET ${col} = $1, drive_type = COALESCE(drive_type, $2), status = 'published' WHERE id = $3`,
+          [detail.shareUrl, driveType, movie.id]
+        );
+        console.log(`  ✓ 成功挂载 ${cfg.label} 专属链接: ${detail.shareUrl}`);
+        return true;
+      }
+    }
+  } catch (err) {
+    console.warn(`  ⚠️ ${cfg.label} 转存异常:`, err.message);
+  }
+  return false;
+}
+
 /**
  * 阶段二：根据阶段一入库的影视元数据，精准搜源并挂载转存与在线播放资源
- * @param {number} batchSize 本批次处理数量 (默认 15 部)
+ * @param {number} batchSize 本批次处理数量 (默认 25 部)
  */
 export async function harvestResourceData(batchSize = 25) {
   console.log('===============================================================');
@@ -21,22 +79,25 @@ export async function harvestResourceData(batchSize = 25) {
   const transferSettings = await getTransferSettings();
   console.log(`⚙️ [转存配置] UC网盘自动转存: ${transferSettings.uc ? '🟢 开启' : '🔴 已暂停'} | 夸克网盘自动转存: ${transferSettings.quark ? '🟢 开启' : '🔴 已暂停'}`);
 
-  // 1. 批次前置容量探测：单次更新仅告警一次，空间不足时本批次全局跳过 UC 搜存，专注于切片流与夸克转存
-  let isUcCapacityFull = false;
-  if (transferSettings.uc) {
-    const initialCap = await checkUcCapacity();
+  // 1. 批次前置容量探测：两个网盘统一预检与熔断
+  const capacityFullMap = { uc: false, quark: false };
+  for (const driveType of ['uc', 'quark']) {
+    const cfg = DRIVE_CONFIGS[driveType];
+    if (!transferSettings[driveType]) {
+      console.log(`  ℹ️ [开关生效] ${cfg.label}转存已被管理员设为暂停，跳过容量探测与预警`);
+      continue;
+    }
+    const initialCap = await checkDriveCapacity(driveType);
     if (initialCap.ok && initialCap.isFull) {
-      isUcCapacityFull = true;
-      console.warn(`  🚨 [批次前置熔断] UC网盘空间已耗尽 (仅剩 ${initialCap.freeGb} GB < 15GB)，本轮更新跳过全部 UC 转存任务，专注于夸克与切片流。`);
+      capacityFullMap[driveType] = true;
+      console.warn(`  🚨 [批次前置熔断] ${cfg.label}空间已耗尽 (仅剩 ${initialCap.freeGb} GB < 15GB)，本轮跳过全部 ${cfg.label} 转存任务。`);
       await sendDingTalkCapacityAlert({
         usedTb: initialCap.usedTb,
         totalTb: initialCap.totalTb,
         freeGb: initialCap.freeGb,
-        provider: 'UC'
+        provider: cfg.alertProvider
       });
     }
-  } else {
-    console.log('  ℹ️ [开关生效] UC网盘转存已被管理员设为暂停，跳过 UC 容量探测与预警');
   }
 
   // 2. 全库智能轮转优先：优先在播未完结剧集与近年新片，保证热播内容第一时间就绪
@@ -87,66 +148,20 @@ export async function harvestResourceData(batchSize = 25) {
 
     // 1. 补齐 夸克网盘 转存链接
     if (!m.share_link) {
-      if (!transferSettings.quark) {
-        console.log(`  ⏸️ [后台控制跳过] 管理员已在后台关闭【夸克网盘转存】，跳过《${m.title}》的夸克转存`);
-      } else {
-        console.log(`  🔍 正在检索《${m.title}》公开夸克网盘分享...`);
-        try {
-          const quarkShares = await searchQuarkShares(m.title);
-          for (const s of quarkShares) {
-            const inspect = await inspectAndFilterQuarkShare(s.pwd_id);
-            if (!inspect.pass) {
-              console.log(`    - 夸克候选 [${s.pwd_id}] 质检跳过: ${inspect.reason}`);
-              continue;
-            }
-
-            console.log(`  📥 正在执行夸克 6TB 原盘秒存并生成专属分享链接...`);
-            const quarkLink = await saveAndShareQuark(m.title, s.pwd_id, inspect.stoken, inspect.list);
-            if (quarkLink) {
-              await pool.query('UPDATE resources SET share_link = $1, drive_type = COALESCE(drive_type, \'quark\'), status = \'published\' WHERE id = $2', [quarkLink, m.id]);
-              console.log(`  ✓ 成功挂载夸克网盘专属链接: ${quarkLink}`);
-              quarkSuccess++;
-              didUpdateQuark = true;
-              break;
-            }
-          }
-        } catch (err) {
-          console.warn(`  ⚠️ 夸克转存异常:`, err.message);
-        }
-      }
+      didUpdateQuark = await harvestDriveForMovie(pool, m, 'quark', {
+        isEnabled: transferSettings.quark,
+        isCapacityFull: capacityFullMap.quark
+      });
+      if (didUpdateQuark) quarkSuccess++;
     }
 
-    // 2. 补齐 UC 网盘转存链接
+    // 2. 补齐 UC 网盘 转存链接
     if (!m.share_link_uc) {
-      if (!transferSettings.uc) {
-        console.log(`  ⏸️ [后台控制跳过] 管理员已在后台关闭【UC网盘转存】，跳过《${m.title}》的 UC 资源搜存与转存`);
-      } else if (isUcCapacityFull) {
-        console.log(`  ⏩ [容量熔断跳过] UC网盘空间不足 (<15GB)，本轮跳过《${m.title}》的网盘搜存与重复报警`);
-      } else {
-        console.log(`  🔍 正在全网检索《${m.title}》公开 UC 网盘分享...`);
-        try {
-          const publicShares = await searchPublicShares(m.title);
-          for (const s of publicShares) {
-            const inspect = await inspectAndFilterUcShare(s.pwd_id);
-            if (!inspect.pass) {
-              console.log(`    - UC候选 [${s.pwd_id}] 质检跳过: ${inspect.reason}`);
-              continue;
-            }
-
-            console.log(`  📥 正在执行 UC 免流秒存与生成带 PID 专属分享链接...`);
-            const ucLink = await saveAndShareUc(m.title, m.year, m.category || '电影', s.pwd_id, inspect.stoken, inspect.list);
-            if (ucLink) {
-              await pool.query('UPDATE resources SET share_link_uc = $1, drive_type = COALESCE(drive_type, \'uc\'), status = \'published\' WHERE id = $2', [ucLink, m.id]);
-              console.log(`  ✓ 成功挂载 UC 网盘专属链接: ${ucLink}`);
-              ucSuccess++;
-              didUpdateUc = true;
-              break;
-            }
-          }
-        } catch (err) {
-          console.warn(`  ⚠️ UC 网盘转存异常:`, err.message);
-        }
-      }
+      didUpdateUc = await harvestDriveForMovie(pool, m, 'uc', {
+        isEnabled: transferSettings.uc,
+        isCapacityFull: capacityFullMap.uc
+      });
+      if (didUpdateUc) ucSuccess++;
     }
 
     // 3. 补齐 M3U8 免广告在线播放源

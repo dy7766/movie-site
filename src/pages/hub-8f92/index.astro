@@ -1201,6 +1201,8 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       
       let state = {
         movies: [],
+        totalCount: 0,
+        dbTotalCount: 0,
         currentCategory: '全部',
         quickStatus: 'all',
         searchTerm: '',
@@ -1267,56 +1269,23 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       async function fetchLiveResources() {
         const statusSummary = document.getElementById('filterResultSummary');
         if (statusSummary) {
-          statusSummary.innerHTML = '<span class="text-orange-400 animate-pulse font-mono">正在实时拉取数据库全量影视资产...</span>';
+          statusSummary.innerHTML = '<span class="text-orange-400 animate-pulse font-mono">正在实时查询数据库影视资产...</span>';
         }
 
         try {
-          let fetchedItems = null;
+          // 1. 拉取轻量 KPI 与豆瓣对照索引（不含大字段），同时按当前条件拉取第一页列表
+          const [kpiResult] = await Promise.all([
+            fetch('/api/admin/resources?mode=kpi', { cache: 'no-store' }).then(r => r.ok ? r.json() : null).catch(() => null),
+            filterAndSortMovies(true)
+          ]);
 
-          // 优先尝试 Cloudflare Pages 边缘专用接口 /api/admin/resources
-          try {
-            const edgeRes = await fetch('/api/admin/resources?limit=4000', { cache: 'no-store' });
-            if (edgeRes.ok) {
-              const edgeData = await edgeRes.json();
-              if (edgeData.success && Array.isArray(edgeData.resources)) {
-                fetchedItems = edgeData.resources;
-              }
-            }
-          } catch (_) {}
-
-          // 降级兜底：直连 Supabase REST API (全球 CDN 毫秒级)
-          if (!fetchedItems) {
-            const selectCols = [
-              'id', 'title', 'original_title', 'poster_url', 'category', 'tags',
-              'year', 'score', 'actors', 'intro', 'drive_type', 'share_link',
-              'views', 'saves', 'created_at', 'country', 'stills',
-              'online_play_url', 'play_sources', 'share_link_uc', 'is_finished',
-              'current_episode', 'total_episodes', 'has_metadata', 'status',
-              'is_released', 'release_date', 'clicks_quark', 'clicks_uc', 'clicks_play',
-              'source_pwd_id', 'uc_fid', 'last_episode_updated_at'
-            ].join(',');
-
-            const res = await fetch(`${SUPABASE_BASE_URL}/resources?select=${selectCols}&order=is_released.asc.nullslast,year.desc.nullslast,score.desc.nullslast,created_at.desc&limit=4000`, {
-              headers: {
-                'apikey': SUPABASE_PUB_KEY,
-                'Authorization': `Bearer ${SUPABASE_PUB_KEY}`
-              },
-              cache: 'no-store'
-            });
-
-            if (!res.ok) throw new Error('Supabase 直连拉取失败');
-            fetchedItems = await res.json();
+          if (kpiResult && kpiResult.success) {
+            rawMovies = kpiResult.indexRows || [];
+            state.dbTotalCount = kpiResult.kpi?.total || rawMovies.length;
+            recalculateTopKpi(kpiResult.kpi);
+            if (typeof renderDoubanHotComparison === 'function') renderDoubanHotComparison();
+            render();
           }
-
-          rawMovies = fetchedItems || [];
-          console.log(`[Data Hub] 实时拉取完成，共载入 ${rawMovies.length} 部影视数据`);
-
-          // 实时重新计算大盘顶部 KPI 指标
-          recalculateTopKpi();
-          if (typeof renderDoubanHotComparison === 'function') renderDoubanHotComparison();
-
-          // 触发筛选与渲染
-          filterAndSortMovies();
         } catch (err) {
           console.error('[Data Hub] 实时数据拉取异常:', err);
           if (statusSummary) {
@@ -1326,14 +1295,14 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       }
 
       // 实时计算顶部 7 大 KPI 指标与频道分布
-      function recalculateTopKpi() {
-        const total = rawMovies.length;
-        const ready = rawMovies.filter(m => m.has_metadata === true).length;
-        const pending = rawMovies.filter(m => !m.has_metadata).length;
-        const uc = rawMovies.filter(m => !!m.share_link_uc).length;
-        const qk = rawMovies.filter(m => !!m.share_link).length;
-        const play = rawMovies.filter(m => !!m.online_play_url).length;
-        const ongoing = rawMovies.filter(m => (m.category === '电视剧' || m.category === '综艺' || m.category === '动漫') && m.is_finished === false).length;
+      function recalculateTopKpi(serverKpi = null) {
+        const total = serverKpi ? serverKpi.total : rawMovies.length;
+        const ready = serverKpi ? serverKpi.ready : rawMovies.filter(m => m.has_metadata === true).length;
+        const pending = serverKpi ? serverKpi.pending : rawMovies.filter(m => !m.has_metadata).length;
+        const uc = serverKpi ? serverKpi.uc : rawMovies.filter(m => !!m.share_link_uc).length;
+        const qk = serverKpi ? serverKpi.quark : rawMovies.filter(m => !!m.share_link).length;
+        const play = serverKpi ? serverKpi.play : rawMovies.filter(m => !!m.online_play_url).length;
+        const ongoing = serverKpi ? serverKpi.ongoing : rawMovies.filter(m => (m.category === '电视剧' || m.category === '综艺' || m.category === '动漫') && m.is_finished === false).length;
 
         const elTotal = document.getElementById('kpiTotalCount');
         const elReady = document.getElementById('kpiReadyMetaCount');
@@ -1356,140 +1325,56 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
         // 计算频道分类
         const cats = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录片'];
         cats.forEach(c => {
-          const count = c === '全部' ? total : rawMovies.filter(m => m.category === c).length;
+          const count = serverKpi?.categories
+            ? (serverKpi.categories[c] ?? 0)
+            : (c === '全部' ? total : rawMovies.filter(m => m.category === c).length);
           const el = document.getElementById(`catCount_${c}`);
           if (el) el.textContent = `(${count})`;
         });
       }
 
       // ==========================================
-      // 2. 全属性多维数据过滤与检索核心引擎
+      // 2. 服务端按条件实时查询与分页引擎
       // ==========================================
-      function filterAndSortMovies() {
-        let list = [...rawMovies];
+      let activeQuerySeq = 0;
+      async function filterAndSortMovies(resetPage = true) {
+        if (resetPage) state.currentPage = 1;
+        const seq = ++activeQuerySeq;
 
-        // 1. 频道分类过滤
-        if (state.currentCategory !== '全部') {
-          list = list.filter(m => m.category === state.currentCategory);
-        }
-
-        // 2. 快捷状态维度过滤
-        if (state.quickStatus === 'ready') {
-          list = list.filter(m => m.has_metadata === true);
-        } else if (state.quickStatus === 'pending') {
-          list = list.filter(m => !m.has_metadata);
-        } else if (state.quickStatus === 'has_play') {
-          list = list.filter(m => !!m.online_play_url);
-        } else if (state.quickStatus === 'has_uc') {
-          list = list.filter(m => !!m.share_link_uc);
-        } else if (state.quickStatus === 'has_quark') {
-          list = list.filter(m => !!m.share_link);
-        } else if (state.quickStatus === 'ongoing') {
-          list = list.filter(m => (m.category === '电视剧' || m.category === '综艺' || m.category === '动漫') && m.is_finished === false);
-        } else if (state.quickStatus === 'finished') {
-          list = list.filter(m => m.is_finished === true);
-        } else if (state.quickStatus === 'missing_res') {
-          list = list.filter(m => !m.share_link_uc && !m.share_link && !m.online_play_url);
-        }
-
-        // 3. 高级多维属性组合过滤
-        const f = state.filters;
-        
-        // 门禁状态
-        if (f.meta === 'ready') list = list.filter(m => m.has_metadata === true);
-        else if (f.meta === 'pending') list = list.filter(m => !m.has_metadata);
-
-        // 上映公映状态
-        if (f.released === 'released') list = list.filter(m => m.is_released !== false);
-        else if (f.released === 'unreleased') list = list.filter(m => m.is_released === false);
-
-        // 连载完结状态
-        if (f.finished === 'ongoing') list = list.filter(m => m.is_finished === false);
-        else if (f.finished === 'finished') list = list.filter(m => m.is_finished === true);
-
-        // 夸克网盘
-        if (f.quark === 'has') list = list.filter(m => !!m.share_link);
-        else if (f.quark === 'none') list = list.filter(m => !m.share_link);
-
-        // UC 网盘
-        if (f.uc === 'has') list = list.filter(m => !!m.share_link_uc);
-        else if (f.uc === 'none') list = list.filter(m => !m.share_link_uc);
-
-        // 在线播放源
-        if (f.play === 'has') list = list.filter(m => !!m.online_play_url);
-        else if (f.play === 'none') list = list.filter(m => !m.online_play_url);
-
-        // 上游采集源
-        if (f.source === 'has') list = list.filter(m => !!m.source_pwd_id);
-        else if (f.source === 'none') list = list.filter(m => !m.source_pwd_id);
-
-        // 口碑评分
-        if (f.score === '9') list = list.filter(m => Number(m.score) >= 9.0);
-        else if (f.score === '8') list = list.filter(m => Number(m.score) >= 8.0 && Number(m.score) < 9.0);
-        else if (f.score === '7') list = list.filter(m => Number(m.score) >= 7.0 && Number(m.score) < 8.0);
-        else if (f.score === '6') list = list.filter(m => Number(m.score) >= 6.0 && Number(m.score) < 7.0);
-        else if (f.score === 'under6') list = list.filter(m => m.score && Number(m.score) < 6.0);
-        else if (f.score === 'none') list = list.filter(m => !m.score || Number(m.score) === 0);
-
-        // 4. 关键词全属性穿透模糊搜索 (匹配任何可能包含该关键词的属性)
-        if (state.searchTerm) {
-          const q = state.searchTerm.toLowerCase();
-          list = list.filter(m => 
-            (m.title && m.title.toLowerCase().includes(q)) ||
-            (m.original_title && m.original_title.toLowerCase().includes(q)) ||
-            (m.actors && m.actors.toLowerCase().includes(q)) ||
-            (m.intro && m.intro.toLowerCase().includes(q)) ||
-            (m.country && m.country.toLowerCase().includes(q)) ||
-            (m.id && m.id.toLowerCase().includes(q)) ||
-            (String(m.year).includes(q)) ||
-            (m.share_link && m.share_link.toLowerCase().includes(q)) ||
-            (m.share_link_uc && m.share_link_uc.toLowerCase().includes(q)) ||
-            (m.source_pwd_id && m.source_pwd_id.toLowerCase().includes(q)) ||
-            (m.uc_fid && m.uc_fid.toLowerCase().includes(q)) ||
-            (m.online_play_url && m.online_play_url.toLowerCase().includes(q)) ||
-            (Array.isArray(m.tags) && m.tags.some(t => String(t).toLowerCase().includes(q)))
-          );
-        }
-
-        // 5. 排序引擎
-        list.sort((a, b) => {
-          if (state.sortBy === 'saves_desc') {
-            const savesA = (a.clicks_quark || 0) + (a.clicks_uc || 0);
-            const savesB = (b.clicks_quark || 0) + (b.clicks_uc || 0);
-            return savesB - savesA;
-          } else if (state.sortBy === 'views_desc') {
-            return (b.views || 0) - (a.views || 0);
-          } else if (state.sortBy === 'created_desc') {
-            return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-          } else if (state.sortBy === 'created_asc') {
-            return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
-          } else if (state.sortBy === 'updated_desc') {
-            const upA = a.last_episode_updated_at ? new Date(a.last_episode_updated_at).getTime() : 0;
-            const upB = b.last_episode_updated_at ? new Date(b.last_episode_updated_at).getTime() : 0;
-            return upB - upA;
-          } else if (state.sortBy === 'score_desc') {
-            return (parseFloat(b.score) || 0) - (parseFloat(a.score) || 0);
-          } else if (state.sortBy === 'year_desc') {
-            return (b.year || 0) - (a.year || 0);
-          } else if (state.sortBy === 'episodes_desc') {
-            return (b.current_episode || 0) - (a.current_episode || 0);
-          } else {
-            // 默认：综合最新（未上映置后，按上映年份倒序、评分倒序、入库时间倒序）
-            const relA = a.is_released === false ? 1 : 0;
-            const relB = b.is_released === false ? 1 : 0;
-            if (relA !== relB) return relA - relB;
-            const yA = a.year || 0;
-            const yB = b.year || 0;
-            if (yA !== yB) return yB - yA;
-            const sA = parseFloat(a.score) || 0;
-            const sB = parseFloat(b.score) || 0;
-            if (sA !== sB) return sB - sA;
-            return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
-          }
+        const params = new URLSearchParams({
+          page: String(state.currentPage),
+          pageSize: String(state.pageSize),
+          category: state.currentCategory,
+          quickStatus: state.quickStatus,
+          q: state.searchTerm || '',
+          sortBy: state.sortBy,
+          meta: state.filters.meta,
+          released: state.filters.released,
+          finished: state.filters.finished,
+          quark: state.filters.quark,
+          uc: state.filters.uc,
+          play: state.filters.play,
+          source: state.filters.source,
+          score: state.filters.score
         });
 
-        state.movies = list;
-        state.currentPage = 1;
+        try {
+          const res = await fetch(`/api/admin/resources?${params.toString()}`, { cache: 'no-store' });
+          if (!res.ok) throw new Error('查询接口响应异常');
+          const data = await res.json();
+          if (seq !== activeQuerySeq) return; // 丢弃过期的并发响应
+
+          if (data.success && Array.isArray(data.resources)) {
+            state.movies = data.resources;
+            state.totalCount = Number(data.total ?? data.resources.length);
+            if (!state.dbTotalCount && state.currentCategory === '全部' && state.quickStatus === 'all' && !state.searchTerm) {
+              state.dbTotalCount = state.totalCount;
+            }
+          }
+        } catch (err) {
+          console.error('[Data Hub] 服务端条件查询异常:', err);
+        }
+
         render();
         updateActiveFilterBadge();
       }
@@ -1518,20 +1403,20 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       // 3. 渲染视图与分页
       // ==========================================
       function render() {
-        const total = state.movies.length;
+        const total = state.totalCount || state.movies.length;
         const totalPages = Math.ceil(total / state.pageSize) || 1;
         
         if (state.currentPage > totalPages) state.currentPage = totalPages;
         if (state.currentPage < 1) state.currentPage = 1;
 
         const startIdx = (state.currentPage - 1) * state.pageSize;
-        const endIdx = Math.min(startIdx + state.pageSize, total);
-        const pagedList = state.movies.slice(startIdx, endIdx);
+        const endIdx = Math.min(startIdx + state.movies.length, total);
+        const pagedList = state.movies;
 
         // 渲染顶部结果摘要
         filterResultSummary.innerHTML = `
           已检索到 <strong class="text-orange-400 font-bold font-mono">${total}</strong> 部影视
-          <span class="text-slate-500 ml-1">(${rawMovies.length} 全库实时)</span>
+          <span class="text-slate-500 ml-1">(${state.dbTotalCount || total} 全库实时)</span>
           ${state.searchTerm ? `<span class="ml-2 px-2 py-0.5 rounded bg-slate-800 text-[11px] text-slate-300">关键词: "${state.searchTerm}"</span>` : ''}
         `;
 
@@ -1760,7 +1645,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
 
       window.goToPage = function(p) {
         state.currentPage = p;
-        render();
+        filterAndSortMovies(false);
         window.scrollTo({ top: tableViewWrapper.offsetTop - 120, behavior: 'smooth' });
       };
 
@@ -1768,7 +1653,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       // 4. 详情抽屉 (按三大名词清晰归纳)
       // ==========================================
       window.openDetailModal = function(id) {
-        const m = rawMovies.find(item => item.id === id);
+        const m = state.movies.find(item => item.id === id) || rawMovies.find(item => item.id === id);
         if (!m) return;
 
         // 顶栏
@@ -1997,8 +1882,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       // 每页条数
       pageSizeSelect.addEventListener('change', (e) => {
         state.pageSize = parseInt(e.target.value, 10);
-        state.currentPage = 1;
-        render();
+        filterAndSortMovies(true);
       });
 
       // 视图切换
