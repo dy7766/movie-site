@@ -48,7 +48,7 @@ async function getOrInitIdMaps(apiKey) {
   }
 
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/resources?select=id&has_metadata=eq.true&or=(share_link.not.is.null,share_link_uc.not.is.null)&order=created_at.asc&limit=2000`, {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/resources?select=id&has_metadata=eq.true&or=(share_link.not.is.null,share_link_uc.not.is.null,online_play_url.not.is.null)&order=created_at.asc&limit=2000`, {
       headers: {
         'apikey': apiKey,
         'Authorization': `Bearer ${apiKey}`
@@ -126,9 +126,9 @@ export async function onRequest(context) {
       }
     }
 
-    // 过滤有可用网盘转存链接的资源（仅保留夸克与UC网盘资产）
-    if (!ids && !wd) {
-      queryUrl += `&or=(share_link.not.is.null,share_link_uc.not.is.null)`;
+    // 严格门禁：既无网盘（夸克/UC）也无 M3U8 在线流的空壳资源，绝不查出暴露给 TVBox
+    if (!ids) {
+      queryUrl += `&or=(share_link.not.is.null,share_link_uc.not.is.null,online_play_url.not.is.null)`;
     }
 
     queryUrl += `&order=year.desc,score.desc,created_at.desc&limit=${limit}&offset=${offset}`;
@@ -176,21 +176,42 @@ export async function onRequest(context) {
         ? new Date(item.created_at).toISOString().replace('T', ' ').slice(0, 19)
         : '';
 
-      // 核心网盘专线构造（标准驱动标识：夸克、UC，搭配 push:// 协议引导 TVBox 内部网盘驱动接管）
+      // 核心网盘专线构造：只要存在任意网盘资源，只输出夸克/UC专线（绝不混入M3U8破坏转存）
       const fromList = [];
       const urlList = [];
 
-      // 1. 夸克网盘专线（标准驱动标识：夸克）
+      // 1. 夸克网盘专线
       if (item.share_link) {
         fromList.push('夸克');
         urlList.push(`正片$push://${item.share_link}`);
       }
 
-      // 2. UC网盘专线（标准驱动标识：UC）
+      // 2. UC网盘专线
       if (item.share_link_uc) {
         fromList.push('UC');
         urlList.push(`正片$push://${item.share_link_uc}`);
       }
+
+      // 3. 兜底在线播放：仅当无任何网盘资源时，才挂载 M3U8 在线流
+      if (fromList.length === 0) {
+        let m3u8Episodes = [];
+        if (Array.isArray(item.play_sources)) {
+          const m3u8Source = item.play_sources.find(s => s && s.type === 'm3u8' && Array.isArray(s.episodes) && s.episodes.length > 0);
+          if (m3u8Source) {
+            m3u8Episodes = m3u8Source.episodes.filter(ep => ep && ep.url && /\.m3u8/i.test(ep.url));
+          }
+        }
+        if (m3u8Episodes.length === 0 && item.online_play_url && /\.m3u8/i.test(item.online_play_url)) {
+          m3u8Episodes = [{ name: '正片', url: item.online_play_url }];
+        }
+        if (m3u8Episodes.length > 0) {
+          fromList.push('极速秒播');
+          urlList.push(m3u8Episodes.map(ep => `${(ep.name || '正片').replace(/[#\$]/g, '')}$${ep.url}`).join('#'));
+        }
+      }
+
+      // 若最终没有任何可播/可转存线路，剔除此记录
+      if (fromList.length === 0) return null;
 
       // 封面地址加速与白名单处理（解决大陆电视/手机直连TMDB图片被墙或加载极慢导致空白）
       let poster = item.poster_url || '';
@@ -217,7 +238,7 @@ export async function onRequest(context) {
         vod_lang: '国语/原声',
         vod_score: item.score ? String(item.score) : '0.0'
       };
-    });
+    }).filter(Boolean);
 
     const result = {
       code: 1,
