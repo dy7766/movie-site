@@ -20,7 +20,7 @@ function curlGetJson(url) {
  * 补齐官方高清竖版海报、剧照画廊、真实演职阵容、剧情简介、体裁标签与集数
  * 补全成功后标记 has_metadata = true，解锁网站前台发布权限！
  */
-export async function enrichTmdbMetadata({ batchLimit = 30 } = {}) {
+export async function enrichTmdbMetadata({ batchLimit = 50 } = {}) {
   console.log('===============================================================');
   console.log(`🎨【模块二 · TMDB 元数据精准补全与发布质检启动】(批次上限: ${batchLimit} 部)`);
   console.log('===============================================================');
@@ -230,7 +230,7 @@ export async function enrichTmdbMetadata({ batchLimit = 30 } = {}) {
 }
 
 if (process.argv[1]?.endsWith('enrich-tmdb-metadata.js')) {
-  const limit = parseInt(process.argv[2] || '20');
+  const limit = parseInt(process.argv[2] || '50');
   enrichTmdbMetadata({ batchLimit: limit }).then(async () => {
     const pool = getDbPool();
     await pool.end();

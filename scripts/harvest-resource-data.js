@@ -171,7 +171,7 @@ export async function harvestResourceData(batchSize = 25) {
         const stream = await searchCmsStream(m.title, m.year);
         if (stream && stream.primaryUrl) {
           await pool.query(
-            'UPDATE resources SET online_play_url = $1, play_sources = $2 WHERE id = $3',
+            'UPDATE resources SET online_play_url = $1, play_sources = $2, status = \'published\' WHERE id = $3',
             [stream.primaryUrl, JSON.stringify(stream.sources), m.id]
           );
           console.log(`  ✓ 成功挂载极速免广告在线切片源: ${stream.primaryUrl.slice(0, 50)}...`);

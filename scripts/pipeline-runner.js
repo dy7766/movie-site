@@ -35,7 +35,7 @@ export async function runAutomationPipeline() {
   console.log('\n[步骤 3/8] 启动 TMDB 元数据精准清洗与补齐引擎 (模块二)...');
   let enrichStats = { processed: 0, enrichedCount: 0, failedCount: 0 };
   try {
-    enrichStats = await enrichTmdbMetadata({ batchLimit: 25 });
+    enrichStats = await enrichTmdbMetadata({ batchLimit: 50 });
   } catch (err) {
     console.warn('⚠️ TMDB 元数据补齐异常（不阻断后续流程）:', err.message);
   }
