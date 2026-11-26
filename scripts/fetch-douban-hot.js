@@ -44,6 +44,8 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
   const candidates = [];
   const hotMovieMap = new Map();
   const hotTvMap = new Map();
+  const hotVarietyMap = new Map();
+  const hotAnimeMap = new Map();
 
   const state = await getCrawlState(pool);
   const zeroYieldStreak = state.consecutive_zero_yield || 0;
@@ -62,7 +64,10 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
     { type: 'tv', tag: '国产剧', category: '电视剧', limit: 25, page_start: 0 },
     { type: 'tv', tag: '国产剧', category: '电视剧', limit: 25, page_start: 25 },
     { type: 'tv', tag: '国产剧', category: '电视剧', limit: 25, page_start: 50 },
-    { type: 'tv', tag: '综艺', category: '综艺', limit: 20, page_start: 0 }
+    { type: 'tv', tag: '综艺', category: '综艺', limit: 25, page_start: 0 },
+    { type: 'tv', tag: '综艺', category: '综艺', limit: 25, page_start: 25 },
+    { type: 'tv', tag: '日本动画', category: '动漫', limit: 25, page_start: 0 },
+    { type: 'tv', tag: '日本动画', category: '动漫', limit: 25, page_start: 25 }
   ];
 
   // 2. 连续 2 次以上未抓取到新内容 -> 触发深度下探模式 (获取更早年份、经典佳作与长尾内容)
@@ -104,13 +109,18 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
         for (const s of subjects) {
           const title = (s.title || '').trim();
           if (!title) continue;
-          // 收集“热门”榜单前 50 快照供 hub-8f92 大盘对照
-          if (t.tag === '热门' && (t.type === 'movie' || t.type === 'tv')) {
-            const targetMap = t.type === 'movie' ? hotMovieMap : hotTvMap;
+          // 收集四组热门榜单（电影/剧集/综艺/动漫）前 50 快照供 hub-8f92 大盘对照
+          let snapshotMap = null;
+          if (t.type === 'movie' && t.tag === '热门') snapshotMap = hotMovieMap;
+          else if (t.type === 'tv' && t.tag === '热门') snapshotMap = hotTvMap;
+          else if (t.type === 'tv' && t.tag === '综艺') snapshotMap = hotVarietyMap;
+          else if (t.type === 'tv' && t.tag === '日本动画') snapshotMap = hotAnimeMap;
+
+          if (snapshotMap) {
             const snapKey = s.id || title;
-            if (targetMap.size < 50 && !targetMap.has(snapKey)) {
-              targetMap.set(snapKey, {
-                rank: targetMap.size + 1,
+            if (snapshotMap.size < 50 && !snapshotMap.has(snapKey)) {
+              snapshotMap.set(snapKey, {
+                rank: snapshotMap.size + 1,
                 id: s.id || '',
                 title,
                 rate: s.rate || '',
@@ -137,13 +147,15 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
     }
   }
 
-  // 2.2 持久化“热门电影/电视剧 Top 50”快照至 system_settings，供管理大盘直接对照
-  if (hotMovieMap.size > 0 || hotTvMap.size > 0) {
+  // 2.2 持久化“热门电影/剧集/综艺/动漫 Top 50”快照至 system_settings，供管理大盘直接对照
+  if (hotMovieMap.size > 0 || hotTvMap.size > 0 || hotVarietyMap.size > 0 || hotAnimeMap.size > 0) {
     try {
       const snapshotPayload = {
         fetchedAt: new Date().toISOString(),
         movies: Array.from(hotMovieMap.values()),
-        tvs: Array.from(hotTvMap.values())
+        tvs: Array.from(hotTvMap.values()),
+        varieties: Array.from(hotVarietyMap.values()),
+        animes: Array.from(hotAnimeMap.values())
       };
       await pool.query(
         `INSERT INTO system_settings (key, value, updated_at)
@@ -151,7 +163,7 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
          ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
         [JSON.stringify(snapshotPayload)]
       );
-      console.log(`📸 已更新大盘豆瓣热门 Top 50 快照 (电影 ${snapshotPayload.movies.length} 部 / 剧集 ${snapshotPayload.tvs.length} 部)`);
+      console.log(`📸 已更新大盘豆瓣热门 Top 50 快照 (电影 ${snapshotPayload.movies.length} / 剧集 ${snapshotPayload.tvs.length} / 综艺 ${snapshotPayload.varieties.length} / 动漫 ${snapshotPayload.animes.length})`);
     } catch (snapErr) {
       console.warn('⚠️ 保存豆瓣热门 Top 50 快照异常:', snapErr.message);
     }

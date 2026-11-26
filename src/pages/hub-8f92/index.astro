@@ -519,9 +519,11 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
 
           <div class="flex flex-wrap items-center gap-2">
             <!-- 榜单类型 Tab -->
-            <div class="inline-flex rounded-lg bg-slate-950/80 p-1 border border-slate-800">
-              <button type="button" data-db-tab="movie" class="douban-tab-btn px-3 py-1 rounded-md text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-pointer transition">🎬 热门电影 Top 50</button>
-              <button type="button" data-db-tab="tv" class="douban-tab-btn px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white border border-transparent cursor-pointer transition">📺 热门剧集 Top 50</button>
+            <div class="inline-flex flex-wrap rounded-lg bg-slate-950/80 p-1 border border-slate-800 gap-0.5">
+              <button type="button" data-db-tab="movie" class="douban-tab-btn px-3 py-1 rounded-md text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-pointer transition">🎬 电影 50</button>
+              <button type="button" data-db-tab="tv" class="douban-tab-btn px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white border border-transparent cursor-pointer transition">📺 剧集 50</button>
+              <button type="button" data-db-tab="variety" class="douban-tab-btn px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white border border-transparent cursor-pointer transition">🎤 综艺 50</button>
+              <button type="button" data-db-tab="anime" class="douban-tab-btn px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white border border-transparent cursor-pointer transition">🌸 动漫 50</button>
             </div>
 
             <!-- 状态筛选 -->
@@ -2822,9 +2824,16 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       // ==========================================
       // 8. 豆瓣热门 Top 50 与库内资产对照
       // ==========================================
-      let doubanHotCache = { movie: [], tv: [], fetchedAt: '' };
+      let doubanHotCache = { movie: [], tv: [], variety: [], anime: [], fetchedAt: '' };
       let currentDoubanTab = 'movie';
       let currentDoubanStatus = 'all';
+
+      const DOUBAN_TAB_LABELS = {
+        movie: '热门电影',
+        tv: '热门剧集',
+        variety: '热门综艺',
+        anime: '热门动漫'
+      };
 
       function normalizeTitleForMatch(str) {
         return String(str || '')
@@ -2842,7 +2851,9 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
         // 先筛选分类倾向，若跨类也能兜底命中
         const isPreferredCat = (m) => {
           if (tabType === 'movie') return m.category === '电影';
-          return m.category === '电视剧' || m.category === '动漫' || m.category === '综艺';
+          if (tabType === 'variety') return m.category === '综艺';
+          if (tabType === 'anime') return m.category === '动漫';
+          return m.category === '电视剧';
         };
 
         let exactList = rawMovies.filter(m => {
@@ -2918,7 +2929,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
         const syncTimeStr = doubanHotCache.fetchedAt
           ? ` · 定时同步于 ${new Date(doubanHotCache.fetchedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`
           : '';
-        if (badge) badge.textContent = `${currentDoubanTab === 'movie' ? '热门电影' : '热门剧集'}前${list.length} · 已就绪 ${readyCnt} / 缺失 ${missingCnt}${syncTimeStr}`;
+        if (badge) badge.textContent = `${DOUBAN_TAB_LABELS[currentDoubanTab] || '热门'}前${list.length} · 已就绪 ${readyCnt} / 缺失 ${missingCnt}${syncTimeStr}`;
 
         const filtered = currentDoubanStatus === 'all'
           ? enriched
@@ -2981,7 +2992,13 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
           const res = await fetch('/api/admin/douban-hot', { cache: 'no-store' });
           const data = await res.json();
           if (data.success) {
-            doubanHotCache = { movie: data.movies || [], tv: data.tvs || [], fetchedAt: data.fetchedAt || '' };
+            doubanHotCache = {
+              movie: data.movies || [],
+              tv: data.tvs || [],
+              variety: data.varieties || [],
+              anime: data.animes || [],
+              fetchedAt: data.fetchedAt || ''
+            };
             renderDoubanHotComparison();
           } else {
             if (badge) badge.textContent = `拉取失败: ${data.error || '请重试'}`;
