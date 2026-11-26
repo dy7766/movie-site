@@ -2822,7 +2822,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       // ==========================================
       // 8. 豆瓣热门 Top 50 与库内资产对照
       // ==========================================
-      let doubanHotCache = { movie: [], tv: [] };
+      let doubanHotCache = { movie: [], tv: [], fetchedAt: '' };
       let currentDoubanTab = 'movie';
       let currentDoubanStatus = 'all';
 
@@ -2915,7 +2915,10 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
         if (elReady) elReady.textContent = `${readyCnt} 部`;
         if (elPartial) elPartial.textContent = `${partialCnt} 部`;
         if (elMissing) elMissing.textContent = `${missingCnt} 部`;
-        if (badge) badge.textContent = `${currentDoubanTab === 'movie' ? '热门电影' : '热门剧集'}前${list.length} · 已就绪 ${readyCnt} / 缺失 ${missingCnt}`;
+        const syncTimeStr = doubanHotCache.fetchedAt
+          ? ` · 定时同步于 ${new Date(doubanHotCache.fetchedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+          : '';
+        if (badge) badge.textContent = `${currentDoubanTab === 'movie' ? '热门电影' : '热门剧集'}前${list.length} · 已就绪 ${readyCnt} / 缺失 ${missingCnt}${syncTimeStr}`;
 
         const filtered = currentDoubanStatus === 'all'
           ? enriched
@@ -2978,7 +2981,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
           const res = await fetch('/api/admin/douban-hot', { cache: 'no-store' });
           const data = await res.json();
           if (data.success) {
-            doubanHotCache = { movie: data.movies || [], tv: data.tvs || [] };
+            doubanHotCache = { movie: data.movies || [], tv: data.tvs || [], fetchedAt: data.fetchedAt || '' };
             renderDoubanHotComparison();
           } else {
             if (badge) badge.textContent = `拉取失败: ${data.error || '请重试'}`;

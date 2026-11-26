@@ -42,6 +42,8 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
 
   const pool = getDbPool();
   const candidates = [];
+  const hotMovieMap = new Map();
+  const hotTvMap = new Map();
 
   const state = await getCrawlState(pool);
   const zeroYieldStreak = state.consecutive_zero_yield || 0;
@@ -102,6 +104,22 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
         for (const s of subjects) {
           const title = (s.title || '').trim();
           if (!title) continue;
+          // 收集“热门”榜单前 50 快照供 hub-8f92 大盘对照
+          if (t.tag === '热门' && (t.type === 'movie' || t.type === 'tv')) {
+            const targetMap = t.type === 'movie' ? hotMovieMap : hotTvMap;
+            const snapKey = s.id || title;
+            if (targetMap.size < 50 && !targetMap.has(snapKey)) {
+              targetMap.set(snapKey, {
+                rank: targetMap.size + 1,
+                id: s.id || '',
+                title,
+                rate: s.rate || '',
+                url: s.url || '',
+                cover: s.cover || '',
+                is_new: Boolean(s.is_new)
+              });
+            }
+          }
           const score = s.rate ? parseFloat(s.rate) : 8.0;
           candidates.push({
             title,
@@ -116,6 +134,26 @@ export async function fetchDoubanHotSeeds({ movieLimit = 30, tvLimit = 30 } = {}
       }
     } catch (err) {
       console.warn(`  ⚠️ 豆瓣接口请求受限或网络波动 (${err.message})`);
+    }
+  }
+
+  // 2.2 持久化“热门电影/电视剧 Top 50”快照至 system_settings，供管理大盘直接对照
+  if (hotMovieMap.size > 0 || hotTvMap.size > 0) {
+    try {
+      const snapshotPayload = {
+        fetchedAt: new Date().toISOString(),
+        movies: Array.from(hotMovieMap.values()),
+        tvs: Array.from(hotTvMap.values())
+      };
+      await pool.query(
+        `INSERT INTO system_settings (key, value, updated_at)
+         VALUES ('douban_hot_snapshot', $1, NOW())
+         ON CONFLICT (key) DO UPDATE SET value = $1, updated_at = NOW()`,
+        [JSON.stringify(snapshotPayload)]
+      );
+      console.log(`📸 已更新大盘豆瓣热门 Top 50 快照 (电影 ${snapshotPayload.movies.length} 部 / 剧集 ${snapshotPayload.tvs.length} 部)`);
+    } catch (snapErr) {
+      console.warn('⚠️ 保存豆瓣热门 Top 50 快照异常:', snapErr.message);
     }
   }
 
