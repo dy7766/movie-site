@@ -499,6 +499,88 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
         </div>
       </section>
 
+      <!-- 豆瓣实时热门 Top 50 与库内资源对照 -->
+      <section class="bg-slate-900/75 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+              🔥
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-sm font-bold text-white tracking-wide">豆瓣实时热门 Top 50 与库内资产对照</h3>
+                <span id="doubanSummaryBadge" class="text-[11px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 font-mono">
+                  正在拉取豆瓣榜单...
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">实时对比豆瓣热门电影 / 电视剧前 50 名，快速定位缺失热片与待补全网盘资源</p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- 榜单类型 Tab -->
+            <div class="inline-flex rounded-lg bg-slate-950/80 p-1 border border-slate-800">
+              <button type="button" data-db-tab="movie" class="douban-tab-btn px-3 py-1 rounded-md text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-pointer transition">🎬 热门电影 Top 50</button>
+              <button type="button" data-db-tab="tv" class="douban-tab-btn px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white border border-transparent cursor-pointer transition">📺 热门剧集 Top 50</button>
+            </div>
+
+            <!-- 状态筛选 -->
+            <div class="inline-flex rounded-lg bg-slate-950/80 p-1 border border-slate-800">
+              <button type="button" data-db-status="all" class="douban-status-btn px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-800 text-white cursor-pointer transition">全部</button>
+              <button type="button" data-db-status="missing" class="douban-status-btn px-2.5 py-1 rounded-md text-[11px] font-medium text-rose-400 hover:text-rose-300 cursor-pointer transition">❌ 缺失</button>
+              <button type="button" data-db-status="partial" class="douban-status-btn px-2.5 py-1 rounded-md text-[11px] font-medium text-amber-400 hover:text-amber-300 cursor-pointer transition">⚠️ 待补全</button>
+              <button type="button" data-db-status="ready" class="douban-status-btn px-2.5 py-1 rounded-md text-[11px] font-medium text-emerald-400 hover:text-emerald-300 cursor-pointer transition">✅ 已就绪</button>
+            </div>
+
+            <button id="refreshDoubanHotBtn" type="button" class="text-xs px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer">
+              🔄 刷新榜单
+            </button>
+          </div>
+        </div>
+
+        <!-- 汇总指标条 -->
+        <div id="doubanStatsBar" class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+          <div class="bg-slate-950/60 border border-slate-800/80 rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+            <span class="text-slate-400">榜单覆盖率</span>
+            <span id="doubanStatCoverage" class="font-mono font-bold text-white">--%</span>
+          </div>
+          <div class="bg-slate-950/60 border border-emerald-500/20 rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+            <span class="text-emerald-400">✅ 库内已就绪</span>
+            <span id="doubanStatReady" class="font-mono font-bold text-emerald-300">--</span>
+          </div>
+          <div class="bg-slate-950/60 border border-amber-500/20 rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+            <span class="text-amber-400">⚠️ 缺网盘/元数据</span>
+            <span id="doubanStatPartial" class="font-mono font-bold text-amber-300">--</span>
+          </div>
+          <div class="bg-slate-950/60 border border-rose-500/20 rounded-xl px-3.5 py-2.5 flex items-center justify-between">
+            <span class="text-rose-400">❌ 库中缺失</span>
+            <span id="doubanStatMissing" class="font-mono font-bold text-rose-300">--</span>
+          </div>
+        </div>
+
+        <!-- 对照表单 -->
+        <div class="overflow-x-auto max-h-[480px] overflow-y-auto border border-slate-800/70 rounded-xl bg-slate-950/50">
+          <table class="w-full text-left text-xs">
+            <thead class="sticky top-0 z-10 bg-slate-900 border-b border-slate-800 text-slate-400">
+              <tr>
+                <th class="py-2.5 px-3 w-12 text-center font-medium">#</th>
+                <th class="py-2.5 px-3 font-medium">豆瓣热门片名</th>
+                <th class="py-2.5 px-2 text-center font-medium w-20">豆瓣评分</th>
+                <th class="py-2.5 px-3 text-center font-medium w-32">库内状态</th>
+                <th class="py-2.5 px-3 font-medium">库内对应记录 & 资产情况</th>
+              </tr>
+            </thead>
+            <tbody id="doubanHotTableBody" class="divide-y divide-slate-800/40">
+              <tr>
+                <td colspan="5" class="text-center py-8 text-slate-500 font-mono">
+                  正在拉取豆瓣实时榜单并与库内资产对照...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <!-- 搜索、分类与全属性多维组合检索控制器 -->
       <section class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4">
         <!-- 分类快速标签切换 -->
@@ -1223,6 +1305,7 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
 
           // 实时重新计算大盘顶部 KPI 指标
           recalculateTopKpi();
+          if (typeof renderDoubanHotComparison === 'function') renderDoubanHotComparison();
 
           // 触发筛选与渲染
           filterAndSortMovies();
@@ -2734,6 +2817,198 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       // 初始化：立即执行实时全量拉取
       fetchLiveResources();
       refreshLiveAnalytics(false);
+      fetchDoubanHot();
+
+      // ==========================================
+      // 8. 豆瓣热门 Top 50 与库内资产对照
+      // ==========================================
+      let doubanHotCache = { movie: [], tv: [] };
+      let currentDoubanTab = 'movie';
+      let currentDoubanStatus = 'all';
+
+      function normalizeTitleForMatch(str) {
+        return String(str || '')
+          .toLowerCase()
+          .replace(/[\s·:：\-—_.,!！?？()（）\[\]【】《》""''/\\]/g, '')
+          .trim();
+      }
+
+      function findMatchInDb(doubanTitle, tabType) {
+        if (!Array.isArray(rawMovies) || rawMovies.length === 0) return null;
+        const rawClean = String(doubanTitle || '').trim();
+        const norm = normalizeTitleForMatch(rawClean);
+        const normNoSeven = norm.startsWith('七') ? norm.slice(1) : norm;
+
+        // 先筛选分类倾向，若跨类也能兜底命中
+        const isPreferredCat = (m) => {
+          if (tabType === 'movie') return m.category === '电影';
+          return m.category === '电视剧' || m.category === '动漫' || m.category === '综艺';
+        };
+
+        let exactList = rawMovies.filter(m => {
+          const mn = normalizeTitleForMatch(m.title);
+          const mnAlt = mn.startsWith('七') ? mn.slice(1) : mn;
+          return mn === norm || mn === normNoSeven || mnAlt === norm;
+        });
+
+        if (exactList.length === 0) {
+          // 前缀/包含匹配（长度 >= 2 且去掉常见季度词避免误命中，如《庆余年》匹配《庆余年 第一季》）
+          const baseNorm = norm.replace(/第[一二三四五六七八九十0-9]+[季部]/g, '');
+          if (baseNorm.length >= 2) {
+            exactList = rawMovies.filter(m => {
+              const mn = normalizeTitleForMatch(m.title).replace(/第[一二三四五六七八九十0-9]+[季部]/g, '');
+              return mn === baseNorm;
+            });
+          }
+        }
+
+        if (exactList.length === 0) return null;
+        // 优先选择有网盘、有元数据、同分类的记录
+        return exactList.sort((a, b) => {
+          const scoreA = (isPreferredCat(a) ? 10 : 0) + (a.has_metadata ? 5 : 0) + ((a.share_link || a.share_link_uc) ? 3 : 0);
+          const scoreB = (isPreferredCat(b) ? 10 : 0) + (b.has_metadata ? 5 : 0) + ((b.share_link || b.share_link_uc) ? 3 : 0);
+          return scoreB - scoreA;
+        })[0];
+      }
+
+      function renderDoubanHotComparison() {
+        const list = doubanHotCache[currentDoubanTab] || [];
+        const tbody = document.getElementById('doubanHotTableBody');
+        const badge = document.getElementById('doubanSummaryBadge');
+        if (!tbody) return;
+
+        if (!list.length) {
+          tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-500">暂无豆瓣榜单数据，请点击右上角刷新重试</td></tr>`;
+          return;
+        }
+
+        let readyCnt = 0;
+        let partialCnt = 0;
+        let missingCnt = 0;
+
+        const enriched = list.map(item => {
+          const match = findMatchInDb(item.title, currentDoubanTab);
+          let status = 'missing';
+          if (match) {
+            const hasPan = Boolean(match.share_link || match.share_link_uc);
+            if (match.has_metadata && hasPan) {
+              status = 'ready';
+              readyCnt++;
+            } else {
+              status = 'partial';
+              partialCnt++;
+            }
+          } else {
+            missingCnt++;
+          }
+          return { ...item, match, status };
+        });
+
+        const covered = readyCnt + partialCnt;
+        const coveragePct = list.length > 0 ? Math.round((covered / list.length) * 100) : 0;
+
+        const elCov = document.getElementById('doubanStatCoverage');
+        const elReady = document.getElementById('doubanStatReady');
+        const elPartial = document.getElementById('doubanStatPartial');
+        const elMissing = document.getElementById('doubanStatMissing');
+        if (elCov) elCov.textContent = `${covered}/${list.length} (${coveragePct}%)`;
+        if (elReady) elReady.textContent = `${readyCnt} 部`;
+        if (elPartial) elPartial.textContent = `${partialCnt} 部`;
+        if (elMissing) elMissing.textContent = `${missingCnt} 部`;
+        if (badge) badge.textContent = `${currentDoubanTab === 'movie' ? '热门电影' : '热门剧集'}前${list.length} · 已就绪 ${readyCnt} / 缺失 ${missingCnt}`;
+
+        const filtered = currentDoubanStatus === 'all'
+          ? enriched
+          : enriched.filter(x => x.status === currentDoubanStatus);
+
+        if (!filtered.length) {
+          tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-500">当前筛选状态下没有匹配记录</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = filtered.map(row => {
+          const statusBadge = row.status === 'ready'
+            ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">✅ 已就绪</span>`
+            : (row.status === 'partial'
+              ? `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-500/15 text-amber-300 border border-amber-500/30">⚠️ ${row.match?.has_metadata ? '缺网盘链接' : '缺元数据'}</span>`
+              : `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-rose-500/15 text-rose-300 border border-rose-500/30">❌ 库中缺失</span>`);
+
+          let dbDetailHtml = `<span class="text-slate-500 text-[11px]">尚未入库（可纳入下轮自动采集）</span>`;
+          if (row.match) {
+            const m = row.match;
+            const tags = [];
+            if (m.share_link) tags.push(`<span class="px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30 text-[10px]">夸克</span>`);
+            if (m.share_link_uc) tags.push(`<span class="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 text-[10px]">UC</span>`);
+            if (m.online_play_url) tags.push(`<span class="px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[10px]">M3U8</span>`);
+            if (!m.has_metadata) tags.push(`<span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px]">未发布</span>`);
+
+            const titleLink = m.has_metadata
+              ? `<a href="/movie/${m.id}" target="_blank" class="text-slate-200 hover:text-orange-400 font-medium hover:underline">${m.title}</a>`
+              : `<span class="text-slate-300 font-medium">${m.title}</span>`;
+            dbDetailHtml = `
+              <div class="flex flex-wrap items-center gap-1.5">
+                ${titleLink}
+                <span class="text-[10px] text-slate-500">[${m.category || '未知'}]</span>
+                ${tags.join('')}
+              </div>
+            `;
+          }
+
+          return `
+            <tr class="hover:bg-slate-900/60 transition">
+              <td class="py-2.5 px-3 text-center font-mono text-slate-400">${row.rank}</td>
+              <td class="py-2.5 px-3">
+                <div class="flex items-center gap-2.5">
+                  <a href="${row.url}" target="_blank" class="font-medium text-slate-100 hover:text-emerald-400 transition hover:underline">${row.title}</a>
+                  ${row.is_new ? '<span class="px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[9px] font-bold">NEW</span>' : ''}
+                </div>
+              </td>
+              <td class="py-2.5 px-2 text-center font-mono text-amber-300 font-semibold">${row.rate || '-'}</td>
+              <td class="py-2.5 px-3 text-center">${statusBadge}</td>
+              <td class="py-2.5 px-3">${dbDetailHtml}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      async function fetchDoubanHot() {
+        const badge = document.getElementById('doubanSummaryBadge');
+        if (badge) badge.textContent = '正在拉取豆瓣实时榜单...';
+        try {
+          const res = await fetch('/api/admin/douban-hot', { cache: 'no-store' });
+          const data = await res.json();
+          if (data.success) {
+            doubanHotCache = { movie: data.movies || [], tv: data.tvs || [] };
+            renderDoubanHotComparison();
+          } else {
+            if (badge) badge.textContent = `拉取失败: ${data.error || '请重试'}`;
+          }
+        } catch (err) {
+          if (badge) badge.textContent = '边缘接口请求失败';
+        }
+      }
+
+      document.querySelectorAll('.douban-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentDoubanTab = btn.getAttribute('data-db-tab') || 'movie';
+          document.querySelectorAll('.douban-tab-btn').forEach(b => {
+            b.className = 'douban-tab-btn px-3 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-white border border-transparent cursor-pointer transition';
+          });
+          btn.className = 'douban-tab-btn px-3 py-1 rounded-md text-xs font-medium bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-pointer transition';
+          renderDoubanHotComparison();
+        });
+      });
+
+      document.querySelectorAll('.douban-status-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          currentDoubanStatus = btn.getAttribute('data-db-status') || 'all';
+          document.querySelectorAll('.douban-status-btn').forEach(b => b.classList.remove('bg-slate-800', 'text-white'));
+          btn.classList.add('bg-slate-800', 'text-white');
+          renderDoubanHotComparison();
+        });
+      });
+
+      document.getElementById('refreshDoubanHotBtn')?.addEventListener('click', fetchDoubanHot);
 
       // 开启静默轮询（每 25 秒在标签页处于前台时自动刷新）
       setInterval(() => {
