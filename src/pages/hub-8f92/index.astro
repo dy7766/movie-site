@@ -499,6 +499,72 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
         </div>
       </section>
 
+      <!-- 访客用户追踪与个人埋点流水 -->
+      <section class="bg-slate-900/75 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
+          <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400">
+              👥
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-sm font-bold text-white tracking-wide">访客用户追踪与埋点流水</h3>
+                <span id="trackedUserTotalBadge" class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 font-mono">
+                  统计中...
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">按访客 ID / IP 聚合活跃用户，点击左侧任意用户即可查看其完整访问与转化轨迹</p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <input
+              id="userTrackSearchInput"
+              type="text"
+              placeholder="搜索访客ID / IP / 地区..."
+              class="px-3 py-1.5 bg-slate-950 border border-slate-700/80 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500/60 w-48"
+            />
+            <select id="userTrackDaysSelect" class="px-2.5 py-1.5 bg-slate-950 border border-slate-700/80 rounded-lg text-xs text-slate-200 focus:outline-none">
+              <option value="7">近 7 天</option>
+              <option value="30" selected>近 30 天</option>
+              <option value="0">全部时间</option>
+            </select>
+            <button id="refreshUserTrackBtn" type="button" class="px-3 py-1.5 rounded-lg bg-indigo-500/20 hover:bg-indigo-500/30 border border-indigo-500/40 text-indigo-300 text-xs font-medium transition cursor-pointer">
+              🔄 刷新
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <!-- 左栏：活跃用户列表 -->
+          <div class="lg:col-span-5 bg-slate-950/70 border border-slate-800/80 rounded-xl p-3 flex flex-col justify-between min-h-[400px]">
+            <div id="trackedUsersList" class="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+              <div class="text-center py-14 text-slate-500 text-xs">正在加载活跃用户列表...</div>
+            </div>
+            <div class="pt-3 mt-3 border-t border-slate-800/60 flex items-center justify-between text-[11px] text-slate-400">
+              <span id="trackedUsersPageInfo" class="font-mono">第 1 / 1 页</span>
+              <div class="flex items-center gap-1.5">
+                <button id="prevTrackedUserPageBtn" type="button" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 cursor-pointer">上一页</button>
+                <button id="nextTrackedUserPageBtn" type="button" class="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 disabled:opacity-40 cursor-pointer">下一页</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 右栏：选中用户的埋点流水时间线 -->
+          <div class="lg:col-span-7 bg-slate-950/70 border border-slate-800/80 rounded-xl p-4 flex flex-col min-h-[400px]">
+            <div id="selectedUserHeader" class="pb-3 mb-3 border-b border-slate-800/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <div class="text-xs font-bold text-slate-200">请从左侧选择一位访客查看埋点流水</div>
+                <div class="text-[11px] text-slate-500 mt-0.5">支持查看 PV 浏览路径、夸克/UC 转存与在线播放记录</div>
+              </div>
+            </div>
+            <div id="selectedUserEventsList" class="space-y-2 max-h-[410px] overflow-y-auto pr-1 flex-1">
+              <div class="text-center py-16 text-slate-500 text-xs">暂无选中用户</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <!-- 豆瓣实时热门 Top 50 与库内资源对照 -->
       <section class="bg-slate-900/75 border border-slate-800 rounded-2xl p-5 space-y-4 shadow-xl">
         <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-slate-800/80 pb-4">
@@ -2935,6 +3001,219 @@ const categories = ['全部', '电影', '电视剧', '综艺', '动漫', '纪录
       });
 
       document.getElementById('refreshDoubanHotBtn')?.addEventListener('click', fetchDoubanHot);
+
+      // ==========================================
+      // 7. 访客用户追踪与单用户埋点流水
+      // ==========================================
+      const userTrackState = {
+        page: 1,
+        pageSize: 25,
+        totalUsers: 0,
+        q: '',
+        days: '30',
+        selectedUid: ''
+      };
+
+      function escHtml(str) {
+        return String(str || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;');
+      }
+
+      function formatTrackTime(iso) {
+        if (!iso) return '-';
+        return new Date(iso).toLocaleString('zh-CN', {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      }
+
+      async function loadUserTrackingList(page = 1) {
+        userTrackState.page = page;
+        const listEl = document.getElementById('trackedUsersList');
+        const badgeEl = document.getElementById('trackedUserTotalBadge');
+        const pageInfoEl = document.getElementById('trackedUsersPageInfo');
+        const prevBtn = document.getElementById('prevTrackedUserPageBtn');
+        const nextBtn = document.getElementById('nextTrackedUserPageBtn');
+        if (!listEl) return;
+
+        const params = new URLSearchParams({
+          page: String(userTrackState.page),
+          pageSize: String(userTrackState.pageSize),
+          days: userTrackState.days,
+          q: userTrackState.q
+        });
+
+        try {
+          const res = await fetch(`/api/admin/users?${params.toString()}`, { cache: 'no-store' });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || '加载失败');
+
+          userTrackState.totalUsers = data.totalUsers || 0;
+          const totalPages = Math.ceil(userTrackState.totalUsers / userTrackState.pageSize) || 1;
+
+          if (badgeEl) badgeEl.textContent = `共 ${userTrackState.totalUsers} 位用户`;
+          if (pageInfoEl) pageInfoEl.textContent = `第 ${userTrackState.page} / ${totalPages} 页`;
+          if (prevBtn) prevBtn.disabled = userTrackState.page <= 1;
+          if (nextBtn) nextBtn.disabled = userTrackState.page >= totalPages;
+
+          const users = data.users || [];
+          if (users.length === 0) {
+            listEl.innerHTML = `<div class="text-center py-14 text-slate-500 text-xs">当前条件下暂无访客记录</div>`;
+            return;
+          }
+
+          // 默认选中第一条（如果尚未选中）
+          if (!userTrackState.selectedUid && users[0]) {
+            userTrackState.selectedUid = users[0].uid;
+            selectTrackedUser(users[0]);
+          }
+
+          listEl.innerHTML = users.map(u => {
+            const isSelected = u.uid === userTrackState.selectedUid;
+            const locText = u.location ? u.location.split(',')[0] : '';
+            const payload = encodeURIComponent(JSON.stringify(u));
+            return `
+              <button
+                type="button"
+                onclick="window.handleSelectTrackedUser('${payload}')"
+                class="w-full text-left p-2.5 rounded-lg border transition cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-500/15 border-indigo-500/50 shadow-sm'
+                    : 'bg-slate-900/60 border-slate-800/60 hover:bg-slate-900 hover:border-slate-700'
+                }"
+              >
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span>${u.device === 'mobile' ? '📱' : '💻'}</span>
+                    <span class="font-mono text-xs font-semibold text-indigo-300 truncate" title="${escHtml(u.uid)}">${escHtml(u.uid)}</span>
+                  </div>
+                  <span class="text-[10px] font-mono text-slate-500 flex-shrink-0">${formatTrackTime(u.lastSeen)}</span>
+                </div>
+                <div class="mt-1.5 flex items-center justify-between gap-2 text-[10px]">
+                  <span class="text-slate-400 font-mono truncate">${u.ip ? `📍 ${escHtml(u.ip)}${locText ? ` (${escHtml(locText)})` : ''}` : '未知 IP'}</span>
+                  <div class="flex items-center gap-1 flex-shrink-0 font-mono">
+                    <span class="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">总 ${u.totalEvents}</span>
+                    <span class="px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-300">PV ${u.pvCount}</span>
+                    ${(u.quarkCount + u.ucCount) > 0 ? `<span class="px-1.5 py-0.5 rounded bg-purple-500/15 text-purple-300">存 ${u.quarkCount + u.ucCount}</span>` : ''}
+                    ${u.playCount > 0 ? `<span class="px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-300">播 ${u.playCount}</span>` : ''}
+                  </div>
+                </div>
+              </button>
+            `;
+          }).join('');
+        } catch (err) {
+          listEl.innerHTML = `<div class="text-center py-14 text-rose-400 text-xs">加载用户列表失败: ${escHtml(err.message)}</div>`;
+        }
+      }
+
+      window.handleSelectTrackedUser = function(encodedUser) {
+        try {
+          const userObj = JSON.parse(decodeURIComponent(encodedUser));
+          userTrackState.selectedUid = userObj.uid;
+          // 刷新左栏选中态但不重置页码
+          loadUserTrackingList(userTrackState.page);
+          selectTrackedUser(userObj);
+        } catch {}
+      };
+
+      async function selectTrackedUser(userObj) {
+        const headerEl = document.getElementById('selectedUserHeader');
+        const eventsEl = document.getElementById('selectedUserEventsList');
+        if (!headerEl || !eventsEl) return;
+
+        headerEl.innerHTML = `
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs font-bold text-white font-mono">${escHtml(userObj.uid)}</span>
+              <span class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 font-mono">${userObj.device === 'mobile' ? '📱 移动端' : '💻 桌面端'}</span>
+              ${userObj.ip ? `<span class="px-1.5 py-0.5 rounded bg-slate-800 text-[10px] text-slate-300 font-mono">${escHtml(userObj.ip)}${userObj.location ? ` · ${escHtml(userObj.location)}` : ''}</span>` : ''}
+            </div>
+            <div class="text-[11px] text-slate-400 mt-1 font-mono">
+              首次: ${formatTrackTime(userObj.firstSeen)} · 最近: ${formatTrackTime(userObj.lastSeen)}
+            </div>
+          </div>
+          <div class="flex items-center gap-1.5 text-[11px] font-mono flex-shrink-0">
+            <span class="px-2 py-0.5 rounded bg-blue-500/15 text-blue-300 border border-blue-500/30">PV ${userObj.pvCount}</span>
+            <span class="px-2 py-0.5 rounded bg-purple-500/15 text-purple-300 border border-purple-500/30">夸克 ${userObj.quarkCount}</span>
+            <span class="px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-500/30">UC ${userObj.ucCount}</span>
+            <span class="px-2 py-0.5 rounded bg-rose-500/15 text-rose-300 border border-rose-500/30">播放 ${userObj.playCount}</span>
+          </div>
+        `;
+
+        eventsEl.innerHTML = `<div class="text-center py-14 text-slate-400 text-xs animate-pulse">正在查询该用户的埋点流水...</div>`;
+
+        try {
+          const res = await fetch(`/api/admin/users?uid=${encodeURIComponent(userObj.uid)}&limit=200`, { cache: 'no-store' });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || '查询失败');
+
+          const events = data.events || [];
+          if (events.length === 0) {
+            eventsEl.innerHTML = `<div class="text-center py-14 text-slate-500 text-xs">该用户暂无埋点明细</div>`;
+            return;
+          }
+
+          const evLabels = {
+            page_view: { text: 'PV 浏览', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
+            click_quark: { text: '夸克保存', color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
+            click_uc: { text: 'UC保存', color: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
+            click_play: { text: '在线播放', color: 'bg-rose-500/20 text-rose-300 border-rose-500/30' }
+          };
+
+          eventsEl.innerHTML = events.map(ev => {
+            const badge = evLabels[ev.event_type] || { text: ev.event_type, color: 'bg-slate-800 text-slate-400 border-slate-700' };
+            const titleHtml = ev.resource_id
+              ? `<a href="/movie/${escHtml(ev.resource_id)}" target="_blank" class="text-slate-200 hover:text-orange-400 font-medium hover:underline truncate">${escHtml(ev.resource_title || ev.page_url || '影视详情页')}</a>`
+              : `<span class="text-slate-200 truncate">${escHtml(ev.resource_title || ev.page_url || '页面访问')}</span>`;
+            return `
+              <div class="p-2.5 rounded-lg bg-slate-900/60 border border-slate-800/50 space-y-1">
+                <div class="flex items-center justify-between gap-2 text-xs">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-medium border flex-shrink-0 ${badge.color}">${badge.text}</span>
+                    ${titleHtml}
+                  </div>
+                  <span class="text-[10px] font-mono text-slate-400 flex-shrink-0">${formatTrackTime(ev.created_at)}</span>
+                </div>
+                <div class="flex items-center justify-between gap-2 text-[10px] text-slate-500 font-mono">
+                  <span class="truncate">${ev.page_url ? `🔗 ${escHtml(ev.page_url)}` : ''}</span>
+                  <span class="flex-shrink-0">${ev.referrer ? `来源: ${escHtml(ev.referrer)}` : ''}</span>
+                </div>
+              </div>
+            `;
+          }).join('');
+        } catch (err) {
+          eventsEl.innerHTML = `<div class="text-center py-14 text-rose-400 text-xs">加载埋点流水失败: ${escHtml(err.message)}</div>`;
+        }
+      }
+
+      let userTrackSearchTimer = null;
+      document.getElementById('userTrackSearchInput')?.addEventListener('input', (e) => {
+        userTrackState.q = e.target.value.trim();
+        userTrackState.selectedUid = '';
+        clearTimeout(userTrackSearchTimer);
+        userTrackSearchTimer = setTimeout(() => loadUserTrackingList(1), 200);
+      });
+      document.getElementById('userTrackDaysSelect')?.addEventListener('change', (e) => {
+        userTrackState.days = e.target.value;
+        userTrackState.selectedUid = '';
+        loadUserTrackingList(1);
+      });
+      document.getElementById('refreshUserTrackBtn')?.addEventListener('click', () => loadUserTrackingList(userTrackState.page));
+      document.getElementById('prevTrackedUserPageBtn')?.addEventListener('click', () => {
+        if (userTrackState.page > 1) loadUserTrackingList(userTrackState.page - 1);
+      });
+      document.getElementById('nextTrackedUserPageBtn')?.addEventListener('click', () => {
+        const totalPages = Math.ceil(userTrackState.totalUsers / userTrackState.pageSize) || 1;
+        if (userTrackState.page < totalPages) loadUserTrackingList(userTrackState.page + 1);
+      });
+
+      loadUserTrackingList(1);
 
       // 开启静默轮询（每 25 秒在标签页处于前台时自动刷新）
       setInterval(() => {
